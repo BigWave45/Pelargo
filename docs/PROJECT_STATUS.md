@@ -7,36 +7,47 @@ Last updated: 5 November 2026
 
 Default branch `main` is unchanged. Do not merge or deploy to production without explicit approval.
 
-## Product target
-A merchant-embeddable checkout that lets a buyer pay from a supported asset and lets the merchant receive a specified destination asset through NEAR Intents 1Click.
-
-## Verified repository state
+## Verified starting state
 - React 19 + TypeScript + Vite frontend.
-- Existing Northwind Goods storefront, checkout widget and merchant view.
-- Quote amounts, deposit addresses, QR pattern, transaction hashes, payment progress and settlement history are mock data.
-- The widget auto-advances to a successful receipt after six seconds without a blockchain payment.
-- The QR graphic is a generated decorative pattern, not a valid QR encoding.
-- `.env.example` contains only an unused `INTENTS_API_KEY` placeholder.
-- Existing GitHub Actions workflow deploys the static frontend to GitHub Pages.
+- Northwind Goods storefront, checkout widget and merchant view exist.
+- Quotes, deposit addresses, QR artwork, transaction hashes, progress and settlement history are mock data.
+- The widget previously auto-advanced to a successful receipt without a blockchain payment.
+- The QR graphic is decorative, not a valid QR encoding.
+- The existing GitHub Pages workflow deploys only from `main`.
 
-## Critical integration constraint
-NEAR Intents 1Click is a mainnet service; no official testnet deployment has been verified. A `dry: true` quote is a price preview and does not create a deposit address. A `dry: false` quote creates a real deposit address and can lead to a real mainnet payment. Never request a wet quote or initiate a payment without the operator explicitly approving that test.
+## Changes committed to this branch
+- Added Cloudflare Pages Functions routes:
+  - `GET /api/tokens`
+  - `POST /api/quote`
+  - `GET /api/status?depositAddress=...`
+- Added a shared server-side 1Click request helper.
+- Committed quotes (`dry: false`) are blocked unless `ALLOW_MAINNET_DEPOSITS=true` is deliberately configured.
+- Added `wrangler.toml` for Cloudflare Pages configuration.
+- Rewrote README to distinguish prototype UI from live integration.
+- Added CI workflow for TypeScript checking and frontend build.
+
+These are scaffolding changes. They have not yet been deployed or verified against the live API. The frontend is not yet connected to these routes.
+
+## Critical network constraint
+NEAR Intents 1Click is a mainnet service; no official testnet deployment is available in the documented flow. A `dry: true` quote is a price preview and does not create a deposit address. A `dry: false` quote creates a real mainnet deposit address. Do not enable committed quotes or initiate payment without explicit operator approval.
 
 ## Decisions
-- Keep the existing UI and work incrementally; do not redesign it.
-- Free-first infrastructure. No Supabase dependency.
-- Keep API credentials server-side if/when supplied. Never expose JWTs in Vite client variables.
-- First milestone: prove token discovery and a dry quote against the live 1Click API.
-- Do not claim testnet, guaranteed rates, instant settlement, zero slippage, or payment success without evidence.
-- No wallet connector, merchant SaaS dashboard, analytics, webhooks or additional providers in the first milestone.
+- Keep the existing UI and work incrementally; no redesign.
+- Free-first infrastructure; no Supabase dependency.
+- Use Cloudflare Pages Functions for the API. No database until persistent order binding is demonstrably needed.
+- Keep any partner JWT in a Cloudflare secret, never in Vite client variables.
+- Start with token discovery and dry quote only.
+- Do not claim testnet, guaranteed rates, instant settlement, zero slippage or payment success without evidence.
+- No wallet connector, SaaS dashboard, analytics, webhooks or extra providers in the first milestone.
 
 ## Next actions
-1. Confirm current 1Click API request/response schema and supported asset IDs.
-2. Implement a minimal Cloudflare Worker proxy for token discovery, dry quote, committed quote and status lookup, with strict route allowlisting and input validation.
-3. Add D1 only if persistent order-to-quote binding is required for the first working demo.
-4. Connect one supported route in the existing widget.
-5. Test quote preview first. Request explicit approval before any real deposit/payment test.
-6. Remove or clearly isolate all mock settlement paths before presenting the app as live.
+1. Confirm CI passes on this branch.
+2. Verify the 1Click token list and dry-quote schema against the live service.
+3. Configure a free Cloudflare Pages project and deploy this branch's frontend + Functions.
+4. Connect the widget to live token discovery and dry quotes.
+5. Replace decorative QR artwork with a standards-compliant QR encoding when a real deposit address exists.
+6. Add committed quote support only after an explicitly approved mainnet test plan, valid merchant destination address and refund address are available.
+7. Poll status to terminal state; mark paid only after `SUCCESS` and verify destination transaction details.
 
 ## Submission standard
-The README and demo must distinguish mock screens from live functionality. Only mark an order paid after 1Click reports terminal `SUCCESS` and the returned destination transaction details are available.
+The README and demo must distinguish mock screens from live functionality. Never mark an order paid merely because a timer elapsed or a quote was created.
