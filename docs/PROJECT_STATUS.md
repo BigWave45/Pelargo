@@ -127,3 +127,11 @@ Do not invent test results, deployment status, API capabilities or payment outco
 ## Submission standard
 
 The public repository, deployed demo and hackathon explanation must clearly distinguish prototype screens from live functionality. A judge must be able to tell exactly which parts are operational and what evidence supports each claim.
+
+## Diagnostic change — 5 November 2026
+
+- **Completed:** Commit `aa7580519a368d8faab0b88954f0332f3a4edaa2` adds sanitized server-side logging to `GET /api/tokens` when the upstream fetch throws. The log records only the error name and message; it does not log request headers, JWTs or payment data.
+- **Completed:** The public 502 response now includes the stable code `UPSTREAM_FETCH_FAILED` and the Cloudflare `cf-ray` request identifier when available. The underlying exception message is not exposed publicly.
+- **Verified:** The change was committed to `build/live-intents`. Source inspection confirms the diagnostic log is inside the fetch exception handler.
+- **Not verified:** The change has not been deployed or exercised in the Cloudflare runtime. No root cause has been established. This diagnostic only covers thrown fetch failures; non-2xx upstream HTTP responses continue to be forwarded as-is.
+- **Next action:** With explicit approval, deploy this branch, request `/api/tokens` once, and inspect the matching Cloudflare Function log using the returned `cf-ray` identifier.
