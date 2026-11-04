@@ -1,15 +1,46 @@
 import React, { useState, useEffect } from "react";
-import { Sun, Moon, ShoppingBag, Compass, Sparkles, Code2, Check, Copy } from "lucide-react";
+import {
+  Sun,
+  Moon,
+  Compass,
+  Sparkles,
+  Code2,
+  Check,
+  Copy,
+  ShoppingBag,
+  Store,
+  BarChart3,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { PelargoWidget, WidgetScreen } from "./components/PelargoWidget.tsx";
 import { PelargoBird } from "./components/BrandMark.tsx";
-import { MOCK_ORDER } from "./mock/data.ts";
+import { MerchantDashboard } from "./components/MerchantDashboard.tsx";
+import {
+  MOCK_ORDER,
+  STORE_PRODUCTS,
+  INITIAL_SETTLEMENT_HISTORY,
+  StoreProduct,
+  SettlementRecord,
+} from "./mock/data.ts";
 
 export default function App() {
+  const [activeTab, setActiveTab] = useState<"store" | "merchant">("store");
   const [isWidgetOpen, setIsWidgetOpen] = useState(false);
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [activeScreen, setActiveScreen] = useState<WidgetScreen>("summary");
   const [customAccent, setCustomAccent] = useState<string | undefined>(undefined);
   const [copiedSnippet, setCopiedSnippet] = useState(false);
+
+  // Cart state
+  const [cart, setCart] = useState<{ product: StoreProduct; quantity: number }[]>([
+    { product: STORE_PRODUCTS[0], quantity: 1 },
+  ]);
+
+  // Merchant settlement history (live state)
+  const [settlements, setSettlements] = useState<SettlementRecord[]>(
+    INITIAL_SETTLEMENT_HISTORY
+  );
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
@@ -24,8 +55,39 @@ export default function App() {
     setIsWidgetOpen(true);
   };
 
+  const addToCart = (product: StoreProduct) => {
+    setCart((prev) => {
+      const existing = prev.find((item) => item.product.id === product.id);
+      if (existing) {
+        return prev.map((item) =>
+          item.product.id === product.id
+            ? { ...item, quantity: item.quantity + 1 }
+            : item
+        );
+      }
+      return [...prev, { product, quantity: 1 }];
+    });
+  };
+
+  const removeFromCart = (productId: string) => {
+    setCart((prev) => prev.filter((item) => item.product.id !== productId));
+  };
+
+  const cartTotal = cart.reduce(
+    (sum, item) => sum + item.product.priceUsdc * item.quantity,
+    0
+  );
+
+  const cartItemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+
+  const activeOrderId = `NW-${10480 + settlements.length + 1}`;
+
+  const handleSettlementComplete = (record: SettlementRecord) => {
+    setSettlements((prev) => [record, ...prev]);
+  };
+
   const integrationSnippet = `<script src="https://cdn.pelargo.io/v1/checkout.js" async></script>
-<button data-pelargo-pay data-amount="25.00" data-recipient="northwind.eth">
+<button data-pelargo-pay data-amount="${cartTotal.toFixed(2)}" data-recipient="northwind.eth">
   Pay with Pelargo
 </button>`;
 
@@ -37,14 +99,55 @@ export default function App() {
 
   return (
     <div className="demo-store-page">
-      {/* Demo Merchant Store Header */}
+      {/* Navigation Header */}
       <header className="demo-header">
         <div className="demo-brand">
           <Compass size={22} style={{ color: "var(--accent)" }} />
           <span>Northwind Goods</span>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
-          <div className="demo-cart-badge">1 item in cart</div>
+
+        {/* View Switcher: Storefront vs Merchant Portal */}
+        <div className="demo-nav-tabs" role="tablist" aria-label="Application views">
+          <button
+            type="button"
+            className={`demo-nav-tab ${activeTab === "store" ? "demo-nav-tab--active" : ""}`}
+            onClick={() => setActiveTab("store")}
+            role="tab"
+            aria-selected={activeTab === "store"}
+          >
+            <Store size={14} />
+            <span>Storefront</span>
+          </button>
+          <button
+            type="button"
+            className={`demo-nav-tab ${activeTab === "merchant" ? "demo-nav-tab--active" : ""}`}
+            onClick={() => setActiveTab("merchant")}
+            role="tab"
+            aria-selected={activeTab === "merchant"}
+          >
+            <BarChart3 size={14} />
+            <span>Merchant Portal</span>
+            <span
+              style={{
+                width: "var(--space-1)",
+                height: "var(--space-1)",
+                borderRadius: "var(--radius-full)",
+                backgroundColor: "var(--success)",
+              }}
+              aria-hidden="true"
+            />
+          </button>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
+          {activeTab === "store" && (
+            <div className="demo-cart-btn" aria-label={`Shopping cart with ${cartItemCount} items`}>
+              <ShoppingBag size={15} style={{ color: "var(--accent)" }} />
+              <span>{cartItemCount} item{cartItemCount !== 1 ? "s" : ""}</span>
+              <span style={{ fontWeight: "var(--fw-semibold)" }}>${cartTotal.toFixed(2)}</span>
+            </div>
+          )}
+
           <button
             type="button"
             className="pelargo-icon-btn"
@@ -57,114 +160,191 @@ export default function App() {
         </div>
       </header>
 
-      {/* Main Store Content */}
+      {/* Main Content Area */}
       <main className="demo-main">
-        <section className="demo-product-card" aria-label="Product details">
-          <div className="demo-product-visual">
-            <div
-              style={{
-                width: "calc(var(--space-6) * 3)",
-                height: "calc(var(--space-6) * 4)",
-                backgroundColor: "var(--surface)",
-                border: "1px solid var(--border)",
-                borderRadius: "var(--radius-md)",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                boxShadow: "var(--shadow)",
-                gap: "var(--space-2)",
-              }}
-            >
-              <ShoppingBag size={32} style={{ color: "var(--accent)" }} />
-              <span style={{ fontSize: "var(--fs-xs)", color: "var(--muted)", letterSpacing: "0.08em" }}>
-                EDITION NO. 04
-              </span>
-            </div>
-          </div>
+        {activeTab === "merchant" ? (
+          <MerchantDashboard settlements={settlements} />
+        ) : (
+          <>
+            {/* Catalog Grid */}
+            <section aria-label="Product Catalog">
+              <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-1)", marginBottom: "var(--space-4)" }}>
+                <h1 style={{ fontSize: "var(--fs-xl)", fontWeight: "var(--fw-semibold)", color: "var(--text)" }}>
+                  Field & Studio Equipment
+                </h1>
+                <p style={{ fontSize: "var(--fs-sm)", color: "var(--muted)" }}>
+                  Waterproof paper, raw machined metal, and expedition canvas. Direct intent checkout in any token.
+                </p>
+              </div>
 
-          <div className="demo-product-info">
-            <span className="demo-category-tag">Field & Studio Collection</span>
-            <h2 className="demo-product-title">{MOCK_ORDER.itemTitle}</h2>
-            <p className="demo-product-desc">{MOCK_ORDER.itemDescription}</p>
+              <div className="demo-catalog-grid">
+                {STORE_PRODUCTS.map((prod) => (
+                  <div key={prod.id} className="demo-catalog-card">
+                    <div className="demo-catalog-visual">
+                      <ShoppingBag size={28} style={{ color: "var(--accent)" }} />
+                      <span style={{ fontSize: "var(--fs-xs)", color: "var(--muted)", letterSpacing: "0.08em" }}>
+                        {prod.edition}
+                      </span>
+                    </div>
 
-            <div className="demo-product-price">
-              <span>{MOCK_ORDER.orderTotal.toFixed(2)}</span>
-              <span className="demo-product-currency">{MOCK_ORDER.orderCurrency}</span>
-            </div>
+                    <div className="demo-catalog-content">
+                      <span style={{ fontSize: "var(--fs-xs)", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                        {prod.category}
+                      </span>
+                      <h2 style={{ fontSize: "var(--fs-md)", fontWeight: "var(--fw-semibold)", color: "var(--text)" }}>
+                        {prod.title}
+                      </h2>
+                      <p style={{ fontSize: "var(--fs-xs)", color: "var(--muted)", lineHeight: "var(--lh)" }}>
+                        {prod.description}
+                      </p>
+                    </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-              <button
-                type="button"
-                className="pelargo-primary-btn"
-                onClick={() => {
-                  setActiveScreen("summary");
-                  setIsWidgetOpen(true);
-                }}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "var(--space-2)",
-                }}
-              >
-                <PelargoBird size={16} />
-                <span>Pay with Pelargo</span>
-              </button>
-              <span
-                style={{
-                  fontSize: "var(--fs-xs)",
-                  color: "var(--muted)",
-                  textAlign: "center",
-                }}
-              >
-                Pay in seconds from your preferred token and chain
-              </span>
-            </div>
-          </div>
-        </section>
+                    <div className="demo-catalog-price-row">
+                      <span style={{ fontSize: "var(--fs-lg)", fontWeight: "var(--fw-semibold)", color: "var(--text)" }}>
+                        ${prod.priceUsdc.toFixed(2)}{" "}
+                        <span style={{ fontSize: "var(--fs-xs)", color: "var(--muted)", fontWeight: "var(--fw-regular)" }}>USDC</span>
+                      </span>
 
-        {/* Integration code box */}
-        <section className="demo-code-box" aria-label="Developer integration snippet">
-          <div className="demo-code-header">
-            <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
-              <Code2 size={15} />
-              <span>One-line merchant integration snippet</span>
-            </div>
-            <button
-              type="button"
-              onClick={copyCode}
-              style={{
-                background: "transparent",
-                border: "none",
-                color: "var(--muted)",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: "var(--space-1)",
-                fontSize: "var(--fs-xs)",
-              }}
-            >
-              {copiedSnippet ? (
-                <>
-                  <Check size={14} style={{ color: "var(--success)" }} />
-                  <span style={{ color: "var(--success)" }}>Copied</span>
-                </>
+                      <button
+                        type="button"
+                        className="demo-add-cart-btn"
+                        onClick={() => addToCart(prod)}
+                        aria-label={`Add ${prod.title} to cart`}
+                      >
+                        <Plus size={14} />
+                        <span>Add</span>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            {/* Active Cart & Pelargo Checkout Panel */}
+            <section className="demo-cart-panel" aria-label="Shopping Cart and Pelargo Checkout">
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid var(--border)", paddingBottom: "var(--space-3)" }}>
+                <div>
+                  <h2 style={{ fontSize: "var(--fs-md)", fontWeight: "var(--fw-semibold)", color: "var(--text)" }}>
+                    Cart Order ({activeOrderId})
+                  </h2>
+                  <span style={{ fontSize: "var(--fs-xs)", color: "var(--muted)" }}>
+                    {cart.length === 0 ? "Cart is empty" : `${cartItemCount} items selected`}
+                  </span>
+                </div>
+                <span style={{ fontSize: "var(--fs-xl)", fontWeight: "var(--fw-semibold)", color: "var(--text)" }}>
+                  ${cartTotal.toFixed(2)}{" "}
+                  <span style={{ fontSize: "var(--fs-sm)", color: "var(--muted)" }}>USDC</span>
+                </span>
+              </div>
+
+              {cart.length > 0 ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
+                  {cart.map((item) => (
+                    <div key={item.product.id} className="demo-cart-item-row">
+                      <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
+                        <span style={{ fontWeight: "var(--fw-semibold)", color: "var(--text)", fontSize: "var(--fs-sm)" }}>
+                          {item.quantity}×
+                        </span>
+                        <span style={{ fontSize: "var(--fs-sm)", color: "var(--text)" }}>
+                          {item.product.title}
+                        </span>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
+                        <span style={{ fontSize: "var(--fs-sm)", fontWeight: "var(--fw-semibold)", color: "var(--text)" }}>
+                          ${(item.product.priceUsdc * item.quantity).toFixed(2)}
+                        </span>
+                        <button
+                          type="button"
+                          className="pelargo-icon-btn"
+                          style={{ width: "var(--space-5)", height: "var(--space-5)" }}
+                          onClick={() => removeFromCart(item.product.id)}
+                          aria-label={`Remove ${item.product.title}`}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+
+                  <div style={{ paddingTop: "var(--space-3)", display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
+                    <button
+                      type="button"
+                      className="pelargo-primary-btn"
+                      onClick={() => {
+                        setActiveScreen("summary");
+                        setIsWidgetOpen(true);
+                      }}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: "var(--space-2)",
+                      }}
+                    >
+                      <PelargoBird size={16} />
+                      <span>Pay ${cartTotal.toFixed(2)} USDC with Pelargo</span>
+                    </button>
+                    <span
+                      style={{
+                        fontSize: "var(--fs-xs)",
+                        color: "var(--muted)",
+                        textAlign: "center",
+                      }}
+                    >
+                      Buyers pay in ETH, SOL, NEAR, or USDT • Merchant receives exact USDC on Base
+                    </span>
+                  </div>
+                </div>
               ) : (
-                <>
-                  <Copy size={14} />
-                  <span>Copy</span>
-                </>
+                <div style={{ textAlign: "center", padding: "var(--space-4) 0", color: "var(--muted)", fontSize: "var(--fs-sm)" }}>
+                  Your cart is empty. Click "+ Add" on any product above.
+                </div>
               )}
-            </button>
-          </div>
-          <pre className="demo-code-snippet">
-            <code>{integrationSnippet}</code>
-          </pre>
-        </section>
+            </section>
+
+            {/* Merchant Integration Code Box */}
+            <section className="demo-code-box" aria-label="Developer integration snippet">
+              <div className="demo-code-header">
+                <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
+                  <Code2 size={15} />
+                  <span>One-line merchant integration snippet</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={copyCode}
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    color: "var(--muted)",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "var(--space-1)",
+                    fontSize: "var(--fs-xs)",
+                  }}
+                >
+                  {copiedSnippet ? (
+                    <>
+                      <Check size={14} style={{ color: "var(--success)" }} />
+                      <span style={{ color: "var(--success)" }}>Copied</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy size={14} />
+                      <span>Copy</span>
+                    </>
+                  )}
+                </button>
+              </div>
+              <pre className="demo-code-snippet">
+                <code>{integrationSnippet}</code>
+              </pre>
+            </section>
+          </>
+        )}
       </main>
 
-      {/* Dev-only reviewer panel in corner */}
+      {/* Dev-only Reviewer Panel in corner */}
       <aside className="dev-panel" aria-label="Development review controls">
         <div className="dev-panel-header">
           <div style={{ display: "flex", alignItems: "center", gap: "var(--space-1)" }}>
@@ -205,7 +385,7 @@ export default function App() {
               className={`dev-panel-btn ${isWidgetOpen && activeScreen === "confirm" ? "dev-panel-btn--active" : ""}`}
               onClick={() => jumpToScreen("confirm")}
             >
-              3. Confirm
+              3. Confirm & QR
             </button>
             <button
               type="button"
@@ -271,6 +451,9 @@ export default function App() {
         initialScreen={activeScreen}
         onScreenChange={(s) => setActiveScreen(s)}
         accent={customAccent}
+        orderTotal={cartTotal > 0 ? cartTotal : MOCK_ORDER.orderTotal}
+        orderId={activeOrderId}
+        onSettlementComplete={handleSettlementComplete}
       />
     </div>
   );

@@ -9,6 +9,17 @@ export interface PayOption {
   decimals: number;
   iconType: 'eth' | 'usdc' | 'sol' | 'near' | 'usdt';
   chainIconType: 'ethereum' | 'base' | 'solana' | 'near' | 'arbitrum';
+  depositAddress: string;
+  explorerBaseUrl: string;
+}
+
+export interface StoreProduct {
+  id: string;
+  title: string;
+  category: string;
+  description: string;
+  priceUsdc: number;
+  edition: string;
 }
 
 export interface MerchantOrder {
@@ -19,6 +30,47 @@ export interface MerchantOrder {
   itemTitle: string;
   itemDescription: string;
 }
+
+export interface SettlementRecord {
+  id: string;
+  orderId: string;
+  timestamp: string;
+  buyerChain: string;
+  buyerToken: string;
+  amountPaid: string;
+  amountReceived: string;
+  feeUsdc: string;
+  txHash: string;
+  explorerUrl: string;
+  status: 'settled' | 'confirming';
+}
+
+export const STORE_PRODUCTS: StoreProduct[] = [
+  {
+    id: "journal-01",
+    title: "Field Technical Journal (Set of 2)",
+    category: "Field & Studio",
+    description: "Waterproof stone-paper notebook with laser-etched brass bookmark.",
+    priceUsdc: 25.00,
+    edition: "EDITION NO. 04",
+  },
+  {
+    id: "pen-02",
+    title: "Machined Solid Brass Pen",
+    category: "Studio Instruments",
+    description: "Balanced raw brass rollerball engineered with German ceramic refill.",
+    priceUsdc: 18.00,
+    edition: "EDITION NO. 02",
+  },
+  {
+    id: "bag-03",
+    title: "Waxed Canvas Field Bag",
+    category: "Expedition Gear",
+    description: "14oz water-resistant duck canvas with bridle leather straps.",
+    priceUsdc: 85.00,
+    edition: "EDITION NO. 01",
+  },
+];
 
 export const MOCK_ORDER: MerchantOrder = {
   merchantName: "Northwind Goods",
@@ -41,6 +93,8 @@ export const MOCK_PAY_OPTIONS: PayOption[] = [
     decimals: 2,
     iconType: "usdc",
     chainIconType: "base",
+    depositAddress: "0x892cA3b05B85392F8eF9dE9817C8A9eD3F6532f1",
+    explorerBaseUrl: "https://basescan.org/tx/",
   },
   {
     id: "eth-ethereum",
@@ -53,6 +107,8 @@ export const MOCK_PAY_OPTIONS: PayOption[] = [
     decimals: 4,
     iconType: "eth",
     chainIconType: "ethereum",
+    depositAddress: "0x71C94B48443B069Fa1C8983229b057d2a57842e9",
+    explorerBaseUrl: "https://etherscan.io/tx/",
   },
   {
     id: "sol-solana",
@@ -65,6 +121,8 @@ export const MOCK_PAY_OPTIONS: PayOption[] = [
     decimals: 3,
     iconType: "sol",
     chainIconType: "solana",
+    depositAddress: "9vG8KxM6Qn2P4R7tY8j8W5h3L1pV4zX6sA9qD2eF7uT",
+    explorerBaseUrl: "https://solscan.io/tx/",
   },
   {
     id: "near-near",
@@ -77,6 +135,8 @@ export const MOCK_PAY_OPTIONS: PayOption[] = [
     decimals: 2,
     iconType: "near",
     chainIconType: "near",
+    depositAddress: "intent-solver-vault.pelargo.near",
+    explorerBaseUrl: "https://nearblocks.io/txns/",
   },
   {
     id: "usdt-arbitrum",
@@ -89,6 +149,50 @@ export const MOCK_PAY_OPTIONS: PayOption[] = [
     decimals: 2,
     iconType: "usdt",
     chainIconType: "arbitrum",
+    depositAddress: "0x34A618e47B0B2E92aC2d7F78B4519f07a72318e4",
+    explorerBaseUrl: "https://arbiscan.io/tx/",
+  },
+];
+
+export const INITIAL_SETTLEMENT_HISTORY: SettlementRecord[] = [
+  {
+    id: "set-01",
+    orderId: "NW-10480",
+    timestamp: "12 mins ago",
+    buyerChain: "Solana",
+    buyerToken: "SOL",
+    amountPaid: "0.161 SOL",
+    amountReceived: "25.00 USDC",
+    feeUsdc: "0.20 USDC",
+    txHash: "5kK8...9p2q",
+    explorerUrl: "https://solscan.io",
+    status: "settled",
+  },
+  {
+    id: "set-02",
+    orderId: "NW-10479",
+    timestamp: "38 mins ago",
+    buyerChain: "Ethereum",
+    buyerToken: "ETH",
+    amountPaid: "0.0088 ETH",
+    amountReceived: "25.00 USDC",
+    feeUsdc: "0.20 USDC",
+    txHash: "0x72a...4f1c",
+    explorerUrl: "https://etherscan.io",
+    status: "settled",
+  },
+  {
+    id: "set-03",
+    orderId: "NW-10477",
+    timestamp: "1 hour ago",
+    buyerChain: "Base",
+    buyerToken: "USDC",
+    amountPaid: "25.20 USDC",
+    amountReceived: "25.00 USDC",
+    feeUsdc: "0.20 USDC",
+    txHash: "0x918...e84c",
+    explorerUrl: "https://basescan.org",
+    status: "settled",
   },
 ];
 
@@ -102,6 +206,9 @@ export interface QuoteDetails {
   formattedTotal: string;
   payButtonText: string;
   rateDescription: string;
+  depositAddress: string;
+  explorerUrl: string;
+  txHash: string;
 }
 
 export function formatCryptoAmount(num: number, decimals: number): string {
@@ -128,6 +235,9 @@ export function computeQuote(option: PayOption, targetUsd: number = 25.00): Quot
     ? "1.00 USDC = 1.00 USDC"
     : `1 ${option.symbol} ≈ ${option.rateUsd.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDC`;
 
+  const txHash = `0x${Math.random().toString(16).substring(2, 10)}...${Math.random().toString(16).substring(2, 6)}`;
+  const explorerUrl = `${option.explorerBaseUrl}${txHash.replace("...", "")}`;
+
   return {
     basePayAmount: rawBaseInToken,
     feeAmount: rawFeeInToken,
@@ -138,5 +248,8 @@ export function computeQuote(option: PayOption, targetUsd: number = 25.00): Quot
     formattedTotal,
     payButtonText,
     rateDescription,
+    depositAddress: option.depositAddress,
+    explorerUrl,
+    txHash,
   };
 }

@@ -7,6 +7,7 @@ interface ReceiptProps {
   amountReceived: string;
   orderId: string;
   txHash?: string;
+  explorerUrl?: string;
   onDone: () => void;
 }
 
@@ -15,6 +16,7 @@ export function Receipt({
   amountReceived,
   orderId,
   txHash = "0x8f2c...4d91",
+  explorerUrl,
   onDone,
 }: ReceiptProps) {
   return (
@@ -37,9 +39,11 @@ export function Receipt({
       </div>
 
       <a
-        href="#tx"
+        href={explorerUrl || "#tx"}
+        target={explorerUrl ? "_blank" : undefined}
+        rel="noopener noreferrer"
         onClick={(e) => {
-          e.preventDefault();
+          if (!explorerUrl) e.preventDefault();
         }}
         className="pelargo-tx-link"
         aria-label={`View transaction ${txHash}`}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { ChevronRight, AlertCircle, RefreshCw, AlertTriangle } from "lucide-react";
+import { ChevronRight, AlertCircle, RefreshCw, AlertTriangle, ShieldCheck } from "lucide-react";
 import { Modal } from "./Modal.tsx";
 import { StepHeader } from "./StepHeader.tsx";
 import { AmountRow } from "./AmountRow.tsx";
@@ -9,12 +9,15 @@ import { PrimaryButton } from "./PrimaryButton.tsx";
 import { QuoteTimer } from "./QuoteTimer.tsx";
 import { StatusTimeline, ProgressStepIndex } from "./StatusTimeline.tsx";
 import { Receipt } from "./Receipt.tsx";
+import { QRCodeDisplay } from "./QRCodeDisplay.tsx";
+import { IntentRouteInspector } from "./IntentRouteInspector.tsx";
 import { PelargoFooter } from "./BrandMark.tsx";
 import {
   MOCK_ORDER,
   MOCK_PAY_OPTIONS,
   PayOption as PayOptionType,
   computeQuote,
+  SettlementRecord,
 } from "../mock/data.ts";
 
 export type WidgetScreen =
@@ -34,6 +37,9 @@ export interface PelargoWidgetProps {
   logo?: React.ReactNode;
   initialScreen?: WidgetScreen;
   onScreenChange?: (screen: WidgetScreen) => void;
+  orderTotal?: number;
+  orderId?: string;
+  onSettlementComplete?: (record: SettlementRecord) => void;
 }
 
 export function PelargoWidget({
@@ -43,6 +49,9 @@ export function PelargoWidget({
   logo,
   initialScreen = "summary",
   onScreenChange,
+  orderTotal = MOCK_ORDER.orderTotal,
+  orderId = MOCK_ORDER.orderId,
+  onSettlementComplete,
 }: PelargoWidgetProps) {
   const [currentScreen, setCurrentScreen] = useState<WidgetScreen>(initialScreen);
   const [selectedOption, setSelectedOption] = useState<PayOptionType>(MOCK_PAY_OPTIONS[0]);
@@ -73,6 +82,8 @@ export function PelargoWidget({
     }
   }, [currentScreen, isOpen]);
 
+  const quote = computeQuote(selectedOption, orderTotal);
+
   // Handle Progress screen mock auto-advancement every 2 seconds
   useEffect(() => {
     if (currentScreen !== "progress" || !isOpen) {
@@ -89,6 +100,22 @@ export function PelargoWidget({
     }, 4000);
 
     const t3 = setTimeout(() => {
+      // Trigger live settlement ledger update
+      if (onSettlementComplete) {
+        onSettlementComplete({
+          id: `set-${Date.now()}`,
+          orderId: orderId,
+          timestamp: "Just now",
+          buyerChain: selectedOption.chain,
+          buyerToken: selectedOption.symbol,
+          amountPaid: quote.formattedTotal,
+          amountReceived: quote.formattedReceive,
+          feeUsdc: quote.formattedFee,
+          txHash: quote.txHash,
+          explorerUrl: quote.explorerUrl,
+          status: "settled",
+        });
+      }
       setScreen("receipt");
     }, 6000);
 
@@ -97,11 +124,10 @@ export function PelargoWidget({
       clearTimeout(t2);
       clearTimeout(t3);
     };
-  }, [currentScreen, isOpen]);
+  }, [currentScreen, isOpen, onSettlementComplete, orderId, selectedOption, quote]);
 
-  const quote = computeQuote(selectedOption, MOCK_ORDER.orderTotal);
   const topOptions = MOCK_PAY_OPTIONS.slice(0, 3);
-  const orderTotalDisplay = `${MOCK_ORDER.orderTotal.toFixed(2)} ${MOCK_ORDER.orderCurrency}`;
+  const orderTotalDisplay = `${orderTotal.toFixed(2)} ${MOCK_ORDER.orderCurrency}`;
 
   // Handle attempt to close
   const handleAttemptClose = () => {
@@ -262,6 +288,13 @@ export function PelargoWidget({
                     onExpire={() => setScreen("error-expired")}
                   />
 
+                  {/* Scannable Deposit QR Code & Address */}
+                  <QRCodeDisplay
+                    address={quote.depositAddress}
+                    amount={quote.formattedTotal}
+                    chainName={selectedOption.chain}
+                  />
+
                   <div
                     style={{
                       backgroundColor: "var(--surface-2)",
@@ -278,6 +311,12 @@ export function PelargoWidget({
                     <AmountRow label="They receive" value={quote.formattedReceive} />
                     <AmountRow label="Total" value={quote.formattedTotal} variant="total" />
                   </div>
+
+                  {/* Intent Solver Route Inspector */}
+                  <IntentRouteInspector
+                    option={selectedOption}
+                    orderTotalUsdc={orderTotal}
+                  />
 
                   <p
                     style={{
@@ -327,7 +366,9 @@ export function PelargoWidget({
                   <Receipt
                     amountPaid={quote.formattedTotal}
                     amountReceived={quote.formattedReceive}
-                    orderId={MOCK_ORDER.orderId}
+                    orderId={orderId}
+                    txHash={quote.txHash}
+                    explorerUrl={quote.explorerUrl}
                     onDone={onClose}
                   />
 
