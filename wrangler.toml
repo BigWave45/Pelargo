@@ -1,0 +1,8 @@
+name = "pelargo"
+compatibility_date = "2026-11-05"
+pages_build_output_dir = "./dist"
+
+# Cloudflare Pages Functions are discovered from ./functions.
+# Add ONECLICK_JWT as a secret only if/when a partner JWT is obtained.
+# ALLOW_MAINNET_DEPOSITS must remain unset until an explicitly approved
+# real-mainnet payment test is planned.
