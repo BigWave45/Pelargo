@@ -27,10 +27,12 @@ export async function intentsRequest(
     headers.set("authorization", `Bearer ${env.ONECLICK_JWT}`);
   }
 
+  // The upstream API may redirect. Follow redirects for this fixed,
+  // trusted host instead of turning a redirect into a fetch exception.
   return fetch(`${API_BASE}/v0/${path}`, {
     ...init,
     headers,
-    redirect: "error",
+    redirect: "follow",
   });
 }
 
