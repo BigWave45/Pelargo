@@ -2,11 +2,15 @@
 
 A premium, non-custodial checkout widget that lets buyers pay from whatever wallet and chain they already have while the merchant receives exactly what they asked for.
 
+## Status
+
+Stages 1-3 (UI, flow and demo store) are built with mock data. Real wallet connection and live payments are not built yet.
+
 ## How to run
 
 ```bash
-npm install
-npm run dev
+bun install
+bun run dev
 ```
 
 Visit `http://localhost:3000` to interact with the demo merchant store and dev panel.
@@ -20,7 +24,4 @@ Visit `http://localhost:3000` to interact with the demo merchant store and dev p
 
 ## Built on Intents
 
-Pelargo is non-custodial and operates on intent-based settlement architecture:
-- Pelargo never holds customer or merchant funds.
-- Buyers sign standard intent authorizations from their native chain (Ethereum, Base, Solana, NEAR, Arbitrum).
-- Professional intent solvers fill the request and deliver the exact designated currency to the merchant directly.
+Pelargo never holds funds. The buyer picks a wallet and token, gets a quote with a deposit address, and sends funds from their own wallet. The Intents network delivers the merchant's chosen token to the merchant. Pelargo only requests quotes and checks status.
