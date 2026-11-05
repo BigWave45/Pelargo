@@ -313,3 +313,44 @@ A quote is not payment. A deposit address is not payment. Detecting a deposit is
 4. Keep changes on `build/live-intents`; do not merge to `main` or deploy production without explicit approval.
 5. Update this file and README after each material milestone.
 6. Never invent API results, deployment status or payment outcomes.
+
+---
+
+# Infrastructure verification update — 5 November 2026
+
+This section supersedes earlier infrastructure statements in this file where they conflict.
+
+## Confirmed
+
+- Active implementation baseline: `build/live-intents`, commit `1ec5ac0f2939cb0abdc51dfe9bd2984a62bb1950`.
+- Cloudflare Pages project: `pelargo`; production branch: `build/live-intents`.
+- D1 database: `pelargo-db`, ID `eae6ecc8-d79d-4d12-8a37-2d38ab84a0b1`.
+- Production Pages configuration contains a `DB` binding to that D1 database.
+- All eight migrations (`0001`–`0008`) are present in `d1_migrations` in order. Expected application tables, indexes and triggers were inspected.
+- Manual foreign-key orphan checks returned zero for the six relevant relationships.
+- A synthetic D1 lifecycle probe verified quote-commit state synchronization and audit event creation. A settlement transition without matching evidence was rejected by the database guard. Temporary probe records were removed; application tables were empty after cleanup.
+- The latest observed successful production deployment is `e689d3ea` at commit `1ec5ac0`. It was created before the production D1 binding was configured, so it does **not** prove the deployed Functions can access D1.
+
+## Not yet verified / release blockers
+
+- Production Pages secret presence cannot be confirmed from the project configuration response. Configure encrypted production secrets `MERCHANT_PROVISIONING_SECRET` and `ORDER_SESSION_SECRET`; do not disclose their values in chat or commit them. Confirm the NEAR verifier's RPC/indexer configuration as appropriate. `ONECLICK_JWT` is only required if the current upstream integration requires partner authentication.
+- Preview D1 binding is not confirmed.
+- The Cloudflare D1 query interface rejected `PRAGMA integrity_check` with `SQLITE_AUTH`; full SQLite integrity check is outstanding. Manual relationship checks are not a substitute for that pragma.
+- Production Functions have not yet been smoke-tested against the configured D1 binding.
+- Live 1Click response compatibility, live FastNear/NEAR RPC verification and a real payment lifecycle remain untested. No real payment was made.
+- `ALLOW_MAINNET_DEPOSITS` must remain unset. Do not create committed quotes or send funds.
+
+## Controlled release plan
+
+1. Confirm required encrypted production secrets are configured without exposing values.
+2. Run the current branch CI and build/security/API tests.
+3. Deploy the reviewed code to the approved production branch only after readiness checks pass.
+4. Verify the resulting Cloudflare deployment commit and run non-payment API smoke tests against D1 using synthetic data.
+5. Keep committed quotes disabled; separately review any later request to test a real payment.
+
+## Change control
+
+- Documentation/configuration corrections are being prepared on `ops/live-d1-readiness`, branched from the verified implementation commit. This branch is not the Pages production branch.
+- `build/live-intents` remains the active production branch. `main` remains untouched.
+- The project owner approved a controlled production deployment only after configuration and tests pass. That approval is conditional, not permission to bypass the release gates above.
+
