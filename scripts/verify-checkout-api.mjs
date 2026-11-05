@@ -12,6 +12,7 @@ import { onRequest as checkoutSession } from "../functions/api/checkout-session.
 import { onRequest as quote } from "../functions/api/quote.ts";
 import { onRequest as getOrder } from "../functions/api/order.ts";
 import { onRequest as paymentStatus } from "../functions/api/payment-status.ts";
+import { onRequest as submitDeposit } from "../functions/api/deposit-submit.ts";
 import { onRequest as legacyStatus } from "../functions/api/status.ts";
 import { transitionPayment, PaymentTransitionError } from "../functions/_lib/payment-lifecycle.ts";
 import { verifyNearNep141Settlement } from "../functions/_lib/near-settlement-verifier.ts";
@@ -48,6 +49,7 @@ sqlite.exec(readFileSync(new URL("../migrations/0012_merchant_accounts.sql", imp
 sqlite.exec(readFileSync(new URL("../migrations/0013_merchant_destination_settings.sql", import.meta.url), "utf8"));
 sqlite.exec(readFileSync(new URL("../migrations/0014_destination_decimals.sql", import.meta.url), "utf8"));
 sqlite.exec(readFileSync(new URL("../migrations/0015_auth_rate_limits.sql", import.meta.url), "utf8"));
+sqlite.exec(readFileSync(new URL("../migrations/0016_origin_deposit_evidence.sql", import.meta.url), "utf8"));
 const db = {
   prepare(sql) { return new Statement(sqlite, sql); },
   batch(statements) {
@@ -1038,6 +1040,151 @@ try {
     );
   } finally {
     globalThis.fetch = beforeConcurrentPoll;
+  }
+
+
+  // Origin-chain recovery requires a quote-bound, exact Base Sepolia ERC-20 transfer.
+  const originOrderId = sqlite.query(
+    "SELECT id FROM checkout_orders WHERE external_order_id = ?"
+  ).get("order-001").id;
+  const originToken = "0x38d81431b9f76d9699af7517040d5221d9dea252";
+  const originDepositAddress = "0x93084718ae40758F22F489D288DFdE0556d39dc9";
+  const originTxHash = "0x" + "a".repeat(64);
+  sqlite.query(
+    "UPDATE payment_lifecycle SET status = 'processing', quote_id = ?, deposit_address = ? WHERE order_id = ?"
+  ).run("origin-quote-test", originDepositAddress, originOrderId);
+  sqlite.query(
+    "UPDATE checkout_orders SET status = 'quote_committed' WHERE id = ?"
+  ).run(originOrderId);
+  env.INTENTS_API_BASE_URL = "https://www.usetidepool.tech";
+  env.BASE_SEPOLIA_RPC_URL = "https://base-rpc.test";
+  const originalFetchForOriginSubmit = globalThis.fetch;
+  let providerSubmitCalls = 0;
+  let transferAmount = 1012633n;
+  const originTransferTopic = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
+  const paddedAddress = "0x" + originDepositAddress.slice(2).toLowerCase().padStart(64, "0");
+  const quoteResponse = {
+    correlationId: "origin-quote-test",
+    quoteRequest: { originAsset: "nep141:base-" + originToken + ".tp-omft.testnet" },
+    quote: {
+      amountIn: "1012633",
+      amountOut: "2000000",
+      depositAddress: originDepositAddress,
+    },
+  };
+  globalThis.fetch = async (url, init = {}) => {
+    const parsed = new URL(String(url));
+    if (parsed.hostname === "www.usetidepool.tech" && parsed.pathname === "/v0/status") {
+      return Response.json({
+        correlationId: "origin-quote-test", status: "PROCESSING", quoteResponse,
+        swapDetails: { nearTxHashes: [], originChainTxHashes: [] },
+      });
+    }
+    if (parsed.hostname === "www.usetidepool.tech" && parsed.pathname === "/v0/deposit/submit") {
+      providerSubmitCalls++;
+      const payload = JSON.parse(init.body);
+      assert.equal(payload.txHash, originTxHash);
+      assert.equal(payload.depositAddress, originDepositAddress);
+      return Response.json({
+        correlationId: "origin-quote-test", status: "PROCESSING", quoteResponse,
+        swapDetails: { nearTxHashes: [], originChainTxHashes: [{ hash: originTxHash }] },
+      });
+    }
+    if (parsed.hostname === "base-rpc.test") {
+      const rpcRequest = JSON.parse(init.body);
+      if (rpcRequest.method === "eth_chainId") return Response.json({ result: "0x14a34" });
+      if (rpcRequest.method === "eth_getTransactionReceipt") return Response.json({ result: {
+        status: "0x1", blockNumber: "0x10", blockHash: "0x" + "b".repeat(64),
+        logs: [{
+          address: originToken,
+          topics: [originTransferTopic, "0x" + "0".repeat(64), paddedAddress],
+          data: "0x" + transferAmount.toString(16),
+        }],
+      }});
+    }
+    throw new Error("Unexpected origin recovery request: " + String(url));
+  };
+  try {
+    const unauthenticatedOriginSubmit = await submitDeposit({
+      request: request("https://pelargo.test/api/deposit-submit", "POST", {
+        orderId: "order-001", transactionHash: originTxHash,
+      }),
+      env,
+    });
+    assert.equal(unauthenticatedOriginSubmit.status, 401,
+      "origin deposit submission must require merchant authentication");
+
+    const invalidOriginAmount = await responseJson(await submitDeposit({
+      request: request("https://pelargo.test/api/deposit-submit", "POST", {
+        orderId: "order-001", transactionHash: originTxHash,
+      }, { "x-pelargo-merchant-key": created.body.apiKey }),
+      env,
+    }));
+    assert.equal(invalidOriginAmount.status, 200);
+    assert.equal(invalidOriginAmount.body.originDeposit, "verified");
+    assert.equal(invalidOriginAmount.body.providerNotification, "accepted");
+    assert.equal(providerSubmitCalls, 1);
+    assert.equal(
+      sqlite.query("SELECT transaction_hash, amount_atomic, provider_submit_status FROM payment_origin_deposit_evidence WHERE order_id = ?").get(originOrderId).transaction_hash,
+      originTxHash,
+    );
+
+    // A different amount on the same token/recipient must be rejected before provider notification.
+    transferAmount = 1012632n;
+    sqlite.query("DELETE FROM payment_origin_deposit_evidence WHERE order_id = ?").run(originOrderId);
+    // Evidence is immutable by design; use a second order for the negative case.
+    const wrongOriginOrder = { ...order, orderId: "order-origin-wrong-amount" };
+    const wrongOriginIssued = await responseJson(await checkoutSession({
+      request: request("https://pelargo.test/api/checkout-session", "POST", wrongOriginOrder, {
+        "x-pelargo-merchant-key": created.body.apiKey,
+      }),
+      env,
+    }));
+    assert.equal(wrongOriginIssued.status, 201);
+    const wrongOriginRow = sqlite.query(
+      "SELECT id FROM checkout_orders WHERE external_order_id = ?"
+    ).get("order-origin-wrong-amount");
+    sqlite.query(
+      "UPDATE payment_lifecycle SET status = 'processing', quote_id = ?, deposit_address = ? WHERE order_id = ?"
+    ).run("origin-quote-wrong-amount", originDepositAddress, wrongOriginRow.id);
+    const wrongQuoteResponse = {
+      ...quoteResponse, correlationId: "origin-quote-wrong-amount",
+    };
+    globalThis.fetch = async (url, init = {}) => {
+      const parsed = new URL(String(url));
+      if (parsed.hostname === "www.usetidepool.tech" && parsed.pathname === "/v0/status") {
+        return Response.json({
+          correlationId: "origin-quote-wrong-amount", status: "PROCESSING",
+          quoteResponse: wrongQuoteResponse, swapDetails: {},
+        });
+      }
+      if (parsed.hostname === "base-rpc.test") {
+        const rpcRequest = JSON.parse(init.body);
+        if (rpcRequest.method === "eth_chainId") return Response.json({ result: "0x14a34" });
+        if (rpcRequest.method === "eth_getTransactionReceipt") return Response.json({ result: {
+          status: "0x1", blockNumber: "0x10", blockHash: "0x" + "c".repeat(64),
+          logs: [{
+            address: originToken, topics: [originTransferTopic, "0x" + "0".repeat(64), paddedAddress],
+            data: "0x" + transferAmount.toString(16),
+          }],
+        }});
+      }
+      throw new Error("Unexpected negative origin verification request");
+    };
+    const wrongOrigin = await responseJson(await submitDeposit({
+      request: request("https://pelargo.test/api/deposit-submit", "POST", {
+        orderId: "order-origin-wrong-amount", transactionHash: "0x" + "c".repeat(64),
+      }, { "x-pelargo-merchant-key": created.body.apiKey }),
+      env,
+    }));
+    assert.equal(wrongOrigin.status, 422);
+    assert.equal(wrongOrigin.body.code, "ORIGIN_DEPOSIT_NOT_VERIFIED");
+    assert.equal(providerSubmitCalls, 1,
+      "an unverified source transfer must never be submitted to the provider");
+  } finally {
+    globalThis.fetch = originalFetchForOriginSubmit;
+    env.INTENTS_API_BASE_URL = undefined;
+    env.BASE_SEPOLIA_RPC_URL = undefined;
   }
 
   env.ALLOW_MAINNET_DEPOSITS = undefined;
