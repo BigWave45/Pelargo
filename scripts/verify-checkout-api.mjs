@@ -469,7 +469,7 @@ sqlite.query("UPDATE payment_lifecycle SET last_polled_at = NULL WHERE order_id 
     const parsed = new URL(String(url));
     if (parsed.hostname === "api-testnet.nearblocks.io") {
       assert.equal(parsed.pathname, `/v3/txns/${hash}`);
-      return Response.json({ data: { transaction_hash: hash, signer_account_id: "buyer.testnet" }});
+      return Response.json({ data: [{ transaction_hash: hash, signer_account_id: "buyer.testnet" }] });
     }
     if (parsed.hostname === "rpc.testnet.near.org") {
       const req = JSON.parse(init.body);
