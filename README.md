@@ -265,3 +265,11 @@ The Pages preview environment uses a separate D1 database, `pelargo-preview-db`,
 ### Settlement evidence concurrency guard
 
 Migration `0009_settlement_evidence_insert_guard.sql` adds a database-side precondition for settlement evidence insertion: the lifecycle must still be `processing` and the evidence transaction hash must equal the stored destination candidate. This closes a stale-verifier race at the evidence insert boundary. Apply migration 0009 to the target D1 environment before deploying code that relies on it. The regression suite covers rejection of a stale candidate; live chain and deployed D1 runtime tests remain outstanding.
+
+
+### Uncertain committed-quote recovery
+
+- Every quote request now sends the server-issued checkout session JTI as the 1Click `sessionId` tracking field.
+- The scheduled reconciliation worker records `commit_attempted` sessions older than ten minutes when no provider quote ID or deposit address was persisted.
+- Recovery cases are idempotent and visible through operator-authenticated `GET /api/operator/recovery-cases`.
+- The worker never retries the quote, reactivates the session, or marks the order expired. 1Click does not document a lookup-by-sessionId recovery endpoint, so an ambiguous commit requires operator/provider investigation.

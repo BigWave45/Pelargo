@@ -140,6 +140,10 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
 
   try {
     const { sessionToken: _sessionToken, ...quoteRequest } = body;
+    // Use the server-issued checkout JTI as the provider tracking session.
+    // This gives support a stable cross-system reference if the quote response
+    // is lost after the provider has accepted the commit.
+    quoteRequest.sessionId = session.jti;
     const upstream = await intentsRequest("quote", {
       method: "POST",
       body: JSON.stringify(quoteRequest),

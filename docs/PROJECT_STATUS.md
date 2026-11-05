@@ -501,3 +501,14 @@ This section supersedes earlier infrastructure statements in this file where the
 - Added integration coverage for the expiry sweep, synchronized order/session state, and idempotent repeated execution.
 - The worker and migration are code/configuration only at this stage. Migration 0010 has not been applied to Cloudflare D1, the expiry Worker has not been deployed, and no cron has been activated. The five-minute schedule is proposed configuration, not an operationally active job.
 - Committed quotes and uncertain `commit_attempted` outcomes are deliberately excluded; they need provider-aware reconciliation and must not be expired solely because the original checkout session TTL elapsed.
+
+
+## Uncertain 1Click commit recovery queue
+
+- Added migration `0011_payment_recovery_cases.sql` for durable, unique per-order recovery cases.
+- The scheduled Worker now scans for `commit_attempted` sessions older than ten minutes whose lifecycle/order remain pending and which have no persisted quote ID or deposit address. It records an open operator case and is idempotent.
+- Every 1Click quote request now overrides the client-supplied tracking value with the server-issued checkout session JTI in `sessionId`, giving the provider a stable reference for support investigation.
+- Added operator-authenticated, read-only `GET /api/operator/recovery-cases`; it uses the existing provisioning secret and returns open cases without exposing merchant API keys or checkout tokens.
+- No automatic retry, session reactivation, or expiry occurs for ambiguous commits. Current public 1Click documentation describes quote IDs and deposit-address status lookup but does not document lookup by `sessionId`; therefore a lost response cannot safely be reconstructed automatically using a documented API.
+- Added mocked integration coverage for provider tracking IDs, stale-case creation, idempotency, operator authentication, and preserving the consumed commit session.
+- Migration 0011 and Worker changes are code only until separately applied/deployed. No quote commit or payment was executed.

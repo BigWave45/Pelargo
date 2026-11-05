@@ -8,12 +8,14 @@ import { onRequest as getOrder } from "../functions/api/order.ts";
 import { onRequest as paymentStatus } from "../functions/api/payment-status.ts";
 import { onRequest as legacyStatus } from "../functions/api/status.ts";
 import { transitionPayment, PaymentTransitionError } from "../functions/_lib/payment-lifecycle.ts";
-import { expireAbandonedCheckouts } from "../workers/expiry-sweeper.ts";
+import { expireAbandonedCheckouts, recordUncertainQuoteCommits } from "../workers/expiry-sweeper.ts";
+import { onRequest as operatorRecoveryCases } from "../functions/api/operator/recovery-cases.ts";
 
 class Statement {
   constructor(db, sql, values = []) { this.db = db; this.sql = sql; this.values = values; }
   bind(...values) { return new Statement(this.db, this.sql, values); }
   first() { return this.db.query(this.sql).get(...this.values) ?? null; }
+  all() { return { results: this.db.query(this.sql).all(...this.values) }; }
   run() {
     const result = this.db.query(this.sql).run(...this.values);
     return { success: true, meta: { changes: result.changes } };
@@ -32,6 +34,7 @@ sqlite.exec(readFileSync(new URL("../migrations/0007_match_settlement_network.sq
 sqlite.exec(readFileSync(new URL("../migrations/0008_settlement_evidence_contract_guard.sql", import.meta.url), "utf8"));
 sqlite.exec(readFileSync(new URL("../migrations/0009_settlement_evidence_insert_guard.sql", import.meta.url), "utf8"));
 sqlite.exec(readFileSync(new URL("../migrations/0010_pending_expiry_sync.sql", import.meta.url), "utf8"));
+sqlite.exec(readFileSync(new URL("../migrations/0011_payment_recovery_cases.sql", import.meta.url), "utf8"));
 const db = {
   prepare(sql) { return new Statement(sqlite, sql); },
   batch(statements) {
@@ -645,6 +648,7 @@ try {
   globalThis.fetch = async (_url, init) => {
     const submitted = JSON.parse(init.body);
     assert.equal(submitted.dry, false);
+    assert.equal(typeof submitted.sessionId, "string", "provider tracking session must be server-issued");
     return Response.json({
       ...(omitCorrelationId ? {} : { correlationId: "quote-correlation-test" }),
       quote: { depositAddress: "provider-deposit-test", depositMemo: "provider-memo-test" },
@@ -683,6 +687,38 @@ try {
     "uncertain upstream commit must keep its session consumed",
   );
   omitCorrelationId = false;
+
+  // A committed quote whose upstream response was lost stays commit_attempted.
+  // The sweeper creates an operator case but never retries the provider call.
+  sqlite.query("UPDATE checkout_sessions SET consumed_at = ?, status = 'commit_attempted' WHERE jti = ?").run(
+    new Date(Date.now() - 11 * 60_000).toISOString(),
+    JSON.parse(atob(missingIdIssued.body.token.split(".")[0].replace(/-/g, "+").replace(/_/g, "/"))).jti,
+  );
+  const recoveryCasesCreated = await recordUncertainQuoteCommits(db);
+  assert.equal(recoveryCasesCreated, 1, "stale uncertain commit must create one recovery case");
+  assert.equal(await recordUncertainQuoteCommits(db), 0, "recovery case creation must be idempotent");
+  const recoveryListUnauthenticated = await operatorRecoveryCases({
+    request: new Request("https://pelargo.test/api/operator/recovery-cases"),
+    env,
+  });
+  assert.equal(recoveryListUnauthenticated.status, 401, "recovery queue must require operator authentication");
+  const recoveryList = await responseJson(await operatorRecoveryCases({
+    request: new Request("https://pelargo.test/api/operator/recovery-cases", {
+      headers: { "x-pelargo-provisioning-key": env.MERCHANT_PROVISIONING_SECRET },
+    }),
+    env,
+  }));
+  assert.equal(recoveryList.status, 200);
+  assert.equal(recoveryList.body.cases.length, 1);
+  assert.equal(recoveryList.body.cases[0].orderId, "order-commit-missing-id");
+  assert.equal(recoveryList.body.cases[0].status, "open");
+  assert.equal(
+    sqlite.query("SELECT status FROM checkout_sessions WHERE jti = ?").get(
+      JSON.parse(atob(missingIdIssued.body.token.split(".")[0].replace(/-/g, "+").replace(/_/g, "/"))).jti,
+    ).status,
+    "commit_attempted",
+    "recovery must not unlock or retry an uncertain commit session",
+  );
 
   const committed = await responseJson(await quote({
     request: request("https://pelargo.test/api/quote", "POST", {

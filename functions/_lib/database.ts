@@ -4,6 +4,7 @@ export interface D1ResultMeta {
 export interface D1PreparedStatement {
   bind(...values: unknown[]): D1PreparedStatement;
   first<T = Record<string, unknown>>(): Promise<T | null>;
+  all<T = Record<string, unknown>>(): Promise<{ results: T[] }>;
   run(): Promise<{ success: boolean; meta?: D1ResultMeta }>;
 }
 export interface D1Database {
