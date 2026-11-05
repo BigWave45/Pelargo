@@ -1,5 +1,25 @@
 # Backend update — 5 November 2026
 
+## Settlement guard and destination metadata
+
+- Added `destination_network` and `destination_symbol` to persisted checkout orders through migration `0006_order_destination_metadata.sql`; session creation now writes both fields.
+- Added immutable `payment_settlement_evidence` records in migration `0005_verified_settlement.sql`, recording destination chain, asset, optional token contract, transaction hash, recipient, atomic amount, block number/hash, confirmations, verification source and timestamp.
+- Added database triggers that reject a `settled` transition unless the lifecycle is already `processing` and evidence matches the persisted order network, asset ID, recipient, amount and candidate transaction hash.
+- A successful settlement trigger also updates the order to `paid` atomically. Evidence rows cannot be updated or deleted.
+- Removed `settled` from the generic `transitionPayment` transition map. Settlement must use a dedicated verifier path.
+- Added API integration test coverage proving provider `SUCCESS` does not settle an order and the database rejects a direct settlement update without matching evidence.
+- Migration `0007_match_settlement_network.sql` strengthens the evidence guard to require an exact destination-network match.
+
+## Important scope boundary
+
+This milestone is a **database safety gate**, not destination-chain verification. No chain RPC call, transaction receipt validation, token transfer-log decoding, confirmation-depth check or evidence-writing verifier has been implemented. Do not insert evidence based only on the provider's status response. The destination network is now persisted, but chain-specific token contract metadata still needs a trusted mapping from the Intents token catalogue.
+
+Live Cloudflare D1 migration execution and live 1Click schema compatibility remain unverified. No deployment, merge to `main`, or real payment execution was performed.
+
+---
+
+# Backend update — 5 November 2026
+
 ## Verified CI, provider status and committed-quote persistence milestone
 
 - GitHub Actions run `41949603160`, commit `3bba71b`, passed TypeScript type-check, checkout-session security tests, checkout API integration tests and frontend build.
