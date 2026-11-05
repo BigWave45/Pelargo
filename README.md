@@ -137,7 +137,7 @@ The active branch includes:
 
 Required Cloudflare Pages secrets are documented in the D1 setup section above. The previous shared `PELARGO_MERCHANT_API_KEY` design has been replaced by individually provisioned merchant API keys stored as hashes.
 
-Never put `PELARGO_MERCHANT_API_KEY` or `ORDER_SESSION_SECRET` in browser code, HTML attributes, a public repository or a Vite `VITE_*` variable. The browser receives only the short-lived signed session token.
+Never put `MERCHANT_PROVISIONING_SECRET`, any merchant API key or `ORDER_SESSION_SECRET` in browser code, HTML attributes, a public repository or a Vite `VITE_*` variable. The browser receives only the short-lived signed session token.
 
 **Current limitation:** merchant credentials are provisioned by an operator, not through a self-serve portal. D1 persistence and atomic commit-attempt consumption are implemented in source but require a configured D1 binding and migration before they work in a deployment. Keep committed quotes disabled until the preview database is configured and the complete flow is tested.
 
@@ -172,7 +172,7 @@ Example integration markup (replace the host and order values):
 
 You may use `destination-asset="EXACT_INTENTS_ASSET_ID"` instead of the symbol/network pair to bind the destination to an exact supported asset.
 
-**This is an integration prototype, not a production payment integration.** The attributes are currently public client-side inputs. There is no authenticated merchant order session, signature verification, server-side amount/destination binding, replay prevention or verified settlement callback. Do not treat the order ID or recipient in markup as trusted payment authority. Committed quotes remain disabled.
+**This is an integration prototype, not a production payment integration.** The order ID, amount, recipient and session token are public client-side attributes; only the signed session and matching D1 record are accepted as quote authority. The merchant server must create the session. Payment settlement verification and merchant callbacks are not implemented. Do not treat the widget's display state as proof of payment. Committed quotes remain disabled by default.
 
 ## Run locally
 
