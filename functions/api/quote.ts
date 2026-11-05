@@ -87,7 +87,7 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
   const allowedKeys = new Set([
     "dry", "swapType", "originAsset", "destinationAsset", "amount",
     "recipient", "refundTo", "depositType", "recipientType", "refundType",
-    "depositMode", "slippageTolerance", "deadline", "quoteWaitingTimeMs",
+    "slippageTolerance", "deadline", "quoteWaitingTimeMs",
     "referral", "sessionId",
   ]);
   const unknownKeys = Object.keys(body).filter((key) => !allowedKeys.has(key));
