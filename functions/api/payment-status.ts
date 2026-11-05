@@ -274,7 +274,9 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
     ...readProviderHashes(provider.swapDetails?.nearTxHashes),
     // Explicitly configured recovery hash is scoped to Preview configuration;
     // its signer hint is accepted only for this exact hash by the verifier.
-    ...(env.NEAR_TX_HASH ? [env.NEAR_TX_HASH.trim()] : []),
+    ...(env.NEAR_TX_HASH && env.NEAR_TX_ORDER_ID === payment.external_order_id
+      ? [env.NEAR_TX_HASH.trim()]
+      : []),
   ].filter((hash) => /^[1-9A-HJ-NP-Za-km-z]{32,64}$/.test(hash));
   const candidateHash = candidateHashes[0] ?? null;
   // A later provider response may omit hashes already observed on an earlier
