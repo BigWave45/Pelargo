@@ -16,7 +16,7 @@
 - Settlement evidence insertion and the `processing -> settled` update occur in one D1 batch. Existing database triggers verify the evidence/order/candidate match and synchronize order status to `paid`.
 - Non-NEAR destinations, non-NEP-141 asset IDs, missing candidate hashes, failed execution, missing/mismatched transfer events and unfinalized blocks do not settle.
 - Added mocked integration tests for a wrong transfer amount (must remain processing) and an exact transfer match (must persist evidence and atomically settle the order).
-- GitHub Actions run `41973082530`, commit `d60c4fd`, passed TypeScript, checkout-session security tests, checkout API integration tests and frontend build before the additional refund-handling and migration-0008 hardening. The latest hardening changes are awaiting CI.
+- GitHub Actions run `41973082530`, commit `d60c4fd`, passed TypeScript, checkout-session security tests, checkout API integration tests and frontend build before the additional refund-handling and migration-0008 hardening. The subsequent NEP-141 refund-handling, integer amount parsing and migration-0008 token-contract guard changes passed CI in run `41973263474`, commit `2952265`.
 
 ## Operational configuration and unverified scope
 
