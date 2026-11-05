@@ -166,29 +166,96 @@ try {
   assert.equal(polled.body.paymentStatus, "deposit_detected");
   assert.equal(sqlite.query("SELECT provider_status FROM payment_lifecycle WHERE order_id = (SELECT id FROM checkout_orders WHERE external_order_id = ?)").get("order-001").provider_status, "KNOWN_DEPOSIT_TX");
   await transitionPayment(db, { orderId: sqlite.query("SELECT id FROM checkout_orders WHERE external_order_id = ?").get("order-001").id, expectedStatus: "deposit_detected", nextStatus: "processing" });
-  globalThis.fetch = async () => new Response(JSON.stringify({
-    status: "SUCCESS",
-    updatedAt: "2026-11-05T00:01:00Z",
-    swapDetails: { destinationChainTxHashes: [{ hash: "destination-tx-candidate" }] },
-  }), { status: 200, headers: { "content-type": "application/json" } });
-  const providerSuccess = await responseJson(await paymentStatus({
+  const destinationHash = "1111111111111111111111111111111111111111111";
+  const mockNearVerifier = (transferAmount) => async (url, init = {}) => {
+    const parsed = new URL(String(url));
+    if (parsed.hostname === "1click.chaindefuser.com") {
+      return Response.json({
+        status: "SUCCESS", updatedAt: "2026-11-05T00:01:00Z",
+        swapDetails: { destinationChainTxHashes: [{ hash: destinationHash }] },
+      });
+    }
+    if (parsed.hostname === "tx.main.fastnear.com") {
+      return Response.json({
+        transactions: [{ transaction: { hash: destinationHash, signer_id: "sender.near" } }],
+      });
+    }
+    if (parsed.hostname === "rpc.mainnet.near.org") {
+      const rpcRequest = JSON.parse(init.body);
+      if (rpcRequest.method === "EXPERIMENTAL_tx_status") {
+        return Response.json({ result: {
+          status: { SuccessValue: "" },
+          receipts_outcome: [{
+            block_hash: "receipt-block-hash",
+            outcome: {
+              executor_id: "usdc.omft.near",
+              status: { SuccessValue: "" },
+              logs: [`EVENT_JSON:${JSON.stringify({
+                standard: "nep141", version: "1.0.0", event: "ft_transfer",
+                data: [{ old_owner_id: "sender.near", new_owner_id: "merchant.near", amount: transferAmount }],
+              })}`],
+            },
+          }],
+        }});
+      }
+      if (rpcRequest.method === "block" && rpcRequest.params.block_id) {
+        return Response.json({ result: { header: { hash: "receipt-block-hash", height: 90 } } });
+      }
+      if (rpcRequest.method === "block" && rpcRequest.params.finality === "final") {
+        return Response.json({ result: { header: { hash: "final-block-hash", height: 100 } } });
+      }
+    }
+    throw new Error(`Unexpected verifier request: ${url}`);
+  };
+
+  globalThis.fetch = mockNearVerifier("1999999");
+  const mismatchedTransfer = await responseJson(await paymentStatus({
     request: new Request("https://pelargo.test/api/payment-status?orderId=order-001", {
       headers: { "x-pelargo-merchant-key": created.body.apiKey },
     }),
     env,
   }));
-  assert.equal(providerSuccess.body.settlement, "awaiting_destination_chain_verification");
-  assert.equal(sqlite.query("SELECT status FROM payment_lifecycle WHERE order_id = (SELECT id FROM checkout_orders WHERE external_order_id = ?)").get("order-001").status, "processing", "provider SUCCESS must not independently settle an order");
-  assert.throws(
-    () => sqlite.query("UPDATE payment_lifecycle SET status = 'settled' WHERE order_id = (SELECT id FROM checkout_orders WHERE external_order_id = ?)").run("order-001"),
-    /verified settlement evidence does not match order/,
-    "database must reject settlement without independently verified evidence",
-  );
+  assert.equal(mismatchedTransfer.body.settlement, "awaiting_destination_chain_verification");
   assert.equal(
     sqlite.query("SELECT status FROM payment_lifecycle WHERE order_id = (SELECT id FROM checkout_orders WHERE external_order_id = ?)").get("order-001").status,
     "processing",
-    "rejected settlement must leave payment in processing",
+    "wrong transfer amount must not settle the order",
   );
+  assert.equal(
+    sqlite.query("SELECT COUNT(*) AS count FROM payment_settlement_evidence").get().count,
+    0,
+    "mismatched chain transfer must not create settlement evidence",
+  );
+
+  globalThis.fetch = mockNearVerifier("2000000");
+  const verifiedTransfer = await responseJson(await paymentStatus({
+    request: new Request("https://pelargo.test/api/payment-status?orderId=order-001", {
+      headers: { "x-pelargo-merchant-key": created.body.apiKey },
+    }),
+    env,
+  }));
+  assert.equal(verifiedTransfer.status, 200);
+  assert.equal(verifiedTransfer.body.paymentStatus, "settled");
+  assert.equal(verifiedTransfer.body.settlement, "verified");
+  const settledOrder = sqlite.query(
+    "SELECT o.status AS order_status, p.status AS payment_status FROM checkout_orders o JOIN payment_lifecycle p ON p.order_id = o.id WHERE o.external_order_id = ?"
+  ).get("order-001");
+  assert.deepEqual(settledOrder, { order_status: "paid", payment_status: "settled" });
+  const evidence = sqlite.query(
+    "SELECT destination_chain, destination_asset, token_contract, transaction_hash, recipient, amount_atomic, block_number, block_hash, confirmations, verification_source FROM payment_settlement_evidence"
+  ).get();
+  assert.deepEqual(evidence, {
+    destination_chain: "NEAR",
+    destination_asset: "nep141:usdc.omft.near",
+    token_contract: "usdc.omft.near",
+    transaction_hash: destinationHash,
+    recipient: "merchant.near",
+    amount_atomic: "2000000",
+    block_number: "90",
+    block_hash: "receipt-block-hash",
+    confirmations: 11,
+    verification_source: "chain_rpc",
+  });
 } finally {
   globalThis.fetch = originalFetch;
 }
