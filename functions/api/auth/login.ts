@@ -1,5 +1,6 @@
 import { Env, json } from "../../_lib/intents";
 import { createMerchantSession, sameOriginMutation, verifyPassword } from "../../_lib/merchant-auth";
+import { consumeAuthAttempt } from "../../_lib/auth-rate-limit";
 
 export async function onRequest(context: { request: Request; env: Env }): Promise<Response> {
   const { request, env } = context;
