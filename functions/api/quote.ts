@@ -36,7 +36,7 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
     }
   }
 
-  if (!/^\\d+$/.test(body.amount as string) || BigInt(body.amount as string) <= 0n) {
+  if (!/^\d+$/.test(body.amount as string) || BigInt(body.amount as string) <= 0n) {
     return json({ error: "amount must be a positive integer string in the relevant asset's smallest unit" }, 400);
   }
   if (!["EXACT_INPUT", "EXACT_OUTPUT"].includes(body.swapType as string)) {
@@ -113,7 +113,7 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
     }
   }
   if (typeof body.deadline !== "string" ||
-      !/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$/.test(body.deadline) ||
+      !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(body.deadline) ||
       !Number.isFinite(Date.parse(body.deadline)) ||
       Date.parse(body.deadline) <= Date.now()) {
     return json({ error: "deadline must be a future ISO 8601 timestamp" }, 400);
