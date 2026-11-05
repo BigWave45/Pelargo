@@ -50,7 +50,8 @@ See [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) for the exact verification 
 - Short-lived HMAC-signed sessions bound to merchant, order, amount, destination asset and recipient.
 - Session replay protection and merchant-scoped order lookup.
 - Provider asset discovery, dry quote handling and committed-quote persistence.
-- Authenticated provider status polling with stale-response protection.
+- Authenticated provider status polling with stale-response protection; concurrent polls return the latest persisted state instead of a misleading conflict.
+- Merchant/buyer-authorized recovery of the original source asset, exact input amount, output amount and deadline from the provider's original quote response, without creating another quote.
 - A NEAR NEP-141 settlement verifier with exact token-contract, recipient and net-amount checks.
 - Database guards that prevent an order being marked paid without matching settlement evidence.
 - An operator recovery-case endpoint for ambiguous quote-commit outcomes.
@@ -90,7 +91,7 @@ These are possible later product requirements, not prerequisites for demonstrati
 - `GET /api/orders` — dashboard activity list for the authenticated merchant.
 - `GET/PUT /api/merchant-settings` — retrieve and persist merchant destination settings.
 - `POST /api/auth/register`, `POST /api/auth/login`, `GET /api/auth/session`, `POST /api/auth/logout` — merchant account and session lifecycle.
-- `GET /api/payment-status?orderId=...` — merchant-scoped provider polling and eligible NEAR settlement verification.
+- `GET /api/payment-status?orderId=...` — merchant-scoped provider polling, recovery of original committed-quote deposit instructions when returned by the provider, and eligible NEAR settlement verification.
 - `GET /api/operator/recovery-cases` — operator-authenticated read-only queue for ambiguous quote commits.
 - `GET /api/status` — retired; returns HTTP 410.
 
