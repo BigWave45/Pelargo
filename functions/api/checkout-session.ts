@@ -86,8 +86,8 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
   try {
     await env.DB.batch([
       env.DB.prepare(
-        "INSERT INTO checkout_orders (id, merchant_id, external_order_id, amount_atomic, destination_asset, recipient, status, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?)"
-      ).bind(crypto.randomUUID(), merchant.id, claims.orderId, claims.amountAtomic, claims.destinationAsset, claims.recipient, issuedAt, expiresAt),
+        "INSERT INTO checkout_orders (id, merchant_id, external_order_id, amount_atomic, destination_asset, recipient, status, created_at, expires_at, destination_network, destination_symbol) VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)"
+      ).bind(crypto.randomUUID(), merchant.id, claims.orderId, claims.amountAtomic, claims.destinationAsset, claims.recipient, issuedAt, expiresAt, claims.destinationNetwork, claims.destinationSymbol),
       env.DB.prepare(
         "INSERT INTO checkout_sessions (jti, order_id, merchant_id, token_hash, status, issued_at, expires_at) VALUES (?, (SELECT id FROM checkout_orders WHERE merchant_id = ? AND external_order_id = ?), ?, ?, 'active', ?, ?)"
       ).bind(claims.jti, merchant.id, claims.orderId, merchant.id, tokenHash, issuedAt, expiresAt),
