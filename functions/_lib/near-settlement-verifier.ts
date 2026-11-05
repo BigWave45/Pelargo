@@ -60,10 +60,14 @@ export async function verifyNearNep141Settlement(
       !/^[1-9A-HJ-NP-Za-km-z]{32,64}$/.test(transactionHash)) return null;
   const tokenContract = assetMatch[1].toLowerCase();
 
+  if (!env.NEAR_INDEXER_API_KEY) {
+    throw new Error("FastNear API key is required for NEAR settlement verification");
+  }
   const indexerUrl = env.NEAR_TX_INDEXER_URL || "https://tx.main.fastnear.com/v0/transactions";
   const rpcUrl = env.NEAR_RPC_URL || "https://rpc.mainnet.near.org";
-  const indexerHeaders: Record<string, string> = {};
-  if (env.NEAR_INDEXER_API_KEY) indexerHeaders.authorization = `Bearer ${env.NEAR_INDEXER_API_KEY}`;
+  const indexerHeaders: Record<string, string> = {
+    authorization: `Bearer ${env.NEAR_INDEXER_API_KEY}`,
+  };
 
   const indexed = await postJson(indexerUrl, { tx_hashes: [transactionHash] }, indexerHeaders);
   const indexedTransactions = Array.isArray(indexed.transactions) ? indexed.transactions : [];
