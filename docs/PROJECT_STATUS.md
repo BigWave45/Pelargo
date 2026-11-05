@@ -1,5 +1,14 @@
 # Live handover — 5 November 2026 (supersedes older status notes below)
 
+## Latest checkout implementation — 5 November 2026
+
+- The buyer widget now has a buyer-confirmed committed-quote action after dry quote preview. It validates the committed response contains a correlation ID, deposit address and exact positive atomic source amount before showing instructions; optional memo and provider deadline are displayed.
+- The widget now polls `GET /api/payment-status` every five seconds using the signed checkout session in the Authorization header. It displays provider and internal payment state, and stops polling on terminal states or an invalid/unauthorized session.
+- `GET /api/payment-status` now supports two authorization paths: merchant API key for server-side merchant polling, or the signed checkout session bound to its own committed order for buyer polling. The buyer token cannot request another order. CORS preflight permits Authorization.
+- Added integration tests for buyer polling, cross-order denial and Authorization preflight. CI passed type-check, checkout-session security tests, checkout API integration tests and frontend build.
+- Preview deployment succeeded for commit `ad33d5fee9d63d09572304c89c51581ee4ea750f`: [`https://eeea7253.pelargo.pages.dev`](https://eeea7253.pelargo.pages.dev). Branch alias: [`https://ops-live-d1-readiness.pelargo.pages.dev`](https://ops-live-d1-readiness.pelargo.pages.dev).
+- These are build, mocked-test and deployment results. Live Tidepool token discovery, quote creation, committed quote, testnet deposit and end-to-end settlement remain unverified. No transfer has been made.
+
 ## Buyer widget progress — 5 November 2026
 
 - Added an explicit confirmation step after dry quote preview. The buyer must confirm before the widget sends a committed-quote request (`dry:false`).
