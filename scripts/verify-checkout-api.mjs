@@ -1075,7 +1075,11 @@ try {
   const paddedAddress = "0x" + originDepositAddress.slice(2).toLowerCase().padStart(64, "0");
   const quoteResponse = {
     correlationId: "origin-quote-test",
-    quoteRequest: { originAsset: "nep141:base-" + originToken + ".tp-omft.testnet" },
+    quoteRequest: {
+      originAsset: "nep141:base-" + originToken + ".tp-omft.testnet",
+      destinationAsset: "nep141:usdc.omft.near",
+      recipient: "merchant.near",
+    },
     quote: {
       amountIn: "1012633",
       amountOut: "2000000",
