@@ -41,6 +41,7 @@ const env = {
   DB: db,
   MERCHANT_PROVISIONING_SECRET: "test-provisioning-secret",
   ORDER_SESSION_SECRET: "test-only-order-session-secret-with-32-plus-characters",
+  NEAR_INDEXER_API_KEY: "test-fastnear-api-key",
 };
 const responseJson = async (response) => ({ status: response.status, body: await response.json() });
 const request = (url, method, body, headers = {}) => new Request(url, {
