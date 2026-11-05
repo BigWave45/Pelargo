@@ -419,6 +419,9 @@ try {
     }
     if (parsed.hostname === "rpc.mainnet.near.org") {
       const rpcRequest = JSON.parse(init.body);
+      if (rpcRequest.method === "status") {
+        return Response.json({ result: { chain_id: "mainnet" } });
+      }
       if (rpcRequest.method === "EXPERIMENTAL_tx_status") {
         assert.equal(rpcRequest.params[2], "FINAL", "NEAR transaction verification must request FINAL execution status");
         return Response.json({ result: {
