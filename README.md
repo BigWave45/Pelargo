@@ -46,7 +46,7 @@ The active `build/live-intents` branch contains Cloudflare Pages Functions scaff
 - `POST /api/quote`: validate and forward quote requests. Dry-run quotes are intended to be tested first; committed quotes remain blocked unless `ALLOW_MAINNET_DEPOSITS=true` is deliberately configured.
 - `GET /api/status?depositAddress=...`: proxy execution-status lookups.
 
-The Checkout workspace now contains a live token-discovery view that requests `/api/tokens`, validates the returned asset records, and supports network/search filtering. This is the first connected UI slice; its behavior has not yet been verified against a current Cloudflare deployment. The corrected dry-quote request schema has not yet been verified end to end. The frontend is not connected to a complete, tested order-to-settlement lifecycle. The embed snippet is not a published or executable SDK.
+The Checkout workspace now renders a reusable `PelargoCheckout` component. It loads supported assets from `/api/tokens`, lets a buyer choose a source asset, accepts a source-network refund address, converts the requested destination amount to atomic units, and submits an `EXACT_OUTPUT` dry quote to `/api/quote`. The quote preview is explicitly read-only and displays returned amounts and timing when present. This component has not yet been verified against a current Cloudflare deployment. The frontend is not connected to committed quotes, wallet signing, deposits or a complete order-to-settlement lifecycle. The embed snippet is not a published or executable SDK.
 
 ### Known prototype limitations
 
