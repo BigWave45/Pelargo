@@ -167,7 +167,8 @@ try {
   assert.equal(polled.status, 200);
   assert.equal(polled.body.paymentStatus, "deposit_detected");
   assert.equal(sqlite.query("SELECT provider_status FROM payment_lifecycle WHERE order_id = (SELECT id FROM checkout_orders WHERE external_order_id = ?)").get("order-001").provider_status, "KNOWN_DEPOSIT_TX");
-  await transitionPayment(db, { orderId: sqlite.query("SELECT id FROM checkout_orders WHERE external_order_id = ?").get("order-001").id, expectedStatus: "deposit_detected", nextStatus: "processing" });
+  // The next SUCCESS poll intentionally skips the provider's PROCESSING state;
+  // the route must fill the internal lifecycle gap before chain verification.
   const destinationHash = "1111111111111111111111111111111111111111111";
   const mockNearVerifier = (transferAmount, refundAmount = "0") => async (url, init = {}) => {
     const parsed = new URL(String(url));
