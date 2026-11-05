@@ -4,6 +4,7 @@ import { strict as assert } from "node:assert";
 import { onRequest as provisionMerchant } from "../functions/api/merchant.ts";
 import { onRequest as checkoutSession } from "../functions/api/checkout-session.ts";
 import { onRequest as quote } from "../functions/api/quote.ts";
+import { onRequest as getOrder } from "../functions/api/order.ts";
 
 class Statement {
   constructor(db, sql, values = []) { this.db = db; this.sql = sql; this.values = values; }
@@ -62,6 +63,13 @@ const created = await responseJson(await provisionMerchant({
   env,
 }));
 assert.equal(created.status, 201, "merchant provisioning should create a merchant");
+const secondMerchant = await responseJson(await provisionMerchant({
+  request: request("https://pelargo.test/api/merchant", "POST", { id: "shop_other", name: "Other Shop" }, {
+    "x-pelargo-provisioning-key": env.MERCHANT_PROVISIONING_SECRET,
+  }),
+  env,
+}));
+assert.equal(secondMerchant.status, 201, "second merchant should be provisioned for isolation tests");
 assert.match(created.body.apiKey, /^plg_live_[a-f0-9]{64}$/, "merchant API key must be high entropy");
 const storedMerchant = sqlite.query("SELECT api_key_hash FROM merchants WHERE id = ?").get("shop_test");
 assert.notEqual(storedMerchant.api_key_hash, created.body.apiKey, "database must not store the plaintext API key");
@@ -88,6 +96,36 @@ const issued = await responseJson(await checkoutSession({
   env,
 }));
 assert.equal(issued.status, 201, "authenticated merchant should receive a checkout session");
+const unauthorizedOrderLookup = await getOrder({
+  request: new Request("https://pelargo.test/api/order?orderId=order-001"),
+  env,
+});
+assert.equal(unauthorizedOrderLookup.status, 401, "order lookup must require merchant authentication");
+
+const ownOrder = await responseJson(await getOrder({
+  request: new Request("https://pelargo.test/api/order?orderId=order-001", {
+    headers: { "x-pelargo-merchant-key": created.body.apiKey },
+  }),
+  env,
+}));
+assert.equal(ownOrder.status, 200, "merchant should retrieve its own order");
+assert.equal(ownOrder.body.order.status, "pending");
+assert.equal(ownOrder.body.order.amountAtomic, "2000000");
+assert.equal("token" in ownOrder.body.order, false, "order lookup must not expose checkout tokens");
+
+const foreignOrder = await getOrder({
+  request: new Request("https://pelargo.test/api/order?orderId=order-001", {
+    headers: { "x-pelargo-merchant-key": secondMerchant.body.apiKey },
+  }),
+  env,
+});
+assert.equal(foreignOrder.status, 404, "merchant must not retrieve another merchant's order");
+
+const missingOrderId = await getOrder({
+  request: new Request("https://pelargo.test/api/order"),
+  env,
+});
+assert.equal(missingOrderId.status, 400, "order lookup must require an order ID");
 assert.ok(issued.body.token, "checkout response must include a signed token");
 
 const duplicate = await checkoutSession({
@@ -157,4 +195,4 @@ try {
   sqlite.close();
 }
 
-console.log("Checkout API integration checks passed: provisioning auth, API-key hashing, merchant auth, session issuance, duplicate-order rejection, session retrieval, quote binding, dry quote persistence and mainnet commit guard.");
+console.log("Checkout API integration checks passed: provisioning auth, API-key hashing, merchant auth, session issuance, duplicate-order rejection, session retrieval, merchant-scoped order lookup, quote binding, dry quote persistence and mainnet commit guard.");
