@@ -135,3 +135,12 @@ The public repository, deployed demo and hackathon explanation must clearly dist
 - **Verified:** The change was committed to `build/live-intents`. Source inspection confirms the diagnostic log is inside the fetch exception handler.
 - **Not verified:** The change has not been deployed or exercised in the Cloudflare runtime. No root cause has been established. This diagnostic only covers thrown fetch failures; non-2xx upstream HTTP responses continue to be forwarded as-is.
 - **Next action:** With explicit approval, deploy this branch, request `/api/tokens` once, and inspect the matching Cloudflare Function log using the returned `cf-ray` identifier.
+
+## Dry quote test panel — 5 November 2026
+
+- **Completed:** Added a temporary developer panel to the storefront that sends a fixed dry-run request to the same-origin POST /api/quote endpoint and displays the HTTP status plus the raw JSON or text response.
+- **Test case:** 1 USDC Arbitrum USDC to Base USDC, using the project owner's supplied public EVM address for recipient and refund, with 100 bps slippage tolerance.
+- **Safety:** The payload is hard-coded to dry: true; the panel does not expose a committed-quote control and does not change ALLOW_MAINNET_DEPOSITS.
+- **Verified:** Source changes committed to build/live-intents. The panel still requires a successful Cloudflare Pages preview deployment and an actual button press before the quote result can be considered tested.
+- **Not verified:** Upstream quote acceptance, token identifier availability in the live token registry, and whether the provider requires a partner JWT.
+- **Next action:** Open the updated branch preview and press Run 1 USDC test. Share the displayed HTTP status and response for diagnosis.
