@@ -53,14 +53,35 @@ async function postJson(url: string, body: unknown): Promise<JsonRecord> {
 
 function indexedSigner(payload: JsonRecord, expectedHash: string): string | null {
   // NearScanner uses hash/signer_id; NearBlocks v3 uses
-  // transaction_hash/signer_account_id. Accept only a hash-bound transaction.
+  // transaction_hash/signer_account_id. v3 response envelopes may expose
+  // either a single data object or a data array. Accept only a hash-bound row.
+  const candidates: JsonRecord[] = [];
+  const add = (value: unknown) => {
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        const itemRecord = record(item);
+        if (itemRecord) candidates.push(itemRecord);
+      }
+      return;
+    }
+    const itemRecord = record(value);
+    if (itemRecord) candidates.push(itemRecord);
+  };
+
+  add(payload.transaction);
+  add(payload.data);
+  add(payload.result);
   const data = record(payload.data);
   const result = record(payload.result);
-  const candidates = [record(payload.transaction), record(data?.transaction),
-    record(result?.transaction), data, result, payload];
+  add(data?.transaction);
+  add(data?.transactions);
+  add(result?.transaction);
+  add(result?.data);
+  add(payload);
+
   for (const candidate of candidates) {
-    const hash = candidate?.hash ?? candidate?.transaction_hash;
-    const signer = candidate?.signer_id ?? candidate?.signer_account_id;
+    const hash = candidate.hash ?? candidate.transaction_hash;
+    const signer = candidate.signer_id ?? candidate.signer_account_id;
     if (hash === expectedHash && typeof signer === "string" &&
         signer.length > 0 && signer.length <= 64) return signer;
   }
