@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, ArrowRight, Clock3, LoaderCircle, RefreshCw } from "lucide-react";
 
 type Token = {
@@ -84,6 +84,19 @@ export function PelargoCheckout({
   const [quote, setQuote] = useState<QuoteResponse["quote"] | null>(null);
   const [quoteId, setQuoteId] = useState("");
   const [requestedAt, setRequestedAt] = useState("");
+  const quoteRequestRef = useRef(0);
+
+  function clearQuote() {
+    quoteRequestRef.current += 1;
+    setQuote(null);
+    setQuoteId("");
+    setRequestedAt("");
+    setQuoting(false);
+  }
+
+  useEffect(() => {
+    clearQuote();
+  }, [destinationSymbol, destinationNetwork, recipient, orderId]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -146,8 +159,7 @@ export function PelargoCheckout({
 
   async function requestDryQuote() {
     setError("");
-    setQuote(null);
-    setQuoteId("");
+    clearQuote();
     if (!destinationToken) {
       setError(`The selected settlement asset ${destinationSymbol} on ${destinationNetwork} is not in the current NEAR Intents token list.`);
       return;
@@ -174,6 +186,7 @@ export function PelargoCheckout({
     }
 
     setQuoting(true);
+    const requestId = ++quoteRequestRef.current;
     try {
       const deadline = new Date(Date.now() + 10 * 60 * 1000).toISOString();
       const response = await fetch("/api/quote", {
@@ -192,7 +205,6 @@ export function PelargoCheckout({
           recipientType: "DESTINATION_CHAIN",
           slippageTolerance: 100,
           deadline,
-          sessionId: orderId,
         }),
       });
       const payload = await response.json() as QuoteResponse;
@@ -202,13 +214,14 @@ export function PelargoCheckout({
       if (!payload.quote || typeof payload.quote.amountIn !== "string" || typeof payload.quote.amountOut !== "string") {
         throw new Error("The quote service response did not include the expected amount fields.");
       }
+      if (requestId !== quoteRequestRef.current) return;
       setQuote(payload.quote);
       setQuoteId(payload.correlationId ?? "");
       setRequestedAt(new Date().toLocaleTimeString());
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to request a quote.");
     } finally {
-      setQuoting(false);
+      if (requestId === quoteRequestRef.current) setQuoting(false);
     }
   }
 
@@ -232,21 +245,21 @@ export function PelargoCheckout({
       <div className="pelargo-amount-field">
         <label htmlFor="pelargo-amount">Amount to receive</label>
         <div>
-          <input id="pelargo-amount" inputMode="decimal" value={amount} onChange={(event) => { setAmount(event.target.value); setQuote(null); }} />
+          <input id="pelargo-amount" inputMode="decimal" value={amount} onChange={(event) => { setAmount(event.target.value); clearQuote(); }} />
           <span>{destinationToken?.symbol ?? destinationSymbol}</span>
         </div>
         <small>{destinationToken ? `Settlement on ${destinationToken.blockchain}` : `Settlement network: ${destinationNetwork}`}</small>
       </div>
 
       <label className="pelargo-field-label" htmlFor="pelargo-source">You pay with</label>
-      <select id="pelargo-source" className="pelargo-select" value={sourceAssetId} onChange={(event) => { setSourceAssetId(event.target.value); setQuote(null); }} disabled={loadingTokens || sourceTokens.length === 0}>
+      <select id="pelargo-source" className="pelargo-select" value={sourceAssetId} onChange={(event) => { setSourceAssetId(event.target.value); clearQuote(); }} disabled={loadingTokens || sourceTokens.length === 0}>
         {sourceTokens.map((token) => (
           <option value={token.assetId} key={token.assetId}>{token.symbol} · {token.blockchain}</option>
         ))}
       </select>
 
       <label className="pelargo-field-label" htmlFor="pelargo-refund">Your refund address on {selectedSource?.blockchain ?? "the source network"}</label>
-      <input id="pelargo-refund" className="pelargo-text-input" value={refundTo} onChange={(event) => { setRefundTo(event.target.value); setQuote(null); }} placeholder="Wallet address for refunds" autoComplete="off" />
+      <input id="pelargo-refund" className="pelargo-text-input" value={refundTo} onChange={(event) => { setRefundTo(event.target.value); clearQuote(); }} placeholder="Wallet address for refunds" autoComplete="off" />
 
       <button className="pelargo-quote-button" onClick={requestDryQuote} disabled={loadingTokens || quoting || !configReady || !selectedSource}>
         {quoting ? <><LoaderCircle size={15} className="pelargo-spin" /> Getting quote…</> : <>Preview payment <ArrowRight size={15} /></>}
