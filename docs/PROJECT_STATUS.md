@@ -66,6 +66,16 @@ The earlier quote request reached the upstream service but failed schema validat
 
 The token UI expects the documented token array fields `assetId`, `decimals`, `blockchain` and `symbol`. It accepts either a raw array or an object with a `tokens` array. It does not construct asset IDs manually.
 
+## Embeddable element milestone
+
+- **Added:** `src/embed.tsx` registers a `<pelargo-checkout>` custom element and mounts the React checkout inside Shadow DOM.
+- **Added:** `vite.embed.config.ts` builds a standalone ES module and stylesheet. The normal build script now runs the site build and embed build.
+- **Added:** widget props support merchant-fixed amount, exact destination asset ID and an API base URL derived from the embed script origin.
+- **Added:** public API responses include CORS headers and `POST /api/quote` handles OPTIONS preflight, allowing cross-origin browser requests from merchant sites.
+- **Updated:** Developers view shows the proposed custom-element integration contract.
+- **Not verified:** no build has been run and no Cloudflare preview has been confirmed to contain the embed assets. The element is not yet proven to load on a third-party merchant domain.
+- **Critical security gap:** embed attributes are currently untrusted client inputs. No merchant-authenticated, signed, expiring server-side order session exists; no single-use/replay storage exists. Never enable committed quotes or treat an order ID/recipient supplied by markup as authoritative.
+
 ## Payment lifecycle
 
 ```text
@@ -105,17 +115,17 @@ A quote is not payment. A deposit address is not payment. Detecting a deposit is
 
 ## Next engineering sequence
 
-1. Verify the live token list and dry quote flow through the Cloudflare preview; inspect actual upstream response fields and correct any mismatch.
-2. Add server-side validation for merchant destination configuration, buyer refund address and quote request constraints.
-3. Define a real merchant order/session contract. Replace the current local preview order ID with server-issued, expiring order sessions.
-4. Design the embeddable checkout interface and distribution mechanism so merchants can invoke the component from existing websites and apps.
-5. Only after explicit project-owner approval, enable a controlled committed-quote test and render actual deposit address/memo instructions.
-6. Implement status reconciliation and destination transaction verification.
-7. Add merchant-facing payment result delivery and publish integration documentation/SDK.
+1. Run build and TypeScript checks; fix any errors in the app and standalone embed bundles.
+2. Verify token discovery and dry quote through a Cloudflare preview, inspecting actual upstream response fields.
+3. Verify the custom element loads from a separate origin and that its stylesheet/API requests resolve correctly.
+4. Implement merchant authentication and a signed, expiring order-session creation API. Bind amount, destination asset, recipient and merchant identity on the server; never trust embed attributes for committed payment authority.
+5. Add persistent single-use quote/commit state and replay protection before enabling any committed quote.
+6. Only after explicit project-owner approval, perform a controlled small-value payment test and render real deposit address/memo instructions.
+7. Implement status reconciliation, destination transaction verification and merchant payment-result delivery.
 
 ## Verification record
 
-- Latest implementation: reusable buyer checkout component connected to live token discovery and dry-quote request paths; quote validation hardened and stale-response handling added. No live quote result has yet been verified.
+- Latest implementation: standalone custom-element embed entry, merchant-fixed amount/exact destination props, cross-origin API CORS/preflight and embed markup have been added. Build, deployment, third-party loading and dry quote are still unverified.
 - CI/workflow runs for the latest code commit: none reported by GitHub at time of update.
 - Build/lint: not run in this environment.
 - Deployment: not verified. Do not assume Cloudflare Pages has deployed this branch head.
