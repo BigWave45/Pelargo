@@ -144,3 +144,17 @@ MIT
 ### Committed payment recovery after checkout-session expiry
 
 If a buyer's short-lived checkout token expires after the quote was committed, the same signed token can still be used to read and poll only its own committed order. The API verifies the signature and exact persisted session/order binding and requires the session to remain in the `committed` state. This recovery exception does not allow quote creation, session reactivation, or access to another order. Uncommitted and expired checkout sessions remain rejected.
+
+
+## Settlement reconciliation audit — 5 November 2026
+
+A read-only audit of Preview D1 and the deployed Pages metadata found two concrete defects in the previous recovery attempt:
+
+1. The Preview project configuration and deployed build metadata contain none of `NEAR_TX_HASH`, `NEAR_TX_SIGNER_ID` or `NEAR_TX_ORDER_ID`. The earlier handover statement that these variables were configured was incorrect. The known buyer-supplied transaction was therefore not enabled through that recovery configuration.
+2. The application verifies multiple candidate hashes, but the D1 `payment_settlement_evidence_insert_guard` requires an inserted evidence row to match the single `payment_lifecycle.destination_tx_candidate`. A valid later candidate can therefore be rejected by the database unless the verified candidate is persisted atomically with evidence insertion.
+
+For `ORDER-83587591`, Preview D1 currently records the verified Base Sepolia source deposit (1,012,633 atomic units), lifecycle `processing`, provider status `PROCESSING`, and candidate `6Y2GiawNNnwG3vu4rDhMh2enZJxhCvXJevKesHLw8cay`. No destination settlement-evidence row exists. The checkout order remains `quote_committed` by design until the settlement trigger promotes it to `paid`; this is not itself a state inconsistency.
+
+The deployed Preview build is commit `55a9b62e10456749fb145f22b18d9e6b457a80a2`. Cloudflare's deployment metadata confirms build and upload stages succeeded, but this is not evidence of browser runtime health. The active Preview environment variable list contains only `ALLOW_TESTNET_DEPOSITS`, `INTENTS_API_BASE_URL`, `MERCHANT_PROVISIONING_SECRET` and `ORDER_SESSION_SECRET` (secret values are not recorded here).
+
+The next implementation must preserve strict settlement guards and make candidate selection, evidence insertion and lifecycle settlement a single atomic operation. It must add regression coverage where the first provider candidate is invalid but a later candidate is valid. No manual settlement, new payment, Production change, main merge or mainnet activation is authorized by this audit.
