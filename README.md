@@ -153,8 +153,10 @@ The active branch now has a standalone custom-element entry point:
 - Build config: `vite.embed.config.ts`.
 - Build output: `dist/pelargo.js` and `dist/pelargo.css`.
 - Element name: `<pelargo-checkout>`.
-- The element mounts the React checkout inside a Shadow DOM so merchant page styles do not directly affect the widget.
+- The element mounts a **Pay with crypto** launcher on the merchant page. Clicking it opens the checkout in an isolated modal (a bottom sheet on small screens); the buyer stays on the merchant's site.
+- The React checkout is mounted inside a Shadow DOM so merchant page styles do not directly affect the widget.
 - The widget calls the Pelargo API using the origin of the loaded embed script, rather than the merchant page's origin.
+- The launcher accepts an optional `button-label` attribute.
 - Public API responses include CORS headers; the quote route handles browser preflight.
 
 Build the site and embed bundle with `bun run build`. The separate embed-only command is `bun run build:embed`.
