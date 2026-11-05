@@ -34,6 +34,8 @@ assert.equal(await verifyCheckoutSession(tampered, env), null, "tampered token m
 
 const expired = await signCheckoutSession({ ...claims, jti: "expired", exp: now - 1 }, env);
 assert.equal(await verifyCheckoutSession(expired, env), null, "expired token must be rejected");
+const expiredForRecovery = await verifyCheckoutSession(expired, env, { allowExpired: true });
+assert.equal(expiredForRecovery?.jti, "expired", "recovery mode may validate the signature and claims of an expired token");
 
 assert.equal(await verifyCheckoutSession(token, { ORDER_SESSION_SECRET: "wrong-secret-with-at-least-32-characters" }), null, "wrong signing secret must be rejected");
 assert.equal(await verifyCheckoutSession(token, {}), null, "missing signing secret must be rejected");
