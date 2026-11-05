@@ -4,92 +4,112 @@ Last updated: 5 November 2026
 
 ## Active branch and change control
 
-- Active development branch: `build/live-intents`.
 - Repository: `BigWave45/Pelargo`.
-- Keep all development changes on `build/live-intents`.
-- `main` is separate and must remain untouched unless the project owner explicitly authorises a merge.
-- Do not deploy production changes, enable mainnet deposits or spend funds without explicit approval.
+- Active development branch: `build/live-intents`.
+- Keep all development changes on this branch.
+- `main` must remain untouched unless the project owner explicitly authorises a merge.
+- Do not deploy production changes, enable committed mainnet quotes or spend funds without explicit approval.
 
-## Product
+## Product definition
 
-Pelargo is merchant checkout infrastructure built around NEAR Intents. A merchant defines the destination asset and recipient address. A buyer selects a supported source asset and pays through an embedded checkout.
+Pelargo is a **universal checkout widget powered by NEAR Intents**.
 
-The primary application is the merchant workspace. The buyer checkout is a separate, focused embedded experience. Developer integration is a supporting workspace area.
+Any merchant or application should be able to add a checkout button to an existing website or app. The buyer opens Pelargo, selects a supported source token and blockchain, and pays from a compatible wallet they already use. NEAR Intents routes the payment to the merchant's configured destination asset and address.
 
-## Current frontend state — workspace restructuring
+The widget is the product. Merchant setup and developer documentation are supporting surfaces only. Do not turn Pelargo into a storefront builder or broad merchant SaaS dashboard.
 
-- **Completed:** Replaced the Northwind Goods storefront-first entry point with a merchant workspace.
-- **Completed:** Added four navigation areas: Overview, Payment destination, Checkout and Developers.
-- **Completed:** Removed fabricated settlement metrics, sample transaction history, fake live-gateway status and the floating developer review controls from the primary application.
-- **Completed:** Added an empty payment activity state that explicitly requires verified settlement records.
-- **Completed:** Added destination configuration fields and made clear that they are local-only drafts; backend persistence and merchant authentication do not exist.
-- **Completed:** Added a buyer checkout design preview that cannot create a quote or initiate a payment.
-- **Completed:** Added illustrative integration markup and clearly marked it as non-executable because no public SDK exists.
-- **Design:** Warm paper workspace, restrained cobalt accent, consistent spacing, sidebar navigation and responsive layouts.
+“Any wallet and blockchain” is an ambition, not a compatibility guarantee. The widget must display only source assets/networks supported by the current Intents service and usable through the payment instructions provided.
 
-## API scaffolding and payment safety
+## MVP acceptance criteria
 
-Cloudflare Pages Functions are present:
+1. Merchant can integrate a checkout button/widget into an existing application without adopting a Pelargo storefront.
+2. Merchant/order context supplies an amount, order reference, destination asset and receiving address. These values must not be hardcoded demo data.
+3. Widget dynamically loads supported source assets and networks from the backend.
+4. Buyer selects a supported source asset and receives a live dry quote.
+5. Quote review clearly displays source amount, expected destination amount, fees, expiry and relevant payment details.
+6. No committed quote or deposit instructions are created before explicit buyer confirmation.
+7. After confirmation, the backend obtains real payment instructions and the widget renders the actual address, memo and a standards-compliant QR code where applicable.
+8. Backend reconciles status and verifies destination settlement before marking an order paid.
+9. Merchant application receives a trustworthy payment result; webhook delivery can follow the initial browser/server integration.
+10. No mock state is presented as live payment evidence.
 
-- `GET /api/tokens` — proxy supported-token discovery.
-- `POST /api/quote` — validates and forwards quote requests.
-- `GET /api/status?depositAddress=...` — proxy execution-status lookups.
+## Current implementation state
 
-The frontend is not yet connected to a verified end-to-end payment lifecycle.
+### Frontend
 
-The previous live quote response was HTTP 400 and explicitly identified missing `depositType`, `refundType`, `recipientType` and an ISO 8601 `deadline`. The dry quote panel payload was updated to include those fields. The corrected payload has not yet been tested.
+- Current merchant workspace is provisional and should be reduced to the minimum setup/integration surface needed by the widget.
+- Buyer checkout is currently a design preview, not a live checkout.
+- Existing demo components/data contain mock token choices, quote calculations, deposit addresses, QR artwork, transaction hashes, receipts and settlement history. These must not be used as live payment data.
+- The illustrative embed snippet is not a published or executable SDK.
+- No complete order-to-settlement flow is connected.
 
-The user previously reported that the deployed `/api/tokens` route returned a generic upstream connectivity error. A direct browser request to the upstream token endpoint returned a token list, but that does not establish Cloudflare Function connectivity. No verified deployed API status should be inferred from that browser test.
+### Cloudflare Pages Functions
 
-### Mainnet safety
+- `GET /api/tokens`: proxies supported-token discovery to NEAR Intents 1Click.
+- `POST /api/quote`: validates and forwards quote requests.
+- `GET /api/status?depositAddress=...`: proxies status lookups.
 
-- NEAR Intents 1Click is treated as a mainnet service.
-- `dry: true` requests a quote preview; it does not create a deposit address.
-- `dry: false` creates a real mainnet deposit address and may lead to an irreversible transfer.
-- `ALLOW_MAINNET_DEPOSITS` must remain unset.
-- Do not create committed quotes, send funds or run a real payment test without explicit project-owner approval and a reviewed small-value test plan.
+The earlier quote request reached the upstream service but failed schema validation because `depositType`, `refundType`, `recipientType` and ISO 8601 `deadline` were missing. The payload was updated with those fields, but the corrected dry quote has not yet been verified. Treat endpoint scaffolding as implemented, not proven operational.
+
+## Payment lifecycle
+
+```text
+Merchant application creates order
+  -> embeds/invokes Pelargo checkout with order context
+  -> widget loads supported source assets
+  -> buyer selects asset/network
+  -> backend requests dry quote
+  -> buyer reviews and explicitly confirms
+  -> backend requests committed quote
+  -> widget displays real deposit instructions
+  -> buyer pays from compatible wallet
+  -> backend reconciles Intents status
+  -> backend verifies destination transaction
+  -> merchant receives verified paid result
+```
+
+A quote is not payment. A deposit address is not payment. Detecting a deposit is not successful settlement. `FAILED`, `REFUNDED` and `INCOMPLETE_DEPOSIT` must never mark an order paid.
+
+## Mainnet safety
+
+- NEAR Intents 1Click is treated as a mainnet service in this implementation.
+- `dry: true` requests a quote preview and does not create a deposit address.
+- `dry: false` creates real payment instructions and can lead to irreversible transfers.
+- Keep `ALLOW_MAINNET_DEPOSITS` unset.
+- Do not create committed quotes or send funds without explicit project-owner approval and a reviewed small-value test plan.
 - Never request or handle private keys or seed phrases.
-- Never mark an order paid based on a timer, quote creation, deposit detection or an unverified status.
-- Only mark paid after a successful terminal status and verification of destination transaction details. `FAILED`, `REFUNDED` and `INCOMPLETE_DEPOSIT` must never be treated as paid.
+- Never infer payment success from frontend timers or simulated states.
+
+## Out of scope for MVP
+
+- Storefront builder or sample ecommerce catalog as the main experience.
+- Large merchant dashboard, analytics suite or fabricated transaction ledger.
+- Billing, teams, roles and elaborate merchant account administration.
+- Multiple payment providers before the Intents flow works.
+- Mainnet payment testing without explicit approval.
+
+## Next engineering sequence
+
+1. Verify the corrected `dry: true` quote request through the Cloudflare preview; fix request/response mapping based on actual upstream output.
+2. Connect the widget to live token discovery and dry quotes. Remove hardcoded mock payment options from the active checkout path.
+3. Define the merchant embed contract and order payload. Build the widget as a reusable component/script rather than coupling it to a demo storefront.
+4. Add server-side order/session binding and validate merchant destination details.
+5. Implement explicit buyer confirmation, committed quote handling behind the existing safety gate, and real deposit address/memo rendering.
+6. Implement status reconciliation and destination transaction verification.
+7. Add merchant-facing payment result delivery, then publish integration documentation and SDK/embed distribution.
 
 ## Hosting
 
 - Cloudflare Pages project: `pelargo`.
 - Public site: https://pelargo.pages.dev
-- Exact deployment commit must be checked in Cloudflare Pages before treating a preview or production URL as current.
-- No production deployment or merge to `main` is authorised by this change.
+- Check the exact deployed commit in Cloudflare Pages before treating any URL as current.
+- No production deployment or merge to `main` is authorised by this status update.
 
-## Not implemented
+## Handover rules
 
-- Merchant authentication and persistent merchant profiles.
-- Persistent destination configuration.
-- Order creation and order-to-quote binding.
-- Public checkout SDK and executable embed script.
-- Frontend connection to `/api/tokens`, `/api/quote` and `/api/status`.
-- Committed quote approval controls and safe payment execution.
-- Deposit address/memo rendering from a real committed quote.
-- Standards-compliant QR generation for real deposit instructions.
-- Status polling, terminal-state reconciliation and destination transaction verification.
-- Webhooks, receipts and persistent verified settlement history.
-
-## Next engineering priorities
-
-1. Verify the corrected dry quote through the deployed Cloudflare preview.
-2. Connect token discovery and dry quote requests to the buyer checkout only after the API behavior is confirmed.
-3. Implement server-side order creation and bind each quote to a merchant order.
-4. Add persistent merchant destination configuration only after the identity and validation model is defined.
-5. Implement status reconciliation and destination transaction verification before showing paid status.
-6. Publish the SDK/embed contract only after the checkout lifecycle is operational.
-
-## Development handover rules
-
-1. Read this file and the repository README at the start of a new session.
-2. Inspect the current repository state and active branch; do not assume this document is newer than GitHub.
-3. Distinguish implemented, deployed, tested and verified functionality.
-4. Keep all changes on `build/live-intents`; do not merge to `main` or deploy production without explicit approval.
+1. Read this file and `README.md` before continuing.
+2. Inspect the active branch and current files; this document may lag repository state.
+3. Distinguish implemented, deployed, tested and verified behavior.
+4. Keep changes on `build/live-intents`; do not merge to `main` or deploy production without explicit approval.
 5. Update this file and README after each material milestone.
-6. Never invent API results, deployment status, payment outcomes or test evidence.
-
-## Submission standard
-
-The public repository, deployed demo and project explanation must distinguish prototype screens from live functionality. No mock transaction, quote, receipt or settlement may be presented as evidence of a real payment.
+6. Never invent API results, deployment status or payment outcomes.
