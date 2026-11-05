@@ -354,3 +354,12 @@ This section supersedes earlier infrastructure statements in this file where the
 - `build/live-intents` remains the active production branch. `main` remains untouched.
 - The project owner approved a controlled production deployment only after configuration and tests pass. That approval is conditional, not permission to bypass the release gates above.
 
+## PR and preview deployment follow-up — 5 November 2026
+
+- Draft PR #1 (`ops/live-d1-readiness` → `build/live-intents`) passed the GitHub Actions `verify` check.
+- Cloudflare Pages also built and published a **preview deployment** for commit `23c6e612142454b0952bd124b9648817fd5d177e`: https://1af1cb9f.pelargo.pages.dev (branch alias: https://ops-live-d1-readiness.pelargo.pages.dev).
+- This is a preview deployment only. It is not the production deployment and it does not prove runtime D1 access.
+- A fresh Cloudflare Pages project read-back confirms there are currently **no configured secret variables** in either production or preview. Production has the `DB` binding; preview has no `DB` binding. Required production secrets `MERCHANT_PROVISIONING_SECRET` and `ORDER_SESSION_SECRET` are therefore still missing. Do not deploy application changes to production until these are configured.
+- The preview build succeeding does not validate merchant provisioning, session issuance or payment routes because those require secrets and D1. Do not interpret the green Cloudflare build check as an API integration test.
+- Next gate: configure the two encrypted production secrets and decide whether preview should receive its own isolated D1 binding and separate test secrets. Then run authenticated, synthetic-only API smoke tests. Keep mainnet commit disabled.
+
