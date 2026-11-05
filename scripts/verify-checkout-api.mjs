@@ -28,6 +28,7 @@ sqlite.exec(readFileSync(new URL("../migrations/0005_verified_settlement.sql", i
 sqlite.exec(readFileSync(new URL("../migrations/0006_order_destination_metadata.sql", import.meta.url), "utf8"));
 sqlite.exec(readFileSync(new URL("../migrations/0007_match_settlement_network.sql", import.meta.url), "utf8"));
 sqlite.exec(readFileSync(new URL("../migrations/0008_settlement_evidence_contract_guard.sql", import.meta.url), "utf8"));
+sqlite.exec(readFileSync(new URL("../migrations/0009_settlement_evidence_insert_guard.sql", import.meta.url), "utf8"));
 const db = {
   prepare(sql) { return new Statement(sqlite, sql); },
   batch(statements) {
@@ -329,6 +330,21 @@ try {
     sqlite.query("SELECT COUNT(*) AS count FROM payment_settlement_evidence").get().count,
     0,
     "mismatched chain transfer must not create settlement evidence",
+  );
+  assert.throws(
+    () => sqlite.query(`INSERT INTO payment_settlement_evidence
+      (order_id, destination_chain, destination_asset, token_contract, transaction_hash,
+       recipient, amount_atomic, block_number, block_hash, confirmations, verification_source, verified_at)
+      VALUES (?, 'NEAR', 'nep141:usdc.omft.near', 'usdc.omft.near', 'stale-candidate',
+              'merchant.near', '2000000', '90', 'receipt-block-hash', 11, 'chain_rpc', ?)`)
+      .run(commitLifecycleId, new Date().toISOString()),
+    /settlement evidence requires matching processing candidate/,
+    "evidence insert must reject a stale or non-matching candidate hash",
+  );
+  assert.equal(
+    sqlite.query("SELECT COUNT(*) AS count FROM payment_settlement_evidence").get().count,
+    0,
+    "rejected stale evidence must not be stored",
   );
 
   globalThis.fetch = mockNearVerifier("2000000");
