@@ -66,6 +66,17 @@ The earlier quote request reached the upstream service but failed schema validat
 
 The token UI expects the documented token array fields `assetId`, `decimals`, `blockchain` and `symbol`. It accepts either a raw array or an object with a `tokens` array. It does not construct asset IDs manually.
 
+## Signed checkout session milestone
+
+- **Added:** `functions/_lib/checkout-session.ts` signs and verifies bounded-lifetime HMAC-SHA256 session tokens using Cloudflare Web Crypto.
+- **Added:** `POST /api/checkout-session` issues a signed order token behind the server-side `PELARGO_MERCHANT_API_KEY`; `GET` verifies and returns public claims.
+- **Added:** `POST /api/quote` now requires a valid signed session and binds exact-output amount, destination asset and recipient to its signed claims. Buyer-selected source asset and refund address remain variable.
+- **Added:** the React widget and custom element require a signed `sessionToken` / `session-token` before requesting a quote.
+- **Required secrets:** `PELARGO_MERCHANT_API_KEY` and `ORDER_SESSION_SECRET`, set as Cloudflare Pages secrets only. Never expose them in browser code.
+- **Important limitation:** one shared gateway key currently protects session issuance; merchant IDs are not independently authenticated against a merchant registry. This is not complete multi-tenant merchant authentication.
+- **Important limitation:** there is no durable order store, token revocation or single-use/replay protection. Keep committed quotes disabled and do not enable real deposits.
+- **Not verified:** no TypeScript/build run or Cloudflare preview test has been completed for these endpoints.
+
 ## Embeddable element milestone
 
 - **Added:** `src/embed.tsx` registers a `<pelargo-checkout>` custom element and mounts the React checkout inside Shadow DOM.
@@ -125,7 +136,7 @@ A quote is not payment. A deposit address is not payment. Detecting a deposit is
 
 ## Verification record
 
-- Latest implementation: standalone custom-element embed entry, merchant-fixed amount/exact destination props, cross-origin API CORS/preflight and embed markup have been added. Build, deployment, third-party loading and dry quote are still unverified.
+- Latest implementation: HMAC-signed expiring order sessions added; quote API requires session and binds amount/destination/recipient; custom element requires session token. Shared gateway key only; merchant registry and durable replay protection absent. Build/deployment/preview verification still outstanding.
 - CI/workflow runs for the latest code commit: none reported by GitHub at time of update.
 - Build/lint: not run in this environment.
 - Deployment: not verified. Do not assume Cloudflare Pages has deployed this branch head.
