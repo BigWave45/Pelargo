@@ -158,12 +158,6 @@ const afterLogout = await merchantSession({
 assert.equal(afterLogout.status, 401, "logout must revoke the server-side session");
 
 
-const request = (url, method, body, headers = {}) => new Request(url, {
-  method,
-  headers: { "content-type": "application/json", ...headers },
-  body: body === undefined ? undefined : JSON.stringify(body),
-});
-
 const denied = await provisionMerchant({
   request: request("https://pelargo.test/api/merchant", "POST", { name: "Test Shop" }, {
     "x-pelargo-provisioning-key": "wrong",
