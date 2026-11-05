@@ -1,3 +1,22 @@
+# Backend update — 5 November 2026
+
+## Committed quote persistence and status polling
+
+- `POST /api/quote` now reads the 1Click committed-quote response using its documented structure: `correlationId` at the top level and `quote.depositAddress` / optional `quote.depositMemo`.
+- A successful committed quote attempts to persist the quote ID, deposit address, memo, lifecycle status and checkout-session status in D1.
+- Added `migrations/0003_provider_status.sql` for provider status, provider update time, destination transaction candidate and polling timestamp.
+- Added merchant-authenticated `GET /api/payment-status?orderId=...`. It resolves the order within the authenticated merchant, polls 1Click using the persisted deposit address and memo, stores the provider status and advances only allowed non-settlement lifecycle transitions.
+- Provider `SUCCESS` is deliberately not mapped to Pelargo `settled`. Its destination transaction hash is retained as a candidate pending independent chain verification.
+- API tests now cover authenticated status polling, memo forwarding, provider status persistence and the guard against marking an order settled from provider `SUCCESS` alone.
+
+## Important limitations
+
+- The new quote persistence and status polling changes have not yet passed CI. Do not treat them as production-ready.
+- The 1Click provider status is authenticated upstream evidence, not independent destination-chain finality.
+- The older public `GET /api/status?depositAddress=...` endpoint remains a legacy upstream proxy and is not the merchant order status interface.
+- Live Cloudflare D1 migration execution and live 1Click quote/status integration remain unverified.
+- No deployment, main-branch merge or real payment execution has been performed.
+
 # Current engineering update — 5 November 2026
 
 ## Verified backend milestone
