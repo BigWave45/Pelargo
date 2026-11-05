@@ -13,6 +13,8 @@ export interface Env {
   NEAR_TX_SIGNER_ID?: string;
   /** Exact transaction hash to which NEAR_TX_SIGNER_ID applies. */
   NEAR_TX_HASH?: string;
+  /** Exact external order ID allowed to use the configured recovery hash. */
+  NEAR_TX_ORDER_ID?: string;
   NEARSCANNER_TX_API_URL?: string;
   NEARSCANNER_API_KEY?: string;
   BASE_SEPOLIA_RPC_URL?: string;
