@@ -8,147 +8,88 @@ Last updated: 5 November 2026
 - Repository: `BigWave45/Pelargo`.
 - Keep all development changes on `build/live-intents`.
 - `main` is separate and must remain untouched unless the project owner explicitly authorises a merge.
-- Do not deploy production changes, enable mainnet deposits, or spend funds without explicit approval.
+- Do not deploy production changes, enable mainnet deposits or spend funds without explicit approval.
 
 ## Product
 
-Pelargo is a merchant-embeddable checkout concept built around NEAR Intents. A merchant defines the destination asset and recipient address. A buyer selects a supported source asset and pays through the checkout flow.
+Pelargo is merchant checkout infrastructure built around NEAR Intents. A merchant defines the destination asset and recipient address. A buyer selects a supported source asset and pays through an embedded checkout.
 
-The product must become a working checkout integration, not a mock payment UI or an undocumented thin API wrapper. Prioritise accurate quote details, explicit payment instructions, expiry handling, status reconciliation and verifiable destination settlement.
+The primary application is the merchant workspace. The buyer checkout is a separate, focused embedded experience. Developer integration is a supporting workspace area.
 
-## Current implementation
+## Current frontend state — workspace restructuring
 
-### Frontend
+- **Completed:** Replaced the Northwind Goods storefront-first entry point with a merchant workspace.
+- **Completed:** Added four navigation areas: Overview, Payment destination, Checkout and Developers.
+- **Completed:** Removed fabricated settlement metrics, sample transaction history, fake live-gateway status and the floating developer review controls from the primary application.
+- **Completed:** Added an empty payment activity state that explicitly requires verified settlement records.
+- **Completed:** Added destination configuration fields and made clear that they are local-only drafts; backend persistence and merchant authentication do not exist.
+- **Completed:** Added a buyer checkout design preview that cannot create a quote or initiate a payment.
+- **Completed:** Added illustrative integration markup and clearly marked it as non-executable because no public SDK exists.
+- **Design:** Warm paper workspace, restrained cobalt accent, consistent spacing, sidebar navigation and responsive layouts.
 
-- React 19, TypeScript and Vite.
-- Northwind Goods demo storefront, checkout widget and merchant-facing view.
-- Token selection, quote, payment, status, receipt and developer review UI are present.
-- The interface still contains mock data and simulated states, including quotes, deposit addresses, QR artwork, transaction hashes, progress and settlement history.
-- The QR artwork is decorative and is not a valid encoding of a real deposit address.
-- No payment has been executed through Pelargo.
-- Do not present a simulated receipt or progress state as proof of payment.
+## API scaffolding and payment safety
 
-### API scaffolding
+Cloudflare Pages Functions are present:
 
-Cloudflare Pages Functions have been added on this branch:
-
-- `GET /api/tokens` — intended to proxy supported-token discovery.
+- `GET /api/tokens` — proxy supported-token discovery.
 - `POST /api/quote` — validates and forwards quote requests.
-- `GET /api/status?depositAddress=...` — intended to proxy execution-status lookups.
+- `GET /api/status?depositAddress=...` — proxy execution-status lookups.
 
-Shared request handling is in `functions/_lib/intents.ts`. The API layer is scaffolding, not a complete or verified payment backend. The frontend is not yet connected to a verified end-to-end payment lifecycle.
+The frontend is not yet connected to a verified end-to-end payment lifecycle.
 
-### Hosting and current blocker
+The previous live quote response was HTTP 400 and explicitly identified missing `depositType`, `refundType`, `recipientType` and an ISO 8601 `deadline`. The dry quote panel payload was updated to include those fields. The corrected payload has not yet been tested.
 
-- Cloudflare Pages project: `pelargo`.
-- Public site: https://pelargo.pages.dev
-- The user confirmed the deployed site loads and displays the expected Pelargo interface.
-- The deployment's exact commit has not yet been verified against the active branch head.
-- Requesting `/api/tokens` currently returns:
-  `{"error":"Unable to reach the NEAR Intents token service"}`
-- The upstream URL `https://1click.chaindefuser.com/v0/tokens` returns a token list when opened directly in the user's browser. This does not establish that the Cloudflare Function runtime can reach the upstream service.
-- Commit `79be410b9388d5d9821ace8223ae08a1ff926ebf` changed the shared fetch helper to follow redirects. The user retested `/api/tokens` and the same generic error remained. This change has not resolved the observed failure.
-- The token route catches exceptions and returns a generic message, hiding the underlying exception. The cause is unknown; do not guess or make further blind fixes.
+The user previously reported that the deployed `/api/tokens` route returned a generic upstream connectivity error. A direct browser request to the upstream token endpoint returned a token list, but that does not establish Cloudflare Function connectivity. No verified deployed API status should be inferred from that browser test.
 
-## Immediate engineering priority
+### Mainnet safety
 
-Diagnose the deployed `/api/tokens` failure before connecting more UI or adding payment functionality.
-
-1. Inspect the latest commit on `build/live-intents` and compare it with the commit used by the latest Cloudflare Pages deployment.
-2. Inspect the Cloudflare Pages Function logs for the failing request.
-3. Review `functions/api/tokens.ts` and `functions/_lib/intents.ts`.
-4. Add safe, temporary diagnostics that identify the failure category and upstream HTTP status where available. Never log JWTs, authorization headers, secrets or sensitive payment data.
-5. Reproduce the request and identify the actual cause before changing network, redirect, authentication or response-handling logic.
-6. Retest the deployed endpoint and record the observed result. A successful browser request to the upstream URL is not a substitute for testing through the deployed Function.
-
-Do not claim the API works until the deployed route has returned and parsed a valid upstream response.
-
-## NEAR Intents and payment safety
-
-The current 1Click flow is treated as mainnet. No testnet checkout path has been established for this implementation.
-
+- NEAR Intents 1Click is treated as a mainnet service.
 - `dry: true` requests a quote preview; it does not create a deposit address.
 - `dry: false` creates a real mainnet deposit address and may lead to an irreversible transfer.
 - `ALLOW_MAINNET_DEPOSITS` must remain unset.
-- Do not request or create committed quotes, send funds, or run a real payment test without explicit project-owner approval and a reviewed small-value test plan.
-- Do not invent merchant destination or refund addresses.
-- If a partner JWT is required, store `ONECLICK_JWT` as a server-side Cloudflare secret. Never expose it through Vite client variables or browser code.
-- A quote is not a payment. A deposit address is not proof of deposit. A pending status is not settlement.
-- Never mark an order paid based only on a timer, quote creation, deposit detection or an unverified status.
+- Do not create committed quotes, send funds or run a real payment test without explicit project-owner approval and a reviewed small-value test plan.
+- Never request or handle private keys or seed phrases.
+- Never mark an order paid based on a timer, quote creation, deposit detection or an unverified status.
 - Only mark paid after a successful terminal status and verification of destination transaction details. `FAILED`, `REFUNDED` and `INCOMPLETE_DEPOSIT` must never be treated as paid.
 
-## Intended payment lifecycle
+## Hosting
 
-1. Merchant creates an order with a destination asset and recipient.
-2. Buyer opens the checkout widget.
-3. Widget retrieves supported assets.
-4. Buyer selects a source asset.
-5. Backend requests a dry quote.
-6. Buyer reviews the amount, fees, destination, expiry and payment conditions.
-7. Only after explicit buyer confirmation and an approved operational configuration may the backend request a committed quote.
-8. NEAR Intents returns a unique deposit address and any required memo.
-9. Buyer sends the exact quoted amount.
-10. Backend polls execution status through terminal state.
-11. Pelargo verifies successful destination settlement and transaction details.
-12. The order is marked paid only after that verification.
+- Cloudflare Pages project: `pelargo`.
+- Public site: https://pelargo.pages.dev
+- Exact deployment commit must be checked in Cloudflare Pages before treating a preview or production URL as current.
+- No production deployment or merge to `main` is authorised by this change.
 
-## Architecture and scope decisions
+## Not implemented
 
-- Keep the existing UI and improve it incrementally; no redesign unless explicitly requested.
-- Use Cloudflare Pages Functions for the API layer.
-- Keep infrastructure free-first. No Supabase dependency.
-- Do not add a database until persistent order binding is demonstrably required; consider Cloudflare D1 at that point.
-- Keep the policy and order lifecycle distinct from the 1Click provider implementation where practical.
-- First prove token discovery and dry quotes through the deployed API.
-- Then connect the widget to real API responses and implement correct quote expiry and payment-state handling.
-- Replace decorative QR artwork with a standards-compliant QR encoding only when a real deposit address and memo exist.
-- Defer wallet connectors, SaaS onboarding, analytics, webhooks and additional providers until the core checkout lifecycle works.
+- Merchant authentication and persistent merchant profiles.
+- Persistent destination configuration.
+- Order creation and order-to-quote binding.
+- Public checkout SDK and executable embed script.
+- Frontend connection to `/api/tokens`, `/api/quote` and `/api/status`.
+- Committed quote approval controls and safe payment execution.
+- Deposit address/memo rendering from a real committed quote.
+- Standards-compliant QR generation for real deposit instructions.
+- Status polling, terminal-state reconciliation and destination transaction verification.
+- Webhooks, receipts and persistent verified settlement history.
 
-## Development and handover rules
+## Next engineering priorities
 
-At the start of each new work session:
+1. Verify the corrected dry quote through the deployed Cloudflare preview.
+2. Connect token discovery and dry quote requests to the buyer checkout only after the API behavior is confirmed.
+3. Implement server-side order creation and bind each quote to a merchant order.
+4. Add persistent merchant destination configuration only after the identity and validation model is defined.
+5. Implement status reconciliation and destination transaction verification before showing paid status.
+6. Publish the SDK/embed contract only after the checkout lifecycle is operational.
 
-1. Read this file and the repository README.
-2. Inspect the current repository state and active branch. Do not assume this handover is newer than GitHub.
-3. Confirm the latest branch commit and relevant deployment state before diagnosing a deployment issue.
-4. Distinguish implemented, deployed, tested and verified functionality. These are different states.
-5. Make the smallest evidence-based change that resolves the current blocker.
-6. Keep changes on `build/live-intents`; do not merge into `main` or deploy without explicit approval.
-7. Update this file and the README after each material milestone.
+## Development handover rules
 
-Every milestone update should state:
-- **Completed:** what changed.
-- **Verified:** what was actually tested and observed.
-- **Not verified:** what remains unproven.
-- **Next action:** the single highest-priority task.
-
-Do not invent test results, deployment status, API capabilities or payment outcomes. If blocked, state the exact blocker and the evidence needed to resolve it.
+1. Read this file and the repository README at the start of a new session.
+2. Inspect the current repository state and active branch; do not assume this document is newer than GitHub.
+3. Distinguish implemented, deployed, tested and verified functionality.
+4. Keep all changes on `build/live-intents`; do not merge to `main` or deploy production without explicit approval.
+5. Update this file and README after each material milestone.
+6. Never invent API results, deployment status, payment outcomes or test evidence.
 
 ## Submission standard
 
-The public repository, deployed demo and hackathon explanation must clearly distinguish prototype screens from live functionality. A judge must be able to tell exactly which parts are operational and what evidence supports each claim.
-
-## Diagnostic change — 5 November 2026
-
-- **Completed:** Commit `aa7580519a368d8faab0b88954f0332f3a4edaa2` adds sanitized server-side logging to `GET /api/tokens` when the upstream fetch throws. The log records only the error name and message; it does not log request headers, JWTs or payment data.
-- **Completed:** The public 502 response now includes the stable code `UPSTREAM_FETCH_FAILED` and the Cloudflare `cf-ray` request identifier when available. The underlying exception message is not exposed publicly.
-- **Verified:** The change was committed to `build/live-intents`. Source inspection confirms the diagnostic log is inside the fetch exception handler.
-- **Not verified:** The change has not been deployed or exercised in the Cloudflare runtime. No root cause has been established. This diagnostic only covers thrown fetch failures; non-2xx upstream HTTP responses continue to be forwarded as-is.
-- **Next action:** With explicit approval, deploy this branch, request `/api/tokens` once, and inspect the matching Cloudflare Function log using the returned `cf-ray` identifier.
-
-## Dry quote test panel — 5 November 2026
-
-- **Completed:** Added a temporary developer panel to the storefront that sends a fixed dry-run request to the same-origin POST /api/quote endpoint and displays the HTTP status plus the raw JSON or text response.
-- **Test case:** 1 USDC Arbitrum USDC to Base USDC, using the project owner's supplied public EVM address for recipient and refund, with 100 bps slippage tolerance.
-- **Safety:** The payload is hard-coded to dry: true; the panel does not expose a committed-quote control and does not change ALLOW_MAINNET_DEPOSITS.
-- **Verified:** Source changes committed to build/live-intents. The panel still requires a successful Cloudflare Pages preview deployment and an actual button press before the quote result can be considered tested.
-- **Not verified:** Upstream quote acceptance, token identifier availability in the live token registry, and whether the provider requires a partner JWT.
-- **Next action:** Open the updated branch preview and press Run 1 USDC test. Share the displayed HTTP status and response for diagnosis.
-
-## Dry quote validation fix — 5 November 2026
-
-- **Completed:** The dry quote test now explicitly supplies `depositType: ORIGIN_CHAIN`, `refundType: ORIGIN_CHAIN`, and `recipientType: DESTINATION_CHAIN`, matching a source-chain deposit and destination-chain payout.
-- **Completed:** The request generates an ISO 8601 deadline ten minutes ahead at click time, rather than shipping a stale hard-coded timestamp.
-- **Verified:** The previous live response was HTTP 400 and explicitly identified these four missing fields. The patch is committed to build/live-intents.
-- **Not verified:** The corrected request has not yet been exercised against 1Click. A successful quote remains unproven.
-- **Next action:** Deploy the updated preview and run the dry quote test again. No committed quote or transfer is enabled.
+The public repository, deployed demo and project explanation must distinguish prototype screens from live functionality. No mock transaction, quote, receipt or settlement may be presented as evidence of a real payment.

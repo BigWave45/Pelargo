@@ -1,460 +1,145 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
-  Sun,
-  Moon,
-  Compass,
-  Sparkles,
-  Code2,
-  Check,
-  Copy,
-  ShoppingBag,
-  Store,
-  BarChart3,
-  Plus,
-  Trash2,
+  ArrowUpRight, Check, ChevronDown, Code2, Copy, ExternalLink,
+  FileCode2, LayoutDashboard, Link2, Radio, Settings2, ShieldCheck,
+  Wallet, Webhook, CircleHelp, Menu
 } from "lucide-react";
-import { PelargoWidget, WidgetScreen } from "./components/PelargoWidget.tsx";
-import { PelargoBird } from "./components/BrandMark.tsx";
-import { MerchantDashboard } from "./components/MerchantDashboard.tsx";
-import {
-  MOCK_ORDER,
-  STORE_PRODUCTS,
-  INITIAL_SETTLEMENT_HISTORY,
-  StoreProduct,
-  SettlementRecord,
-} from "./mock/data.ts";
+import "./styles/workspace.css";
+
+type Section = "overview" | "destination" | "checkout" | "developers";
+
+const navigation: { id: Section; label: string; icon: React.ElementType }[] = [
+  { id: "overview", label: "Overview", icon: LayoutDashboard },
+  { id: "destination", label: "Payment destination", icon: Wallet },
+  { id: "checkout", label: "Checkout", icon: Settings2 },
+  { id: "developers", label: "Developers", icon: Code2 },
+];
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<"store" | "merchant">("store");
-  const [isWidgetOpen, setIsWidgetOpen] = useState(false);
-  const [theme, setTheme] = useState<"dark" | "light">("dark");
-  const [activeScreen, setActiveScreen] = useState<WidgetScreen>("summary");
-  const [customAccent, setCustomAccent] = useState<string | undefined>(undefined);
-  const [copiedSnippet, setCopiedSnippet] = useState(false);
+  const [section, setSection] = useState<Section>("overview");
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [merchantName, setMerchantName] = useState("Your business");
+  const [asset, setAsset] = useState("USDC");
+  const [network, setNetwork] = useState("Base");
+  const [recipient, setRecipient] = useState("");
+  const [copied, setCopied] = useState(false);
 
-  // Cart state
-  const [cart, setCart] = useState<{ product: StoreProduct; quantity: number }[]>([
-    { product: STORE_PRODUCTS[0], quantity: 1 },
-  ]);
-
-  // Merchant settlement history (live state)
-  const [settlements, setSettlements] = useState<SettlementRecord[]>(
-    INITIAL_SETTLEMENT_HISTORY
-  );
-
-  useEffect(() => {
-    document.documentElement.setAttribute("data-theme", theme);
-  }, [theme]);
-
-  const toggleTheme = () => {
-    setTheme((prev) => (prev === "dark" ? "light" : "dark"));
+  const copySnippet = async () => {
+    const snippet = `<!-- Pelargo checkout integration — SDK availability pending -->
+<div data-pelargo-checkout
+  data-amount="25.00"
+  data-currency="USD"
+  data-recipient="${recipient || "YOUR_RECIPIENT_ADDRESS"}">
+</div>`;
+    try {
+      await navigator.clipboard.writeText(snippet);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1800);
+    } catch {
+      setCopied(false);
+    }
   };
 
-  const jumpToScreen = (screen: WidgetScreen) => {
-    setActiveScreen(screen);
-    setIsWidgetOpen(true);
-  };
-
-  const addToCart = (product: StoreProduct) => {
-    setCart((prev) => {
-      const existing = prev.find((item) => item.product.id === product.id);
-      if (existing) {
-        return prev.map((item) =>
-          item.product.id === product.id
-            ? { ...item, quantity: item.quantity + 1 }
-            : item
-        );
-      }
-      return [...prev, { product, quantity: 1 }];
-    });
-  };
-
-  const removeFromCart = (productId: string) => {
-    setCart((prev) => prev.filter((item) => item.product.id !== productId));
-  };
-
-  const cartTotal = cart.reduce(
-    (sum, item) => sum + item.product.priceUsdc * item.quantity,
-    0
-  );
-
-  const cartItemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
-
-  const activeOrderId = `NW-${10480 + settlements.length + 1}`;
-
-  const handleSettlementComplete = (record: SettlementRecord) => {
-    setSettlements((prev) => [record, ...prev]);
-  };
-
-  const integrationSnippet = `<script src="https://cdn.pelargo.io/v1/checkout.js" async></script>
-<button data-pelargo-pay data-amount="${cartTotal.toFixed(2)}" data-recipient="northwind.eth">
-  Pay with Pelargo
-</button>`;
-
-  const copyCode = () => {
-    navigator.clipboard?.writeText(integrationSnippet);
-    setCopiedSnippet(true);
-    setTimeout(() => setCopiedSnippet(false), 2000);
-  };
+  const title = navigation.find((item) => item.id === section)?.label ?? "Overview";
 
   return (
-    <div className="demo-store-page">
-      {/* Navigation Header */}
-      <header className="demo-header">
-        <div className="demo-brand">
-          <Compass size={22} style={{ color: "var(--accent)" }} />
-          <span>Northwind Goods</span>
-        </div>
-
-        {/* View Switcher: Storefront vs Merchant Portal */}
-        <div className="demo-nav-tabs" role="tablist" aria-label="Application views">
-          <button
-            type="button"
-            className={`demo-nav-tab ${activeTab === "store" ? "demo-nav-tab--active" : ""}`}
-            onClick={() => setActiveTab("store")}
-            role="tab"
-            aria-selected={activeTab === "store"}
-          >
-            <Store size={14} />
-            <span>Storefront</span>
-          </button>
-          <button
-            type="button"
-            className={`demo-nav-tab ${activeTab === "merchant" ? "demo-nav-tab--active" : ""}`}
-            onClick={() => setActiveTab("merchant")}
-            role="tab"
-            aria-selected={activeTab === "merchant"}
-          >
-            <BarChart3 size={14} />
-            <span>Merchant Portal</span>
-            <span
-              style={{
-                width: "var(--space-1)",
-                height: "var(--space-1)",
-                borderRadius: "var(--radius-full)",
-                backgroundColor: "var(--success)",
-              }}
-              aria-hidden="true"
-            />
-          </button>
-        </div>
-
-        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
-          {activeTab === "store" && (
-            <div className="demo-cart-btn" aria-label={`Shopping cart with ${cartItemCount} items`}>
-              <ShoppingBag size={15} style={{ color: "var(--accent)" }} />
-              <span>{cartItemCount} item{cartItemCount !== 1 ? "s" : ""}</span>
-              <span style={{ fontWeight: "var(--fw-semibold)" }}>${cartTotal.toFixed(2)}</span>
-            </div>
-          )}
-
-          <button
-            type="button"
-            className="pelargo-icon-btn"
-            onClick={toggleTheme}
-            aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
-            title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
-          >
-            {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
-          </button>
-        </div>
-      </header>
-
-      {/* Main Content Area */}
-      <main className="demo-main">
-        {activeTab === "merchant" ? (
-          <MerchantDashboard settlements={settlements} />
-        ) : (
-          <>
-            {/* Catalog Grid */}
-            <section aria-label="Product Catalog">
-              <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-1)", marginBottom: "var(--space-4)" }}>
-                <h1 style={{ fontSize: "var(--fs-xl)", fontWeight: "var(--fw-semibold)", color: "var(--text)" }}>
-                  Field & Studio Equipment
-                </h1>
-                <p style={{ fontSize: "var(--fs-sm)", color: "var(--muted)" }}>
-                  Waterproof paper, raw machined metal, and expedition canvas. Direct intent checkout in any token.
-                </p>
-              </div>
-
-              <div className="demo-catalog-grid">
-                {STORE_PRODUCTS.map((prod) => (
-                  <div key={prod.id} className="demo-catalog-card">
-                    <div className="demo-catalog-visual">
-                      <ShoppingBag size={28} style={{ color: "var(--accent)" }} />
-                      <span style={{ fontSize: "var(--fs-xs)", color: "var(--muted)", letterSpacing: "0.08em" }}>
-                        {prod.edition}
-                      </span>
-                    </div>
-
-                    <div className="demo-catalog-content">
-                      <span style={{ fontSize: "var(--fs-xs)", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                        {prod.category}
-                      </span>
-                      <h2 style={{ fontSize: "var(--fs-md)", fontWeight: "var(--fw-semibold)", color: "var(--text)" }}>
-                        {prod.title}
-                      </h2>
-                      <p style={{ fontSize: "var(--fs-xs)", color: "var(--muted)", lineHeight: "var(--lh)" }}>
-                        {prod.description}
-                      </p>
-                    </div>
-
-                    <div className="demo-catalog-price-row">
-                      <span style={{ fontSize: "var(--fs-lg)", fontWeight: "var(--fw-semibold)", color: "var(--text)" }}>
-                        ${prod.priceUsdc.toFixed(2)}{" "}
-                        <span style={{ fontSize: "var(--fs-xs)", color: "var(--muted)", fontWeight: "var(--fw-regular)" }}>USDC</span>
-                      </span>
-
-                      <button
-                        type="button"
-                        className="demo-add-cart-btn"
-                        onClick={() => addToCart(prod)}
-                        aria-label={`Add ${prod.title} to cart`}
-                      >
-                        <Plus size={14} />
-                        <span>Add</span>
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-
-            {/* Active Cart & Pelargo Checkout Panel */}
-            <section className="demo-cart-panel" aria-label="Shopping Cart and Pelargo Checkout">
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid var(--border)", paddingBottom: "var(--space-3)" }}>
-                <div>
-                  <h2 style={{ fontSize: "var(--fs-md)", fontWeight: "var(--fw-semibold)", color: "var(--text)" }}>
-                    Cart Order ({activeOrderId})
-                  </h2>
-                  <span style={{ fontSize: "var(--fs-xs)", color: "var(--muted)" }}>
-                    {cart.length === 0 ? "Cart is empty" : `${cartItemCount} items selected`}
-                  </span>
-                </div>
-                <span style={{ fontSize: "var(--fs-xl)", fontWeight: "var(--fw-semibold)", color: "var(--text)" }}>
-                  ${cartTotal.toFixed(2)}{" "}
-                  <span style={{ fontSize: "var(--fs-sm)", color: "var(--muted)" }}>USDC</span>
-                </span>
-              </div>
-
-              {cart.length > 0 ? (
-                <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-                  {cart.map((item) => (
-                    <div key={item.product.id} className="demo-cart-item-row">
-                      <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
-                        <span style={{ fontWeight: "var(--fw-semibold)", color: "var(--text)", fontSize: "var(--fs-sm)" }}>
-                          {item.quantity}×
-                        </span>
-                        <span style={{ fontSize: "var(--fs-sm)", color: "var(--text)" }}>
-                          {item.product.title}
-                        </span>
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
-                        <span style={{ fontSize: "var(--fs-sm)", fontWeight: "var(--fw-semibold)", color: "var(--text)" }}>
-                          ${(item.product.priceUsdc * item.quantity).toFixed(2)}
-                        </span>
-                        <button
-                          type="button"
-                          className="pelargo-icon-btn"
-                          style={{ width: "var(--space-5)", height: "var(--space-5)" }}
-                          onClick={() => removeFromCart(item.product.id)}
-                          aria-label={`Remove ${item.product.title}`}
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-
-                  <div style={{ paddingTop: "var(--space-3)", display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-                    <button
-                      type="button"
-                      className="pelargo-primary-btn"
-                      onClick={() => {
-                        setActiveScreen("summary");
-                        setIsWidgetOpen(true);
-                      }}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: "var(--space-2)",
-                      }}
-                    >
-                      <PelargoBird size={16} />
-                      <span>Pay ${cartTotal.toFixed(2)} USDC with Pelargo</span>
-                    </button>
-                    <span
-                      style={{
-                        fontSize: "var(--fs-xs)",
-                        color: "var(--muted)",
-                        textAlign: "center",
-                      }}
-                    >
-                      Buyers pay in ETH, SOL, NEAR, or USDT • Merchant receives exact USDC on Base
-                    </span>
-                  </div>
-                </div>
-              ) : (
-                <div style={{ textAlign: "center", padding: "var(--space-4) 0", color: "var(--muted)", fontSize: "var(--fs-sm)" }}>
-                  Your cart is empty. Click "+ Add" on any product above.
-                </div>
-              )}
-            </section>
-
-            {/* Merchant Integration Code Box */}
-            <section className="demo-code-box" aria-label="Developer integration snippet">
-              <div className="demo-code-header">
-                <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
-                  <Code2 size={15} />
-                  <span>One-line merchant integration snippet</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={copyCode}
-                  style={{
-                    background: "transparent",
-                    border: "none",
-                    color: "var(--muted)",
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "var(--space-1)",
-                    fontSize: "var(--fs-xs)",
-                  }}
-                >
-                  {copiedSnippet ? (
-                    <>
-                      <Check size={14} style={{ color: "var(--success)" }} />
-                      <span style={{ color: "var(--success)" }}>Copied</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy size={14} />
-                      <span>Copy</span>
-                    </>
-                  )}
-                </button>
-              </div>
-              <pre className="demo-code-snippet">
-                <code>{integrationSnippet}</code>
-              </pre>
-            </section>
-          </>
-        )}
-      </main>
-
-      {/* Dev-only Reviewer Panel in corner */}
-      <aside className="dev-panel" aria-label="Development review controls">
-        <div className="dev-panel-header">
-          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-1)" }}>
-            <Sparkles size={14} style={{ color: "var(--accent)" }} />
-            <span className="dev-panel-title">Pelargo Dev Review</span>
+    <div className="workspace">
+      <aside className={`workspace-sidebar ${mobileNavOpen ? "workspace-sidebar--open" : ""}`}>
+        <a className="workspace-brand" href="#" onClick={(event) => { event.preventDefault(); setSection("overview"); }}>
+          <span className="workspace-brand-mark">p</span>
+          <span>pelargo</span>
+        </a>
+        <div className="workspace-side-label">WORKSPACE</div>
+        <nav className="workspace-nav" aria-label="Main navigation">
+          {navigation.map(({ id, label, icon: Icon }) => (
+            <button key={id} className={`workspace-nav-item ${section === id ? "is-active" : ""}`}
+              onClick={() => { setSection(id); setMobileNavOpen(false); }}>
+              <Icon size={17} strokeWidth={1.8} /><span>{label}</span>
+            </button>
+          ))}
+        </nav>
+        <div className="workspace-sidebar-bottom">
+          <div className="workspace-help"><CircleHelp size={16} /><span>Documentation</span><ArrowUpRight size={13} /></div>
+          <div className="workspace-profile">
+            <div className="workspace-avatar">YB</div>
+            <div className="workspace-profile-copy"><strong>Workspace owner</strong><span>Merchant account</span></div>
+            <ChevronDown size={15} />
           </div>
-          <button
-            type="button"
-            className="dev-panel-btn"
-            onClick={toggleTheme}
-            title="Toggle theme"
-          >
-            {theme === "dark" ? "Light Mode" : "Dark Mode"}
-          </button>
-        </div>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: "calc(var(--space-1) / 2)" }}>
-          <span style={{ fontSize: "var(--fs-xs)", color: "var(--muted)" }}>
-            Jump to screen / state:
-          </span>
-          <div className="dev-panel-actions">
-            <button
-              type="button"
-              className={`dev-panel-btn ${isWidgetOpen && activeScreen === "summary" ? "dev-panel-btn--active" : ""}`}
-              onClick={() => jumpToScreen("summary")}
-            >
-              1. Choose
-            </button>
-            <button
-              type="button"
-              className={`dev-panel-btn ${isWidgetOpen && activeScreen === "pick-token" ? "dev-panel-btn--active" : ""}`}
-              onClick={() => jumpToScreen("pick-token")}
-            >
-              2. TokenPicker
-            </button>
-            <button
-              type="button"
-              className={`dev-panel-btn ${isWidgetOpen && activeScreen === "confirm" ? "dev-panel-btn--active" : ""}`}
-              onClick={() => jumpToScreen("confirm")}
-            >
-              3. Confirm & QR
-            </button>
-            <button
-              type="button"
-              className={`dev-panel-btn ${isWidgetOpen && activeScreen === "progress" ? "dev-panel-btn--active" : ""}`}
-              onClick={() => jumpToScreen("progress")}
-            >
-              4. Progress
-            </button>
-            <button
-              type="button"
-              className={`dev-panel-btn ${isWidgetOpen && activeScreen === "receipt" ? "dev-panel-btn--active" : ""}`}
-              onClick={() => jumpToScreen("receipt")}
-            >
-              5. Receipt
-            </button>
-            <button
-              type="button"
-              className={`dev-panel-btn ${isWidgetOpen && activeScreen === "error-expired" ? "dev-panel-btn--active" : ""}`}
-              onClick={() => jumpToScreen("error-expired")}
-            >
-              Err: Expired
-            </button>
-            <button
-              type="button"
-              className={`dev-panel-btn ${isWidgetOpen && activeScreen === "error-failed" ? "dev-panel-btn--active" : ""}`}
-              onClick={() => jumpToScreen("error-failed")}
-            >
-              Err: Failed
-            </button>
-            <button
-              type="button"
-              className={`dev-panel-btn ${isWidgetOpen && activeScreen === "loading" ? "dev-panel-btn--active" : ""}`}
-              onClick={() => jumpToScreen("loading")}
-            >
-              Loading (600ms)
-            </button>
-          </div>
-        </div>
-
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: "var(--space-1)" }}>
-          <button
-            type="button"
-            className="dev-panel-btn"
-            onClick={() => setCustomAccent((prev) => (prev ? undefined : "var(--success)"))}
-            title="Demonstrate merchant accent prop override"
-          >
-            {customAccent ? "Reset Accent" : "Merchant Emerald Accent"}
-          </button>
-          <button
-            type="button"
-            className="dev-panel-btn"
-            onClick={() => setIsWidgetOpen((prev) => !prev)}
-          >
-            {isWidgetOpen ? "Close Modal" : "Open Modal"}
-          </button>
         </div>
       </aside>
 
-      {/* The Pelargo Checkout Widget */}
-      <PelargoWidget
-        isOpen={isWidgetOpen}
-        onClose={() => setIsWidgetOpen(false)}
-        initialScreen={activeScreen}
-        onScreenChange={(s) => setActiveScreen(s)}
-        accent={customAccent}
-        orderTotal={cartTotal > 0 ? cartTotal : MOCK_ORDER.orderTotal}
-        orderId={activeOrderId}
-        onSettlementComplete={handleSettlementComplete}
-      />
+      <main className="workspace-main">
+        <header className="workspace-topbar">
+          <button className="workspace-mobile-menu" onClick={() => setMobileNavOpen(!mobileNavOpen)} aria-label="Toggle navigation"><Menu size={20} /></button>
+          <div className="workspace-breadcrumb"><span>Workspace</span><span className="breadcrumb-slash">/</span><strong>{title}</strong></div>
+          <div className="workspace-topbar-right"><span className="environment-pill"><i /> Prototype environment</span><button className="workspace-help-icon" aria-label="Help"><CircleHelp size={18} /></button></div>
+        </header>
+
+        <div className="workspace-content">
+          {section === "overview" && (
+            <>
+              <div className="workspace-heading-row">
+                <div><div className="eyebrow">MERCHANT WORKSPACE</div><h1>Overview</h1><p className="workspace-subtitle">Configure how your customers pay and how your business receives settlement.</p></div>
+                <button className="quiet-button" onClick={() => setSection("destination")}><Settings2 size={15} /> Configure payments</button>
+              </div>
+
+              <section className="welcome-panel">
+                <div className="welcome-copy"><div className="eyebrow light">GETTING STARTED</div><h2>One checkout. Multiple payment networks.</h2><p>Accept payment in supported assets while defining the asset and address your business wants to receive.</p><button className="welcome-link" onClick={() => setSection("destination")}>Set up your destination <ArrowUpRight size={15} /></button></div>
+                <div className="welcome-art" aria-hidden="true"><div className="orbit orbit-one" /><div className="orbit orbit-two" /><div className="orbit-core">p</div><span className="orbit-node node-one">◎</span><span className="orbit-node node-two">Ξ</span><span className="orbit-node node-three">◈</span></div>
+              </section>
+
+              <div className="section-heading"><div><h2>Setup status</h2><p>Core requirements before a live checkout can be enabled.</p></div><span className="status-outline">0 of 3 complete</span></div>
+              <div className="setup-grid">
+                <button className="setup-card" onClick={() => setSection("destination")}><span className="setup-icon"><Wallet size={18} /></span><span className="setup-card-copy"><strong>Payment destination</strong><small>Choose the asset and wallet address to receive.</small><em>Configure destination <ArrowUpRight size={13} /></em></span><span className="setup-number">01</span></button>
+                <button className="setup-card" onClick={() => setSection("checkout")}><span className="setup-icon"><Settings2 size={18} /></span><span className="setup-card-copy"><strong>Checkout preferences</strong><small>Review the buyer payment experience.</small><em>Review checkout <ArrowUpRight size={13} /></em></span><span className="setup-number">02</span></button>
+                <button className="setup-card" onClick={() => setSection("developers")}><span className="setup-icon"><FileCode2 size={18} /></span><span className="setup-card-copy"><strong>Integration</strong><small>Prepare your website integration.</small><em>View integration <ArrowUpRight size={13} /></em></span><span className="setup-number">03</span></button>
+              </div>
+
+              <div className="workspace-bottom-grid">
+                <section className="workspace-card"><div className="card-heading"><div><h3>Payment activity</h3><p>Verified settlement events will appear here.</p></div><span className="muted-tag">No live data</span></div><div className="empty-state"><div className="empty-icon"><Radio size={20} /></div><strong>No payment activity yet</strong><p>Transactions will appear after checkout is connected and a settlement is verified.</p></div></section>
+                <section className="workspace-card readiness-card"><div className="card-heading"><div><h3>Service readiness</h3><p>Current integration state</p></div><ShieldCheck size={18} /></div><div className="readiness-row"><span>Token discovery API</span><span className="readiness-state state-unverified">Needs verification</span></div><div className="readiness-row"><span>Quote generation</span><span className="readiness-state state-unverified">Needs verification</span></div><div className="readiness-row"><span>Settlement tracking</span><span className="readiness-state state-pending">Not connected</span></div><p className="readiness-note">No live payment processing is enabled. This workspace does not report simulated transactions as real activity.</p></section>
+              </div>
+            </>
+          )}
+
+          {section === "destination" && (
+            <>
+              <div className="workspace-heading-row"><div><div className="eyebrow">CONFIGURATION</div><h1>Payment destination</h1><p className="workspace-subtitle">Choose where Pelargo should route successful customer payments.</p></div><span className="draft-pill">Local draft</span></div>
+              <section className="form-panel">
+                <div className="form-panel-heading"><span className="form-icon"><Wallet size={18} /></span><div><h2>Settlement details</h2><p>This is the asset and address your business intends to receive.</p></div></div>
+                <label className="field-label" htmlFor="merchant-name">Business name</label><input id="merchant-name" className="workspace-input" value={merchantName} onChange={(e) => setMerchantName(e.target.value)} placeholder="Your business name" />
+                <div className="field-grid"><div><label className="field-label" htmlFor="asset">Settlement asset</label><select id="asset" className="workspace-input" value={asset} onChange={(e) => setAsset(e.target.value)}><option>USDC</option><option>USDT</option><option>ETH</option><option>NEAR</option></select></div><div><label className="field-label" htmlFor="network">Network</label><select id="network" className="workspace-input" value={network} onChange={(e) => setNetwork(e.target.value)}><option>Base</option><option>Ethereum</option><option>Arbitrum</option><option>NEAR</option></select></div></div>
+                <label className="field-label" htmlFor="recipient">Recipient wallet address</label><input id="recipient" className="workspace-input mono-input" value={recipient} onChange={(e) => setRecipient(e.target.value)} placeholder="Enter a public wallet address" />
+                <div className="field-hint"><ShieldCheck size={14} /> Use an address compatible with the selected settlement network. Never enter a seed phrase or private key.</div>
+                <div className="form-footer"><span>Changes are held in this browser session only.</span><button className="primary-button" disabled={!merchantName.trim() || !recipient.trim()} onClick={() => window.alert("This prototype does not persist merchant settings yet. No configuration was saved.")}>Save destination <ArrowUpRight size={15} /></button></div>
+              </section>
+              <div className="notice-panel"><strong>Persistence is not implemented yet.</strong><p>The form is a layout and interaction prototype. Saving is deliberately disabled at the backend level until merchant identity, validation and secure configuration storage are implemented.</p></div>
+            </>
+          )}
+
+          {section === "checkout" && (
+            <>
+              <div className="workspace-heading-row"><div><div className="eyebrow">BUYER EXPERIENCE</div><h1>Checkout</h1><p className="workspace-subtitle">The checkout is designed to be embedded in your existing storefront.</p></div><span className="draft-pill">Design preview</span></div>
+              <div className="checkout-layout"><section className="workspace-card checkout-explainer"><div className="eyebrow">HOW IT WORKS</div><h2>A focused payment flow for your customers.</h2><p>Your customer chooses a supported token and network. Pelargo requests a quote, explains the amount and payment conditions, then tracks the transfer through verified settlement.</p><div className="checkout-step"><b>01</b><span><strong>Choose payment asset</strong><small>Buyer selects from supported networks and tokens.</small></span></div><div className="checkout-step"><b>02</b><span><strong>Review quote</strong><small>Show the exact amount, fees, destination and expiry.</small></span></div><div className="checkout-step"><b>03</b><span><strong>Pay and verify</strong><small>Track the deposit and confirm destination settlement.</small></span></div></section><section className="checkout-preview"><div className="preview-topline"><span>CHECKOUT PREVIEW</span><span>NOT CONNECTED</span></div><div className="preview-brand">pelargo<span> · </span>{merchantName || "Your business"}</div><div className="preview-amount"><small>Amount due</small><strong>$25.00 <i>USD</i></strong></div><div className="preview-option"><span className="preview-token">◎</span><span><b>Choose a payment token</b><small>Available assets load from the live token API</small></span><ChevronDown size={16} /></div><button className="preview-pay" disabled>Continue to payment</button><p className="preview-disclaimer">Preview only. No quote or payment request is created.</p></section></div>
+            </>
+          )}
+
+          {section === "developers" && (
+            <>
+              <div className="workspace-heading-row"><div><div className="eyebrow">BUILD WITH PELARGO</div><h1>Developer integration</h1><p className="workspace-subtitle">Connect Pelargo to your existing checkout rather than sending customers to a separate storefront.</p></div><span className="draft-pill">SDK in development</span></div>
+              <section className="integration-panel"><div className="integration-panel-copy"><span className="integration-icon"><Code2 size={19} /></span><h2>Embed checkout</h2><p>The intended integration is a lightweight checkout component configured with an order amount and your verified settlement destination.</p><div className="integration-facts"><div><Check size={15} /><span>Merchant-defined settlement asset</span></div><div><Check size={15} /><span>Buyer-selected supported payment asset</span></div><div><Check size={15} /><span>Settlement verification before paid status</span></div></div></div><div className="code-panel"><div className="code-panel-head"><span>HTML · PROPOSED API</span><button onClick={copySnippet}><Copy size={14} />{copied ? "Copied" : "Copy"}</button></div><pre>{`<!-- SDK and embed API are not published yet -->
+<div data-pelargo-checkout
+  data-amount="25.00"
+  data-currency="USD"
+  data-recipient="${recipient || "YOUR_RECIPIENT_ADDRESS"}">
+</div>`}</pre><div className="code-panel-foot">Illustrative markup only. This snippet is not executable.</div></div></section>
+              <div className="notice-panel"><strong>Integration is not ready for production.</strong><p>The public SDK, authenticated order creation, webhook delivery and persistent order records have not been implemented. Do not paste this illustrative snippet into a live store.</p></div>
+              <section className="workspace-card api-card"><div className="card-heading"><div><h3>API surface</h3><p>Server-side routes currently present in this branch.</p></div><Link2 size={17} /></div><div className="api-row"><code>GET /api/tokens</code><span>Proxy scaffold · verification pending</span></div><div className="api-row"><code>POST /api/quote</code><span>Dry quote validation · schema corrected, retest pending</span></div><div className="api-row"><code>GET /api/status</code><span>Proxy scaffold · end-to-end lifecycle not connected</span></div></section>
+            </>
+          )}
+          <footer className="workspace-footer"><span>Pelargo</span><span>Merchant checkout infrastructure</span><span>Prototype · Mainnet deposits disabled</span></footer>
+        </div>
+      </main>
     </div>
   );
 }
