@@ -1,5 +1,24 @@
 # Backend update — 5 November 2026
 
+## CI repair and provider-status test milestone
+
+- Fixed the duplicate top-level `originalFetch` declaration in `scripts/verify-checkout-api.mjs` by giving the quote-test fetch stub its own name.
+- The next run exposed a faulty test URL regex: it did not match the literal question mark in the status URL. Replaced the regex assertion with explicit URL pathname and query-parameter assertions.
+- GitHub Actions run `41949348566`, commit `5214c1f`, passed all checks: TypeScript type-check, checkout-session security tests, checkout API integration tests and frontend build.
+- The API suite now covers merchant-authenticated payment-status polling, persisted deposit memo forwarding, provider status persistence and the rule that provider `SUCCESS` cannot mark an order settled.
+- Test scope is in-memory SQLite using the repository migrations and mocked fetch responses. This does not establish live Cloudflare D1 compatibility or live NEAR Intents request/response compatibility.
+
+## Remaining payment lifecycle gaps
+
+- Committed quote persistence has not yet been exercised end-to-end by the API test suite. Mainnet commits remain disabled, and no real deposit instructions have been requested.
+- Provider status is not independent settlement proof. Destination-chain transaction verification is not implemented; a candidate transaction hash must not be trusted until verified against the destination chain, recipient, asset, amount and finality requirements.
+- Live 1Click status schema, live D1 migrations/bindings, status polling reliability, webhook delivery and scheduled reconciliation remain unverified or unimplemented.
+- No deployment, merge to `main`, or real payment execution has been performed.
+
+---
+
+# Backend update — 5 November 2026
+
 ## Committed quote persistence and status polling
 
 - `POST /api/quote` now reads the 1Click committed-quote response using its documented structure: `correlationId` at the top level and `quote.depositAddress` / optional `quote.depositMemo`.
