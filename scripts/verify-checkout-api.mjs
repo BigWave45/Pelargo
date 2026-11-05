@@ -817,7 +817,7 @@ try {
   const originalFetchForBuyerStatus = globalThis.fetch;
   try {
     globalThis.fetch = async (url, init) => {
-      assert.match(String(url), /\\/v0\\/status\\?/);
+      assert.ok(String(url).includes("/v0/status?"));
       assert.equal(init.method, "GET");
       return Response.json({ status: "PENDING_DEPOSIT" });
     };
