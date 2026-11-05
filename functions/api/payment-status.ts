@@ -101,6 +101,7 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
   const suppliedKey = request.headers.get("x-pelargo-merchant-key") ?? "";
   let merchantId = "";
   let orderId = url.searchParams.get("orderId") ?? "";
+  let buyerSessionExpired = false;
 
   if (suppliedKey) {
     if (suppliedKey.length > 512) return json({ error: "Merchant authentication failed" }, 401);
@@ -122,8 +123,11 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
       const authorization = request.headers.get("authorization") ?? "";
     const match = /^Bearer ([A-Za-z0-9_.-]{1,4096})$/.exec(authorization);
     if (!match) return json({ error: "Merchant or checkout-session authentication is required" }, 401);
-    const claims = await verifyCheckoutSession(match[1], env);
-    if (!claims) return json({ error: "Checkout session is invalid or expired" }, 401);
+    // Expired signed sessions may only recover an already-committed order.
+    // The persisted session status and order binding below remain authoritative.
+    const claims = await verifyCheckoutSession(match[1], env, { allowExpired: true });
+    if (!claims) return json({ error: "Checkout session is invalid" }, 401);
+    buyerSessionExpired = claims.exp <= Math.floor(Date.now() / 1000);
     const tokenHash = await sha256Hex(match[1]);
     const stored = await env.DB.prepare(
       "SELECT status FROM checkout_sessions WHERE jti = ? AND order_id = (SELECT id FROM checkout_orders WHERE merchant_id = ? AND external_order_id = ?) AND merchant_id = ? AND token_hash = ?"
@@ -152,6 +156,9 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
   }>();
 
   if (!payment) return json({ error: "Order not found" }, 404);
+  if (buyerSessionExpired && payment.status === "expired") {
+    return json({ error: "Checkout session expired before payment instructions were committed" }, 401);
+  }
   if (!payment.deposit_address) {
     return json({ error: "No committed deposit address exists for this order", code: "DEPOSIT_NOT_CREATED" }, 409);
   }
