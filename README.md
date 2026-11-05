@@ -1,275 +1,123 @@
 # Pelargo
 
-Pelargo is a universal checkout widget powered by NEAR Intents. Its product category is Web3 payments infrastructure: a cross-chain crypto checkout and payment gateway.
+Pelargo is an embeddable crypto checkout and payment gateway built around NEAR Intents / 1Click. Merchants integrate a checkout button into an existing website or application. Buyers select an available source asset and network, review a quote, and pay using a compatible wallet. The merchant receives the configured destination asset when the route and destination are supported.
 
-Any merchant or application can add a checkout button to an existing website or app. A customer opens Pelargo, chooses a supported token and blockchain they can pay from, and completes payment through a wallet they already use. NEAR Intents routes the payment so the merchant receives the asset configured for settlement.
+The checkout widget is the product. The merchant-facing workspace supports setup and integration; Pelargo is not a storefront builder.
 
-The widget is the product. The merchant-facing surface exists only to configure checkout and help developers integrate it. Pelargo is not a storefront builder or a full merchant SaaS dashboard.
+## Capability boundaries
 
-## Network coverage: routing versus verified settlement
+**Routing is not settlement verification.** NEAR Intents may route assets across multiple chains, but Pelargo only marks an order paid when its own destination-chain verifier confirms the exact transfer.
 
-These are separate capabilities:
+- Implemented settlement verifier: NEAR mainnet NEP-141 tokens.
+- Verifier checks finalized NEAR transaction/receipt execution, the exact token contract, recipient and net atomic amount, including resolver refunds.
+- EVM ERC-20, Solana SPL, Bitcoin and other destination verifiers are not implemented. Do not infer settlement support from 1Click routing availability.
+- Source assets and networks are discovered from the provider; availability can change and is not guaranteed.
 
-- Payment routing: source networks and assets shown to a buyer are discovered from live NEAR Intents/1Click availability. A quoted route is not a promise that every route is always available.
-- Merchant settlement: Pelargo must independently verify that the configured destination asset reached the merchant's exact address before marking an order paid.
-- Currently verified destination: NEAR mainnet NEP-141 tokens only. The verifier checks successful execution, exact token contract, recipient and net atomic amount, including resolver refunds, against finalized NEAR RPC data.
-- Planned destination adapters: EVM ERC-20, Solana SPL, then UTXO networks such as Bitcoin. Each requires a chain-specific verifier, finality policy and adversarial tests. These are roadmap targets, not currently supported settlement destinations.
+## Checkout flow
 
-NEAR Intents has broad multi-chain routing coverage, but its coverage does not automatically make Pelargo a verified checkout on every chain. A destination chain is enabled for merchant settlement only after its verifier and live infrastructure tests pass.
+1. Merchant server provisions/uses a merchant API key and creates an order session.
+2. Merchant server passes the short-lived signed session token and public order details to the browser widget.
+3. Widget requests a dry quote for buyer review.
+4. A committed quote can create real deposit instructions. It is a separate, potentially irreversible payment action.
+5. Pelargo polls provider status and independently verifies the destination transaction before marking the order paid.
+6. Merchant can query its order and payment status through authenticated server-to-server endpoints.
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+The current widget is an integration prototype. It is not a published SDK/CDN package, and it does not yet provide a complete production buyer payment experience. Do not use it to collect real customer funds.
 
-## NEAR Hackathon positioning
+## Backend implementation
 
-- **Primary track: 08 / Real-World Money (RWM).** Pelargo is merchant checkout and stablecoin payment infrastructure using NEAR Intents.
-- **Secondary track: 13 / Open Innovation (NEW).** The reusable checkout primitive may also qualify as a general-purpose cross-chain payment interface for existing applications.
-- **Not currently claimed:** AI Security & Defense, AI Swarms or Agent Economy. These require product capabilities not present in the current scope. Agent Economy may become relevant if autonomous agents become first-class payers or merchants.
+Cloudflare Pages Functions and D1 provide the API and persistence layer.
 
-Track selection should reflect the working prototype at submission time, not aspirations.
+| Area | Implemented |
+|---|---|
+| Merchant provisioning | Operator-authenticated merchant creation; API keys stored as hashes |
+| Checkout sessions | Merchant-scoped order creation, short-lived HMAC-signed session tokens, replay protection |
+| Quote orchestration | Session-bound dry quotes; committed quote persistence requires provider correlation ID and deposit details |
+| Order access | Merchant-scoped order lookup |
+| Provider status | Authenticated polling; stale concurrent responses rejected; provider SUCCESS is only a candidate |
+| Settlement | Independent NEAR NEP-141 verification; immutable evidence and database guards; atomic paid-state synchronization |
+| Expiry | Worker code for expiring abandoned, uncommitted pending sessions |
+| Uncertain commits | Idempotent operator recovery cases for ambiguous upstream quote commits |
 
-## Product experience
+The generic lifecycle helper cannot mark an order settled. Settlement requires verified evidence matching the order's network, asset, recipient, amount and stored destination transaction candidate.
 
-### Merchant integration
+### API surface
 
-A merchant creates an order in their own application and invokes Pelargo with the order amount, order reference, destination asset and receiving address. The checkout must be embeddable in an existing website or application, with a small integration surface and no requirement to rebuild the merchant's storefront.
+- `POST /api/merchant` — operator-only merchant provisioning.
+- `POST /api/checkout-session` — merchant-authenticated order/session creation.
+- `GET /api/checkout-session?token=...` — validate/retrieve public session claims.
+- `GET /api/tokens` — provider-supported asset discovery.
+- `POST /api/quote` — session-bound dry or committed quote request.
+- `GET /api/order?orderId=...` — merchant-scoped order lookup.
+- `GET /api/payment-status?orderId=...` — merchant-scoped provider polling and eligible NEAR settlement verification.
+- `GET /api/operator/recovery-cases` — operator-authenticated, read-only queue of ambiguous committed-quote outcomes.
+- `GET /api/status` — retired; returns HTTP 410. Do not integrate with it.
 
-### Customer checkout
+See [docs/INTEGRATION.md](docs/INTEGRATION.md) for request contracts and [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) for the engineering and verification ledger.
 
-1. The customer opens the merchant's Pelargo checkout.
-2. Pelargo loads the assets and networks currently supported by NEAR Intents.
-3. The customer selects a source asset and network available to them.
-4. Pelargo requests a quote and displays the source amount, destination amount, fees, route details where available, and quote expiry.
-5. The customer explicitly confirms before any committed quote or deposit instructions are created.
-6. The customer pays from a compatible wallet using the instructions returned by the payment service.
-7. Pelargo reconciles the payment and verifies destination settlement.
-8. The merchant receives a payment result only after settlement is verified.
+## Database migrations
 
-“Any wallet and blockchain” is the product ambition, not a claim of universal compatibility. Actual payment options depend on NEAR Intents asset/network support and the wallet's ability to send the selected asset. The interface must show only options that can actually be used.
+The repository contains migrations `0001` through `0011`.
 
-## Product boundaries
+- `0001`–`0008`: checkout storage, lifecycle, provider status, commit synchronization and settlement evidence constraints.
+- `0009`: prevents stale/mismatched destination transaction evidence from being inserted.
+- `0010`: synchronizes expiry across pending lifecycle, order and active session.
+- `0011`: durable, unique recovery cases for uncertain upstream commits.
 
-- **Core:** embeddable checkout button/widget, order context, supported-asset discovery, quote review, payment instructions, status reconciliation and verified payment result.
-- **Supporting merchant setup:** destination asset, receiving address and basic checkout configuration.
-- **Supporting developer docs:** embed contract, SDK/API reference and integration examples.
-- **Optional activity:** real orders and verified settlements only.
+As of 5 November 2026, the isolated preview D1 database records migrations 0001–0011. This is not evidence that production D1 has those migrations. Production migration state must be checked separately before any release.
 
-Do not expand this into a general merchant dashboard. Storefront building, fabricated analytics, billing, teams/roles, elaborate account management and decorative route visualisations are outside the MVP.
+## Scheduled reconciliation worker
 
-## Implementation status
+`workers/expiry-sweeper.ts` contains two scheduled jobs:
 
-**The repository is not yet an operational universal checkout. The current frontend contains prototype/demo elements and must not be treated as a live payment flow.**
+- Expire only pending orders whose order and active session expiry timestamps have elapsed.
+- Create an operator recovery case for a `commit_attempted` session older than ten minutes when the order/lifecycle remain pending and no provider quote ID or deposit address was persisted.
 
-The active `build/live-intents` branch contains Cloudflare Pages Functions scaffolding:
+Ambiguous commits are never automatically retried, reactivated or expired. The provider may have accepted the quote even if Pelargo lost its response. The operator queue uses the provisioning secret and returns no merchant API keys or checkout tokens.
 
-- `GET /api/tokens`: proxy supported-token discovery to NEAR Intents 1Click.
-- `POST /api/quote`: validate and forward quote requests. Dry-run quotes are intended to be tested first; committed quotes remain blocked unless `ALLOW_MAINNET_DEPOSITS=true` is deliberately configured.
-- `GET /api/status?depositAddress=...`: proxy execution-status lookups.
+`wrangler.expiry.toml` currently describes a five-minute cron Worker bound to the production D1 database. The Worker has **not** been deployed and the cron is **not** active. Do not deploy that configuration to preview; create a separate preview configuration bound to `pelargo-preview-db` first.
 
-The Checkout workspace now renders a reusable `PelargoCheckout` component. It loads supported assets from `/api/tokens`, lets a buyer choose a source asset, accepts a source-network refund address, converts the requested destination amount to atomic units, and submits an `EXACT_OUTPUT` dry quote to `/api/quote`. The quote preview is explicitly read-only and displays returned amounts and timing when present. This component has not yet been verified against a current Cloudflare deployment. The frontend is not connected to committed quotes, wallet signing, deposits or a complete order-to-settlement lifecycle. The embed snippet is not a published or executable SDK.
+## Verification status and limits
 
-### Known prototype limitations
+- API/security tests use an in-memory SQLite database and mocked upstream provider, FastNear and NEAR RPC responses. They validate application logic; they are not live provider or chain tests.
+- Preview D1 has migration history 0001–0011. Migrations 0010 and 0011 were applied to preview on 5 November 2026.
+- The latest attempted synthetic preview-D1 write probe was blocked by the available Cloudflare tool. Do not claim direct D1 expiry-trigger or recovery-insertion tests passed on this latest schema.
+- Deployed Pages HTTP runtime testing against the preview D1 binding remains outstanding.
+- Live 1Click response compatibility, FastNear authentication/response compatibility and live NEAR RPC verification remain outstanding.
+- `NEAR_INDEXER_API_KEY` is required by the verifier. It has not been configured in Cloudflare because no key has been supplied.
+- Merchant webhooks, self-serve onboarding, credential rotation, production rate limiting and non-NEAR settlement verifiers are not implemented.
 
-- Existing token choices, quote calculations, deposit addresses, QR artwork, transaction hashes, receipts and settlement history in demo components/data are mock values unless explicitly replaced by live API responses.
-- A decorative QR pattern is not a valid payment QR code.
-- A quote, deposit address or detected deposit is not proof of merchant payment.
-- Merchant and order persistence is implemented against the D1 interface. A NEAR NEP-141 settlement verifier is now implemented and covered by mocked integration tests; live D1/RPC validation and webhook delivery remain outstanding.
-- No public SDK/CDN package is published.
+## Safety and release controls
 
-## Latest infrastructure verification — 5 November 2026
-
-- Production Pages project has a `DB` binding to D1 database `pelargo-db`; all eight migrations are recorded in order.
-- Synthetic D1 lifecycle tests confirmed order/session synchronization and audit events. A settlement attempt without matching evidence was rejected. Temporary test records were removed.
-- The latest PR preview built successfully at https://2d869dc1.pelargo.pages.dev for commit `8968cfc`. GitHub Actions `verify` and Cloudflare Pages checks passed.
-- Cloudflare Pages configuration contains separate encrypted-secret entries named `MERCHANT_PROVISIONING_SECRET` and `ORDER_SESSION_SECRET` in both production and preview. Cloudflare redacts secret values on read-back, so this confirms configured names, not the correctness or runtime usability of the values.
-- Production `DB` is bound to `pelargo-db`; preview `DB` is now bound to the isolated `pelargo-preview-db`. The preview binding was added after the latest preview deployment, so a fresh preview deployment and runtime smoke test are still required.
-- `PRAGMA integrity_check` remains unverified because the D1 query API returned `SQLITE_AUTH`. Manual foreign-key orphan checks passed.
-- Keep `ALLOW_MAINNET_DEPOSITS` unset. No real payment has been executed.
-
-## Payment safety
-
-NEAR Intents 1Click is treated as a mainnet service in this implementation. A dry quote is a preview and does not create a deposit address. A committed quote creates real payment instructions and can lead to real, potentially irreversible transfers.
-
-- Keep `ALLOW_MAINNET_DEPOSITS` unset until the payment lifecycle is reviewed and the project owner explicitly approves a small-value test.
-- Do not send funds or create committed quotes without explicit approval.
-- Never request or handle private keys or seed phrases.
-- Never show a success state based on a timer, frontend simulation, quote creation or deposit detection alone.
-- Mark an order paid only after a successful terminal status and verification of destination transaction details.
+- Keep `ALLOW_MAINNET_DEPOSITS` unset. Mainnet deposits and committed quotes remain disabled.
+- Do not initiate a real payment or transfer funds without explicit approval.
+- Never expose merchant API keys, `MERCHANT_PROVISIONING_SECRET`, `ORDER_SESSION_SECRET` or indexer credentials in browser code or public repositories.
+- A quote, deposit address, detected deposit or provider SUCCESS is not proof of merchant settlement.
 - `FAILED`, `REFUNDED` and `INCOMPLETE_DEPOSIT` must never mark an order paid.
+- Do not merge to `main` or deploy production without explicit release authorization.
 
-## Intended architecture
+## Hosting and development
 
-```text
-Merchant application
-  └─ creates order and invokes Pelargo checkout
-       └─ Pelargo embeddable widget
-            ├─ loads supported assets
-            ├─ requests dry quote
-            ├─ displays quote for buyer review
-            ├─ requests committed quote after explicit confirmation
-            ├─ displays real deposit instructions
-            └─ tracks payment status
-                 └─ server verifies destination settlement
-                      └─ merchant receives verified result/webhook
-```
+- Cloudflare Pages project: `pelargo`.
+- Public project hostname: https://pelargo.pages.dev
+- Application integration branch: `build/live-intents`.
+- Current operational hardening branch: `ops/live-d1-readiness`.
+- `main` remains separate and must not be changed without authorization.
 
-The widget must remain independent of any one merchant storefront. Merchant-specific order details and destination settings are inputs to checkout, not hardcoded demo data.
+Stack: React, TypeScript, Vite, Cloudflare Pages Functions, Cloudflare D1 and NEAR Intents / 1Click.
 
-## Merchant provisioning and durable checkout storage
-
-The active branch adds a Cloudflare D1-backed merchant/order/session model.
-
-### One-time infrastructure setup
-
-1. The Cloudflare Pages project `pelargo` is connected to the D1 database `pelargo-db` (`eae6ecc8-d79d-4d12-8a37-2d38ab84a0b1`).
-2. Production Pages `DB` is bound to `pelargo-db`; preview Pages `DB` is bound to the isolated `pelargo-preview-db`.
-3. Migrations `0001` through `0008` have been applied directly to D1 and reconciled with the `d1_migrations` history table in numerical order.
-4. Both environments have separate encrypted entries for `MERCHANT_PROVISIONING_SECRET` and `ORDER_SESSION_SECRET`. Cloudflare redacts secret values in API read-back; verify runtime behavior through authenticated tests. Never copy production values into preview.
-5. Call `POST /api/merchant` from a trusted operator environment with `X-Pelargo-Provisioning-Key` to create a merchant. The API key is returned once; store it securely.
-6. The merchant's own server calls `POST /api/checkout-session` with `X-Pelargo-Merchant-Key`. The merchant identity and name are resolved from the stored API-key hash, not accepted from the browser request.
-
-The merchant provisioning secret and merchant API keys must never be put in frontend code, HTML attributes, public repositories or `VITE_*` variables. The browser receives only the short-lived signed checkout-session token.
-
-### Server-side order session request
-
-A merchant server sends an order reference, amount, atomic amount, destination asset and recipient to `POST /api/checkout-session`. The API creates a unique merchant order row and a signed session row. Duplicate external order IDs for the same merchant are rejected.
-
-### Automated security checks
-
-Run `bun run test:security` for session-token signing and verification. Run `bun run test:api` for merchant provisioning, API-key hashing, merchant authentication, checkout-session issuance/retrieval, duplicate-order rejection, quote binding, dry-quote behavior, mainnet commit protection, merchant-scoped order lookup and authenticated provider-status polling. The status tests verify deposit-memo forwarding, provider-status persistence and that provider `SUCCESS` cannot independently settle an order. These route-handler tests use an in-memory SQLite adapter and mocked upstream responses; they do not replace a live Cloudflare D1 or live 1Click test. GitHub Actions run `41973414325` passed TypeScript, session-security tests, API integration tests and frontend build on commit `36348bf`. The API suite also exercises mocked committed-quote persistence, including rollback when the order/session rows cannot be synchronized atomically.
-
-
-### Destination-chain settlement verification
-
-- Migrations `0005`–`0008` add immutable settlement evidence and a database guard for the `settled` transition.
-- `functions/_lib/near-settlement-verifier.ts` supports NEAR mainnet NEP-141 destinations only. It resolves the signer for the provider candidate hash through the FastNear transaction indexer, then asks canonical NEAR RPC for `EXPERIMENTAL_tx_status` at `FINAL`.
-- The verifier requires a successful transaction and receipt, a NEP-141 `ft_transfer` event emitted by the exact destination token contract, and exact net recipient amount after accounting for any resolver refund events. It checks the receipt block and latest finalized block before producing evidence.
-- `GET /api/payment-status?orderId=...` invokes this verifier only after 1Click reports `SUCCESS`, the payment lifecycle is already `processing`, and a destination hash is present.
-- Verified evidence and the lifecycle transition to `settled` are committed in one D1 batch. Database triggers require evidence to match the order's network, exact asset ID, recipient, amount and candidate hash, then synchronize the order status to `paid`.
-- The generic lifecycle transition helper cannot set `settled`. Unsupported destination networks and token standards remain unverified and fail closed.
-
-### Verification configuration and limits
-
-- A committed 1Click quote is accepted only when both a non-empty provider `correlationId` and a valid deposit address are returned. Missing identifiers leave the checkout session consumed and the order unpayable pending support reconciliation.
-- The legacy unauthenticated `GET /api/status` proxy is retired (HTTP 410). Merchants must use authenticated, merchant-scoped `GET /api/payment-status?orderId=...`.
-
-
-- Defaults target NEAR mainnet RPC (`https://rpc.mainnet.near.org`) and FastNear's mainnet transaction indexer (`https://tx.main.fastnear.com/v0/transactions`).
-- Required Cloudflare secret for NEAR settlement verification: `NEAR_INDEXER_API_KEY` (FastNear documents API-key authentication for transaction-indexer requests). Optional endpoint overrides: `NEAR_RPC_URL` and `NEAR_TX_INDEXER_URL`. The indexer is used only to resolve the transaction signer; NEAR RPC verifies execution and finality.
-- API tests use mocked indexer and RPC responses. They cover mismatched/refunded transfer amounts, matching NEP-141 transfer evidence, skipped provider intermediate states, finalized block checks, atomic settlement evidence persistence and order status synchronization.
-- This is not live-chain validation. Live 1Click response compatibility, FastNear/RPC availability and response-shape compatibility, D1 batch/trigger behavior, RPC rate limits and production confirmation policy still require preview/testnet or controlled mainnet validation. No real payment has been tested.
-
-### Payment status polling
-
-- `GET /api/payment-status?orderId=...` requires the merchant's server-side API key and scopes the order lookup to that merchant.
-- It polls 1Click using the persisted deposit address and optional memo, stores provider status and the candidate destination transaction hash, and never treats provider `SUCCESS` alone as settlement.
-
-### Durable replay protection
-
-- Checkout sessions are stored by unique session ID and SHA-256 token hash.
-- Quote requests verify the signature and require a matching active D1 record.
-- Dry quotes leave the session active so the buyer can review and refresh a quote.
-- A committed quote attempt atomically changes the session from `active` to `commit_attempted` before contacting 1Click. A second attempt cannot pass that state transition.
-- A successful upstream commit updates the lifecycle row with a compare-and-set operation. Migration 0004 uses a SQLite trigger to synchronize the order and session rows in that same atomic write; it aborts the lifecycle update if either dependent row is missing or stale.
-- An uncertain upstream result leaves the session consumed. This intentionally favors preventing duplicate deposits over automatic retry.
-
-**Current limitations:** merchant credentials are provisioned manually by an operator; there is no self-serve merchant signup, credential rotation UI or rate limiting yet. Automated tests cover cryptographic session validation and merchant/session/quote/order/payment-status handlers against an in-memory SQLite adapter using the actual migrations. The NEAR NEP-141 settlement verifier is exercised with mocked FastNear and RPC responses. Live production Pages Function testing against the newly configured D1 binding, D1 concurrency testing and real upstream payment lifecycle testing remain outstanding. Keep mainnet commit configuration disabled until separately reviewed and explicitly approved.
-
-## Merchant order sessions (early security boundary)
-
-The active branch includes:
-
-- `POST /api/checkout-session`: requires the server-side `X-Pelargo-Merchant-Key` and issues an HMAC-SHA256 signed session.
-- `GET /api/checkout-session?token=...`: verifies a signed session and returns its public order claims.
-- Sessions expire after a bounded lifetime (60–1800 seconds; 15 minutes by default).
-- `POST /api/quote`: requires a valid signed session and enforces the session's destination asset, recipient and exact output amount. The buyer can still choose the source asset and refund address.
-- The custom element requires a `session-token` attribute. The merchant must create the session from its own server and pass the returned token into the browser widget.
-
-Required Cloudflare Pages secrets are documented in the D1 setup section above. The previous shared `PELARGO_MERCHANT_API_KEY` design has been replaced by individually provisioned merchant API keys stored as hashes.
-
-Never put `MERCHANT_PROVISIONING_SECRET`, any merchant API key or `ORDER_SESSION_SECRET` in browser code, HTML attributes, a public repository or a Vite `VITE_*` variable. The browser receives only the short-lived signed session token.
-
-**Current limitation:** merchant credentials are provisioned by an operator, not through a self-serve portal. D1 persistence and atomic commit-attempt consumption are implemented in source but require a configured D1 binding and migration before they work in a deployment. Keep committed quotes disabled until the preview database is configured and the complete flow is tested.
-
-## Embeddable checkout element (integration prototype)
-
-The active branch now has a standalone custom-element entry point:
-
-- Source: `src/embed.tsx`.
-- Build config: `vite.embed.config.ts`.
-- Build output: `dist/pelargo.js` and `dist/pelargo.css`.
-- Element name: `<pelargo-checkout>`.
-- The element mounts a **Pay with crypto** launcher on the merchant page. Clicking it opens the checkout in an isolated modal (a bottom sheet on small screens); the buyer stays on the merchant's site.
-- The React checkout is mounted inside a Shadow DOM so merchant page styles do not directly affect the widget.
-- The widget calls the Pelargo API using the origin of the loaded embed script, rather than the merchant page's origin.
-- The launcher accepts an optional `button-label` attribute.
-- Public API responses include CORS headers; the quote route handles browser preflight.
-
-Build the site and embed bundle with `bun run build`. The separate embed-only command is `bun run build:embed`.
-
-Example integration markup (replace the host and order values):
-
-```html
-<script type="module" src="https://YOUR_PELARGO_HOST/pelargo.js"></script>
-<pelargo-checkout
-  merchant-name="Example Store"
-  amount="25.00"
-  order-id="ORDER-123"
-  destination-symbol="USDC"
-  destination-network="Base"
-  recipient="0xYOUR_PUBLIC_RECEIVING_ADDRESS"
-  session-token="SIGNED_SESSION_TOKEN">
-</pelargo-checkout>
-```
-
-You may use `destination-asset="EXACT_INTENTS_ASSET_ID"` instead of the symbol/network pair to bind the destination to an exact supported asset.
-
-**This is an integration prototype, not a production payment integration.** The order ID, amount, recipient and session token are public client-side attributes; only the signed session and matching D1 record are accepted as quote authority. The merchant server must create the session. Payment settlement verification and merchant callbacks are not implemented. Do not treat the widget's display state as proof of payment. Committed quotes remain disabled by default.
-
-## Run locally
+Run locally:
 
 ```bash
 bun install
 bun run dev
+bun run test:security
+bun run test:api
+bun run build
 ```
 
-Open `http://localhost:3000`.
-
-## Stack
-
-- React 19, TypeScript and Vite.
-- Cloudflare Pages Functions for server-side API routes.
-- NEAR Intents 1Click API for supported-asset discovery, quotes and status.
-- Cloudflare-first, free-tier-conscious hosting.
-- No Supabase, Vercel or paid database dependency is required for the current milestone.
-
-## Hosting and change control
-
-- Cloudflare Pages project: `pelargo`.
-- Public site: https://pelargo.pages.dev
-- Active development branch: `build/live-intents`.
-- Keep `main` untouched unless the project owner explicitly authorises a merge.
-- Do not deploy production changes, enable committed mainnet quotes or spend funds without explicit approval.
-
-See [docs/INTEGRATION.md](docs/INTEGRATION.md) for the server-to-server merchant integration contract and [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) for the engineering handover.
+See [docs/INTEGRATION.md](docs/INTEGRATION.md) before implementing a merchant integration.
 
 ## License
 
 MIT
-
-
-### Preview environment isolation
-
-The Pages preview environment uses a separate D1 database, `pelargo-preview-db`, with migrations `0001`–`0008` applied at the time of the last confirmed migration check. Migration `0009_settlement_evidence_insert_guard.sql` is newly added and must be applied to preview before testing the updated settlement code. Its `DB` binding and encrypted `MERCHANT_PROVISIONING_SECRET` / `ORDER_SESSION_SECRET` entries are separate from production. Do not copy production secrets into preview. Deployed preview runtime access still requires smoke testing.
-
-
-### Settlement evidence concurrency guard
-
-Migration `0009_settlement_evidence_insert_guard.sql` adds a database-side precondition for settlement evidence insertion: the lifecycle must still be `processing` and the evidence transaction hash must equal the stored destination candidate. This closes a stale-verifier race at the evidence insert boundary. Apply migration 0009 to the target D1 environment before deploying code that relies on it. The regression suite covers rejection of a stale candidate; live chain and deployed D1 runtime tests remain outstanding.
-
-
-### Uncertain committed-quote recovery
-
-- Every quote request now sends the server-issued checkout session JTI as the 1Click `sessionId` tracking field.
-- The scheduled reconciliation worker records `commit_attempted` sessions older than ten minutes when no provider quote ID or deposit address was persisted.
-- Recovery cases are idempotent and visible through operator-authenticated `GET /api/operator/recovery-cases`.
-- The worker never retries the quote, reactivates the session, or marks the order expired. 1Click does not document a lookup-by-sessionId recovery endpoint, so an ambiguous commit requires operator/provider investigation.
