@@ -511,6 +511,107 @@ sqlite.query("UPDATE payment_lifecycle SET last_polled_at = NULL WHERE order_id 
   } finally { globalThis.fetch = original; }
 }
 
+ 
+// Tidepool recovery: a configured signer is accepted only for its exact hash.
+// Canonical RPC must still prove FINAL execution and the exact NEP-141 transfer.
+{
+  const hash = "vif8EKtCAzHcaihLNuC6XaRMhCzEDxUiHbAJJRQVUVE";
+  const signer = "maker.tidepool-sandbox.testnet";
+  const rpcCalls = [];
+  const original = globalThis.fetch;
+  const envWithRecoverySigner = {
+    INTENTS_API_BASE_URL: "https://www.usetidepool.tech",
+    NEAR_TX_HASH: hash,
+    NEAR_TX_SIGNER_ID: signer,
+    NEAR_RPC_URL: "https://rpc.testnet.near.org",
+  };
+  const order = {
+    destinationNetwork: "NEAR",
+    destinationAsset: "nep141:usdc.tidepool-sandbox.testnet",
+    recipient: "agentg.testnet",
+    amountAtomic: "1000000",
+  };
+  const mockRpc = (amount = "1000000", expectedSigner = signer) => async (url, init = {}) => {
+    const parsed = new URL(String(url));
+    if (parsed.hostname !== "rpc.testnet.near.org") {
+      throw new Error("Configured signer path must not call the NearBlocks indexer: " + parsed.hostname);
+    }
+    const req = JSON.parse(init.body);
+    rpcCalls.push(req);
+    if (req.method === "status") return Response.json({ result: { chain_id: "testnet" } });
+    if (req.method === "EXPERIMENTAL_tx_status") {
+      assert.deepEqual(req.params, {
+        tx_hash: hash, sender_account_id: expectedSigner, wait_until: "FINAL",
+      });
+      if (expectedSigner !== signer) return Response.json({
+        error: { name: "HANDLER_ERROR", cause: { name: "INVALID_TRANSACTION", info: { error_message: "Transaction signer does not match" } } },
+      });
+      return Response.json({ result: {
+        status: { SuccessValue: "" },
+        receipts_outcome: [{
+          block_hash: "tidepool-receipt-block",
+          outcome: {
+            executor_id: "usdc.tidepool-sandbox.testnet",
+            status: { SuccessValue: "" },
+            logs: [`EVENT_JSON:${JSON.stringify({
+              standard: "nep141", version: "1.0.0", event: "ft_transfer",
+              data: [{ old_owner_id: "maker.tidepool-sandbox.testnet", new_owner_id: "agentg.testnet", amount }],
+            })}`],
+          },
+        }],
+      }});
+    }
+    if (req.method === "block" && req.params.block_id) {
+      return Response.json({ result: { header: { hash: "tidepool-receipt-block", height: 276344865 } } });
+    }
+    if (req.method === "block" && req.params.finality === "final") {
+      return Response.json({ result: { header: { hash: "final-block", height: 276344900 } } });
+    }
+    throw new Error("Unexpected canonical NEAR RPC method: " + req.method);
+  };
+  try {
+    globalThis.fetch = mockRpc();
+    const evidence = await verifyNearNep141Settlement(envWithRecoverySigner, order, hash);
+    assert.equal(evidence?.transactionHash, hash);
+    assert.equal(evidence?.tokenContract, "usdc.tidepool-sandbox.testnet");
+    assert.equal(evidence?.recipient, "agentg.testnet");
+    assert.equal(evidence?.amountAtomic, "1000000");
+    assert.equal(evidence?.blockNumber, "276344865");
+    assert.equal(rpcCalls.some((call) => call.method === "EXPERIMENTAL_tx_status"), true);
+
+    // A configured signer for another hash must not be used; indexer lookup is required.
+    let indexerCalled = false;
+    globalThis.fetch = async (url, init = {}) => {
+      const parsed = new URL(String(url));
+      if (parsed.hostname === "rpc.testnet.near.org") {
+        const req = JSON.parse(init.body);
+        if (req.method === "status") return Response.json({ result: { chain_id: "testnet" } });
+      }
+      if (parsed.hostname === "api-testnet.nearblocks.io") {
+        indexerCalled = true;
+        return Response.json({ data: [] });
+      }
+      throw new Error("Unexpected hash-scope test request: " + parsed.hostname);
+    };
+    const otherHash = "2222222222222222222222222222222222222222222";
+    const unscoped = await verifyNearNep141Settlement(envWithRecoverySigner, order, otherHash);
+    assert.equal(unscoped, null);
+    assert.equal(indexerCalled, true, "signer hint must not leak to a different candidate hash");
+
+    // Even with the correct signer and a successful transaction, the wrong amount cannot settle.
+    globalThis.fetch = mockRpc("999999");
+    const wrongAmount = await verifyNearNep141Settlement(envWithRecoverySigner, order, hash);
+    assert.equal(wrongAmount, null, "wrong NEP-141 amount must fail closed");
+
+    // A signer mismatch is rejected by canonical RPC and cannot produce evidence.
+    globalThis.fetch = mockRpc("1000000", "wrong-signer.testnet");
+    const wrongSigner = await verifyNearNep141Settlement(envWithRecoverySigner, order, hash);
+    assert.equal(wrongSigner, null, "canonical RPC signer mismatch must fail closed");
+  } finally {
+    globalThis.fetch = original;
+  }
+}
+
 const originalFetch = globalThis.fetch;
 globalThis.fetch = async (url) => {
   const statusUrl = new URL(String(url));
