@@ -2,6 +2,7 @@ import { Env, intentsRequest, json } from "../_lib/intents";
 import { sha256Hex } from "../_lib/database";
 import { PaymentStatus, transitionPayment, PaymentTransitionError } from "../_lib/payment-lifecycle";
 import { verifyNearNep141Settlement } from "../_lib/near-settlement-verifier";
+import { verifyCheckoutSession } from "../_lib/checkout-session";
 
 type ProviderStatus =
   | "PENDING_DEPOSIT"
@@ -41,20 +42,49 @@ const transitions: Partial<Record<ProviderStatus, { from: PaymentStatus[]; to: P
 
 export async function onRequest(context: { request: Request; env: Env }): Promise<Response> {
   const { request, env } = context;
+  if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: {
+    "access-control-allow-origin": "*",
+    "access-control-allow-methods": "GET, OPTIONS",
+    "access-control-allow-headers": "Content-Type, Accept, Authorization",
+    "access-control-max-age": "86400",
+  }});
   if (request.method !== "GET") return json({ error: "Method not allowed" }, 405);
   if (!env.DB) return json({ error: "Checkout storage is not configured" }, 503);
 
+  const url = new URL(request.url);
   const suppliedKey = request.headers.get("x-pelargo-merchant-key") ?? "";
-  if (!suppliedKey || suppliedKey.length > 512) return json({ error: "Merchant authentication failed" }, 401);
+  let merchantId = "";
+  let orderId = url.searchParams.get("orderId") ?? "";
 
-  const keyHash = await sha256Hex(suppliedKey);
-  const merchant = await env.DB.prepare(
-    "SELECT id FROM merchants WHERE api_key_hash = ? AND active = 1"
-  ).bind(keyHash).first<{ id: string }>();
-  if (!merchant) return json({ error: "Merchant authentication failed" }, 401);
+  if (suppliedKey) {
+    if (suppliedKey.length > 512) return json({ error: "Merchant authentication failed" }, 401);
+    const keyHash = await sha256Hex(suppliedKey);
+    const merchant = await env.DB.prepare(
+      "SELECT id FROM merchants WHERE api_key_hash = ? AND active = 1"
+    ).bind(keyHash).first<{ id: string }>();
+    if (!merchant) return json({ error: "Merchant authentication failed" }, 401);
+    merchantId = merchant.id;
+    if (!orderId || orderId.length > 256) return json({ error: "A valid orderId query parameter is required" }, 400);
+  } else {
+    // Buyers may poll only the order bound to their signed, committed checkout session.
+    // The token is accepted in Authorization, never in the URL or response body.
+    const authorization = request.headers.get("authorization") ?? "";
+    const match = /^Bearer ([A-Za-z0-9_.-]{1,4096})$/.exec(authorization);
+    if (!match) return json({ error: "Merchant or checkout-session authentication is required" }, 401);
+    const claims = await verifyCheckoutSession(match[1], env);
+    if (!claims) return json({ error: "Checkout session is invalid or expired" }, 401);
+    const tokenHash = await sha256Hex(match[1]);
+    const stored = await env.DB.prepare(
+      "SELECT status FROM checkout_sessions WHERE jti = ? AND order_id = (SELECT id FROM checkout_orders WHERE merchant_id = ? AND external_order_id = ?) AND merchant_id = ? AND token_hash = ?"
+    ).bind(claims.jti, claims.merchantId, claims.orderId, claims.merchantId, tokenHash).first<{ status: string }>();
+    if (!stored || stored.status !== "committed") {
+      return json({ error: "Checkout session has no committed payment instructions", code: "CHECKOUT_NOT_COMMITTED" }, 403);
+    }
+    if (orderId && orderId !== claims.orderId) return json({ error: "Checkout session does not authorize this order" }, 403);
+    orderId = claims.orderId;
+    merchantId = claims.merchantId;
+  }
 
-  const orderId = new URL(request.url).searchParams.get("orderId") ?? "";
-  if (!orderId || orderId.length > 256) return json({ error: "A valid orderId query parameter is required" }, 400);
 
   const payment = await env.DB.prepare(
     `SELECT o.id, o.external_order_id, o.status AS order_status,
@@ -63,7 +93,7 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
        FROM checkout_orders o
        JOIN payment_lifecycle p ON p.order_id = o.id
       WHERE o.merchant_id = ? AND o.external_order_id = ?`
-  ).bind(merchant.id, orderId).first<{
+  ).bind(merchantId, orderId).first<{
     id: string; external_order_id: string; order_status: string;
     destination_network: string; destination_asset: string; recipient: string; amount_atomic: string;
     status: PaymentStatus; deposit_address: string | null; deposit_memo: string | null; provider_status: string | null; destination_tx_candidate: string | null; last_polled_at: string | null;
