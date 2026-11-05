@@ -29,7 +29,13 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
 
   const merchantId = crypto.randomUUID();
   const internalApiKey = `plg_live_${randomHex()}`;
-  const passwordHash = await hashPassword(password);
+  let passwordHash: string;
+  try {
+    passwordHash = await hashPassword(password);
+  } catch (error) {
+    console.error("[merchant-register] password hashing failed", error);
+    return json({ error: "Unable to secure account credentials. Please try again.", code: "PASSWORD_HASH_FAILED" }, 500);
+  }
   try {
     await env.DB.batch([
       env.DB.prepare("INSERT INTO merchants (id, name, api_key_hash, active) VALUES (?, ?, ?, 1)")
