@@ -4,12 +4,33 @@ export interface Env {
   DB?: import('./database').D1Database;
   MERCHANT_PROVISIONING_SECRET?: string;
   ALLOW_MAINNET_DEPOSITS?: string;
+  ALLOW_TESTNET_DEPOSITS?: string;
+  INTENTS_API_BASE_URL?: string;
   NEAR_RPC_URL?: string;
+  NEAR_TX_INDEXER_URL?: string;
+  NEAR_TX_INDEXER_API_KEY?: string;
   NEARSCANNER_TX_API_URL?: string;
   NEARSCANNER_API_KEY?: string;
 }
 
-const API_BASE = "https://1click.chaindefuser.com";
+const MAINNET_API_BASE = "https://1click.chaindefuser.com";
+const TESTNET_API_BASE = "https://www.usetidepool.tech";
+
+export type IntentsNetwork = "mainnet" | "testnet";
+
+/** Restrict provider selection to official 1Click or the community Tidepool sandbox. */
+export function intentsProvider(env: Env): { baseUrl: string; network: IntentsNetwork } {
+  const configured = env.INTENTS_API_BASE_URL || MAINNET_API_BASE;
+  let parsed: URL;
+  try { parsed = new URL(configured); }
+  catch { throw new Error("INTENTS_API_BASE_URL must be a valid HTTPS origin"); }
+  if (parsed.protocol !== "https:" || parsed.pathname !== "/" || parsed.search || parsed.hash) {
+    throw new Error("INTENTS_API_BASE_URL must be an HTTPS origin without a path, query or fragment");
+  }
+  if (parsed.origin === MAINNET_API_BASE) return { baseUrl: parsed.origin, network: "mainnet" };
+  if (parsed.origin === TESTNET_API_BASE) return { baseUrl: parsed.origin, network: "testnet" };
+  throw new Error("Unsupported NEAR Intents provider origin");
+}
 
 export function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
@@ -32,13 +53,14 @@ export async function intentsRequest(
   const headers = new Headers(init.headers);
   headers.set("accept", "application/json");
   if (init.body) headers.set("content-type", "application/json");
-  if (env.ONECLICK_JWT) {
+  const provider = intentsProvider(env);
+  // Never forward a mainnet partner JWT to the testnet sandbox.
+  if (provider.network === "mainnet" && env.ONECLICK_JWT) {
     headers.set("authorization", `Bearer ${env.ONECLICK_JWT}`);
   }
 
-  // The upstream API may redirect. Follow redirects for this fixed,
-  // trusted host instead of turning a redirect into a fetch exception.
-  return fetch(`${API_BASE}/v0/${path}`, {
+  // The upstream API may redirect. Both possible origins are allowlisted.
+  return fetch(`${provider.baseUrl}/v0/${path}`, {
     ...init,
     headers,
     redirect: "follow",

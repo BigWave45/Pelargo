@@ -1,3 +1,34 @@
+# Tidepool testnet integration preparation — 5 November 2026
+
+## Compatibility evidence reviewed
+
+- Tidepool publishes a 31/31 conformance report against official 1Click OpenAPI v0.1.10, including live quotes, deposit submission and status polling through SUCCESS.
+- Its examples include real NEAR testnet deposit and settlement transaction hashes. These are provider-published examples; Pelargo has not independently queried those hashes yet.
+- Tidepool's repository identifies its verifier as `verifier.tidepool-sandbox.testnet`, built from NEAR Intents `defuse/v0.4.5`. Its API supports the `EXACT_OUTPUT` flow Pelargo requires and returns `swapDetails.destinationChainTxHashes`.
+- Tidepool is community-operated, uses one maker, holds deposit-address keys on its server and settles publicly. It is appropriate for a clearly labelled testnet demo, not a claim of production equivalence.
+
+## Code changes
+
+- Added an allowlisted provider selector: official 1Click mainnet remains the default; Tidepool is selected only with `INTENTS_API_BASE_URL=https://www.usetidepool.tech`.
+- Mainnet partner JWTs are not forwarded to Tidepool.
+- Added separate committed-quote gates: `ALLOW_MAINNET_DEPOSITS=true` and `ALLOW_TESTNET_DEPOSITS=true`.
+- Settlement verification follows provider network, selects matching NEAR RPC, and checks RPC `chain_id`.
+- Mainnet signer resolution remains NearScanner. Testnet signer resolution uses NearBlocks v3 `GET /v3/txns/{hash}`, parsing hash-bound `transaction_hash` and `signer_account_id`.
+- Added mocked tests for independent network gates and the NearBlocks testnet response followed by exact NEP-141 transfer/finality checks.
+
+## Required before a real testnet checkout
+
+1. Run CI and review the exact branch diff.
+2. Configure Preview with Tidepool provider URL and testnet gate only.
+3. Confirm Preview can reach Tidepool token discovery and quote endpoints.
+4. Execute one small real test-token checkout only after explicit approval.
+5. Confirm NearBlocks resolves the actual destination transaction signer in Preview.
+6. Confirm NEAR testnet RPC independently verifies the exact token contract, recipient, net amount and finality.
+7. Confirm merchant order changes to paid only after settlement evidence is stored.
+
+No committed quote, deposit, production deployment or mainnet payment was executed by these code changes.
+
+---
 # Backend update — 5 November 2026
 
 ## NEAR NEP-141 verifier hardening

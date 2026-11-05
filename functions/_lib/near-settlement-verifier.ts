@@ -1,4 +1,4 @@
-import { Env } from "./intents";
+import { Env, intentsProvider } from "./intents";
 
 export type NearSettlementOrder = {
   destinationNetwork: string;
@@ -52,27 +52,17 @@ async function postJson(url: string, body: unknown): Promise<JsonRecord> {
 }
 
 function indexedSigner(payload: JsonRecord, expectedHash: string): string | null {
-  // NearScanner documents the transaction lookup route, but its public page
-  // does not publish a complete response schema. Accept only explicit,
-  // hash-bound transaction objects; never recursively trust an arbitrary
-  // signer_id elsewhere in the response.
+  // NearScanner uses hash/signer_id; NearBlocks v3 uses
+  // transaction_hash/signer_account_id. Accept only a hash-bound transaction.
   const data = record(payload.data);
   const result = record(payload.result);
-  const candidates = [
-    record(payload.transaction),
-    record(data?.transaction),
-    record(result?.transaction),
-    data,
-    result,
-    payload,
-  ];
+  const candidates = [record(payload.transaction), record(data?.transaction),
+    record(result?.transaction), data, result, payload];
   for (const candidate of candidates) {
-    if (candidate?.hash === expectedHash &&
-        typeof candidate.signer_id === "string" &&
-        candidate.signer_id.length > 0 &&
-        candidate.signer_id.length <= 64) {
-      return candidate.signer_id;
-    }
+    const hash = candidate?.hash ?? candidate?.transaction_hash;
+    const signer = candidate?.signer_id ?? candidate?.signer_account_id;
+    if (hash === expectedHash && typeof signer === "string" &&
+        signer.length > 0 && signer.length <= 64) return signer;
   }
   return null;
 }
@@ -93,20 +83,34 @@ export async function verifyNearNep141Settlement(
       !/^[1-9A-HJ-NP-Za-km-z]{32,64}$/.test(transactionHash)) return null;
   const tokenContract = assetMatch[1].toLowerCase();
 
-  if (!env.NEARSCANNER_API_KEY) {
-    throw new Error("NearScanner API key is required for NEAR settlement verification");
-  }
-  const indexerBaseUrl = (env.NEARSCANNER_TX_API_URL ||
-    "https://nearscanner.com/api/v1/explorer/tx").replace(/\/$/, "");
-  const rpcUrl = env.NEAR_RPC_URL || "https://rpc.mainnet.near.org";
+  const provider = intentsProvider(env);
+  const rpcUrl = env.NEAR_RPC_URL ||
+    (provider.network === "testnet" ? "https://rpc.testnet.near.org" : "https://rpc.mainnet.near.org");
 
-  const indexed = await requestJson(
-    `${indexerBaseUrl}/${encodeURIComponent(transactionHash)}`,
-    {
-      method: "GET",
-      headers: { "x-api-key": env.NEARSCANNER_API_KEY },
-    },
-  );
+  let indexerUrl: string;
+  let indexerHeaders: HeadersInit = {};
+  if (provider.network === "testnet") {
+    // Testnet signer lookup uses NearBlocks' public testnet v3 API.
+    const template = env.NEAR_TX_INDEXER_URL || "https://api-testnet.nearblocks.io/v3/txns/{hash}";
+    if (!template.includes("{hash}")) throw new Error("NEAR_TX_INDEXER_URL must contain {hash}");
+    indexerUrl = template.replace("{hash}", encodeURIComponent(transactionHash));
+    if (env.NEAR_TX_INDEXER_API_KEY) indexerHeaders = { authorization: `Bearer ${env.NEAR_TX_INDEXER_API_KEY}` };
+  } else {
+    if (!env.NEARSCANNER_API_KEY) throw new Error("NearScanner API key is required for mainnet settlement verification");
+    const template = env.NEARSCANNER_TX_API_URL || "https://nearscanner.com/api/v1/explorer/tx/{hash}";
+    indexerUrl = template.includes("{hash}")
+      ? template.replace("{hash}", encodeURIComponent(transactionHash))
+      : `${template.replace(/\/$/, "")}/${encodeURIComponent(transactionHash)}`;
+    indexerHeaders = { "x-api-key": env.NEARSCANNER_API_KEY };
+  }
+
+  // Fail closed if the RPC endpoint is pointed at the wrong network.
+  const networkStatus = await postJson(rpcUrl, {
+    jsonrpc: "2.0", id: "pelargo-near-network-check", method: "status", params: [],
+  });
+  if (record(networkStatus.result)?.chain_id !== provider.network) return null;
+
+  const indexed = await requestJson(indexerUrl, { method: "GET", headers: indexerHeaders });
   const signerId = indexedSigner(indexed, transactionHash);
   if (!signerId) return null;
   const txStatus = await postJson(rpcUrl, {

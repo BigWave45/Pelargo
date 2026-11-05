@@ -1,4 +1,4 @@
-import { Env, forwardJson, intentsRequest, json } from "../_lib/intents";
+import { Env, forwardJson, intentsProvider, intentsRequest, json } from "../_lib/intents";
 import { verifyCheckoutSession } from "../_lib/checkout-session";
 import { sha256Hex } from "../_lib/database";
 
@@ -74,13 +74,23 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
     return json({ error: "dry must be a boolean" }, 400);
   }
 
-  // 1Click is mainnet. A committed quote creates a real deposit address.
-  // Keep this disabled until the operator deliberately enables mainnet deposits.
-  if (body.dry === false && context.env.ALLOW_MAINNET_DEPOSITS !== "true") {
-    return json({
-      error: "Mainnet deposit quotes are disabled. Only dry-run quotes are currently permitted.",
-      code: "MAINNET_DEPOSITS_DISABLED",
-    }, 403);
+  let provider: ReturnType<typeof intentsProvider>;
+  try { provider = intentsProvider(context.env); }
+  catch { return json({ error: "NEAR Intents provider configuration is invalid" }, 503); }
+
+  // Each network has an independent committed-quote gate.
+  if (body.dry === false) {
+    const enabled = provider.network === "testnet"
+      ? context.env.ALLOW_TESTNET_DEPOSITS === "true"
+      : context.env.ALLOW_MAINNET_DEPOSITS === "true";
+    if (!enabled) {
+      return json({
+        error: provider.network === "testnet"
+          ? "Testnet deposits are disabled until the operator enables Tidepool."
+          : "Mainnet deposit quotes are disabled. Only dry-run quotes are currently permitted.",
+        code: provider.network === "testnet" ? "TESTNET_DEPOSITS_DISABLED" : "MAINNET_DEPOSITS_DISABLED",
+      }, 403);
+    }
   }
 
   const enumFields: Record<string, string[]> = {

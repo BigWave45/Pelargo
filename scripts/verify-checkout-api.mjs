@@ -8,6 +8,7 @@ import { onRequest as getOrder } from "../functions/api/order.ts";
 import { onRequest as paymentStatus } from "../functions/api/payment-status.ts";
 import { onRequest as legacyStatus } from "../functions/api/status.ts";
 import { transitionPayment, PaymentTransitionError } from "../functions/_lib/payment-lifecycle.ts";
+import { verifyNearNep141Settlement } from "../functions/_lib/near-settlement-verifier.ts";
 import { expireAbandonedCheckouts, recordUncertainQuoteCommits } from "../workers/expiry-sweeper.ts";
 import { onRequest as operatorRecoveryCases } from "../functions/api/operator/recovery-cases.ts";
 
@@ -331,6 +332,49 @@ try {
 }
 sqlite.query("UPDATE payment_lifecycle SET last_polled_at = NULL WHERE order_id = (SELECT id FROM checkout_orders WHERE external_order_id = ?)").run("order-001");
 
+// Tidepool testnet: resolve the signer from a hash-bound NearBlocks v3
+// transaction object, then verify the transfer through canonical testnet RPC.
+{
+  const hash = "2222222222222222222222222222222222222222222";
+  const original = globalThis.fetch;
+  globalThis.fetch = async (url, init = {}) => {
+    const parsed = new URL(String(url));
+    if (parsed.hostname === "api-testnet.nearblocks.io") {
+      assert.equal(parsed.pathname, `/v3/txns/${hash}`);
+      return Response.json({ data: { transaction_hash: hash, signer_account_id: "buyer.testnet" }});
+    }
+    if (parsed.hostname === "rpc.testnet.near.org") {
+      const req = JSON.parse(init.body);
+      if (req.method === "status") return Response.json({ result: { chain_id: "testnet" }});
+      if (req.method === "EXPERIMENTAL_tx_status") {
+        assert.deepEqual(req.params, [hash, "buyer.testnet", "FINAL"]);
+        return Response.json({ result: { status: { SuccessValue: "" }, receipts_outcome: [{
+          block_hash: "receipt-block", outcome: {
+            executor_id: "usdc.tidepool-sandbox.testnet", status: { SuccessValue: "" },
+            logs: [`EVENT_JSON:${JSON.stringify({standard:"nep141",version:"1.0.0",event:"ft_transfer",
+              data:[{old_owner_id:"buyer.testnet",new_owner_id:"merchant.testnet",amount:"2000000"}]})}`],
+          },
+        }] }});
+      }
+      if (req.method === "block" && req.params.block_id)
+        return Response.json({ result: { header: { hash: "receipt-block", height: 90 }}});
+      if (req.method === "block" && req.params.finality === "final")
+        return Response.json({ result: { header: { hash: "final-block", height: 100 }}});
+    }
+    throw new Error(`Unexpected testnet verifier request: ${url}`);
+  };
+  try {
+    const evidence = await verifyNearNep141Settlement({ INTENTS_API_BASE_URL:"https://www.usetidepool.tech" }, {
+      destinationNetwork:"NEAR", destinationAsset:"nep141:usdc.tidepool-sandbox.testnet",
+      recipient:"merchant.testnet", amountAtomic:"2000000",
+    }, hash);
+    assert.equal(evidence?.tokenContract, "usdc.tidepool-sandbox.testnet");
+    assert.equal(evidence?.recipient, "merchant.testnet");
+    assert.equal(evidence?.amountAtomic, "2000000");
+    assert.equal(evidence?.confirmations, 11);
+  } finally { globalThis.fetch = original; }
+}
+
 const originalFetch = globalThis.fetch;
 globalThis.fetch = async (url) => {
   const statusUrl = new URL(String(url));
@@ -620,6 +664,21 @@ try {
   assert.equal(disabledCommit.status, 403, "committed quotes must remain disabled by default");
 
   assert.equal(upstreamCalls, 1, "disabled commit must not reach upstream");
+
+  const tidepoolEnv = { ...env, INTENTS_API_BASE_URL: "https://www.usetidepool.tech" };
+  const testnetDisabled = await quote({
+    request: request("https://pelargo.test/api/quote", "POST", { ...quoteBody, dry: false }),
+    env: tidepoolEnv,
+  });
+  assert.equal(testnetDisabled.status, 403);
+  assert.equal((await testnetDisabled.json()).code, "TESTNET_DEPOSITS_DISABLED");
+  tidepoolEnv.ALLOW_TESTNET_DEPOSITS = "true";
+  const mainnetStillDisabled = await quote({
+    request: request("https://pelargo.test/api/quote", "POST", { ...quoteBody, dry: false }),
+    env,
+  });
+  assert.equal(mainnetStillDisabled.status, 403);
+  assert.equal((await mainnetStillDisabled.json()).code, "MAINNET_DEPOSITS_DISABLED");
 
   const commitOrder = { ...order, orderId: "order-commit" };
   const commitIssued = await responseJson(await checkoutSession({
