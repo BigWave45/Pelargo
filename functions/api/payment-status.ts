@@ -166,7 +166,29 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
     payment.id, payment.status, payment.destination_tx_candidate, payment.last_polled_at,
   ).run();
   if ((pollWrite.meta?.changes ?? 0) !== 1) {
-    return json({ error: "Payment changed during status polling; retry the lookup" }, 409);
+    // Another poll or lifecycle transition won the compare-and-set while this
+    // provider request was in flight. Do not retry the provider request and do
+    // not report the stale snapshot as current; return the latest persisted
+    // state so concurrent browser polling is safe and idempotent.
+    const latest = await env.DB.prepare(
+      `SELECT status, provider_status, destination_tx_candidate
+         FROM payment_lifecycle
+        WHERE order_id = ?`
+    ).bind(payment.id).first<{
+      status: PaymentStatus;
+      provider_status: ProviderStatus | null;
+      destination_tx_candidate: string | null;
+    }>();
+
+    if (!latest) return json({ error: "Payment state could not be reloaded after a concurrent update" }, 503);
+
+    return json({
+      orderId,
+      paymentStatus: latest.status,
+      providerStatus: latest.provider_status,
+      settlement: latest.status === "settled" ? "verified" : "not_settled",
+      concurrentPoll: true,
+    });
   }
 
   // SUCCESS is only a provider assertion. Preserve it as evidence for a later
