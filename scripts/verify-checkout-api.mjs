@@ -479,7 +479,11 @@ sqlite.query("UPDATE payment_lifecycle SET last_polled_at = NULL WHERE order_id 
       const req = JSON.parse(init.body);
       if (req.method === "status") return Response.json({ result: { chain_id: "testnet" }});
       if (req.method === "EXPERIMENTAL_tx_status") {
-        assert.deepEqual(req.params, [hash, "buyer.testnet", "FINAL"]);
+        assert.deepEqual(req.params, {
+          tx_hash: hash,
+          sender_account_id: "buyer.testnet",
+          wait_until: "FINAL",
+        });
         return Response.json({ result: { status: { SuccessValue: "" }, receipts_outcome: [{
           block_hash: "receipt-block", outcome: {
             executor_id: "usdc.tidepool-sandbox.testnet", status: { SuccessValue: "" },
