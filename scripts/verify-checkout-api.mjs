@@ -231,6 +231,15 @@ try {
   globalThis.fetch = originalFetchForInvalidProvider;
 }
 
+// The SUCCESS payload case intentionally exercises the full progression to
+// processing. Reset this synthetic fixture before testing the separate
+// KNOWN_DEPOSIT_TX path so the assertions do not share mutated lifecycle state.
+sqlite.query(`UPDATE payment_lifecycle
+  SET status = 'awaiting_deposit', provider_status = NULL, provider_updated_at = NULL,
+      destination_tx_candidate = NULL, last_polled_at = NULL
+  WHERE order_id = (SELECT id FROM checkout_orders WHERE external_order_id = ?)`).run("order-001");
+sqlite.query("UPDATE checkout_orders SET status = 'quote_committed' WHERE external_order_id = ?").run("order-001");
+
 sqlite.query("UPDATE payment_lifecycle SET deposit_address = ?, deposit_memo = ? WHERE order_id = (SELECT id FROM checkout_orders WHERE external_order_id = ?)").run("deposit-address-test", "memo-test", "order-001");
 sqlite.query("UPDATE checkout_orders SET status = 'quote_committed' WHERE external_order_id = ?").run("order-001");
 const originalFetch = globalThis.fetch;
