@@ -152,7 +152,10 @@ export default function App() {
       api<{ settings: Settings }>("/api/merchant-settings"),
       api<{ orders: Order[] }>("/api/orders"),
     ]);
-    setSettings(profile.settings);
+    setSettings({
+      ...profile.settings,
+      destinationNetwork: profile.settings.destinationNetwork || "NEAR",
+    });
     setOrders(activity.orders);
   }
 
@@ -176,7 +179,7 @@ export default function App() {
   async function saveSettings(event: React.FormEvent) {
     event.preventDefault(); setBusy(true); setError(""); setNotice("");
     try {
-      await api("/api/merchant-settings", { method: "PUT", body: JSON.stringify(settings) });
+      await api("/api/merchant-settings", { method: "PUT", body: JSON.stringify({ ...settings, destinationNetwork: settings.destinationNetwork || "NEAR" }) });
       await refreshWorkspace();
       setNotice("Payment destination saved.");
     } catch (e) { setError(e instanceof Error ? e.message : "Unable to save settings."); }
@@ -254,6 +257,7 @@ export default function App() {
               <div><label className="field-label" htmlFor="destination-symbol">Asset symbol</label><input id="destination-symbol" className="workspace-input" value={settings.destinationSymbol || ""} onChange={e => setSettings({ ...settings, destinationSymbol: e.target.value })} placeholder="USDC" required maxLength={32} /></div>
               <div><label className="field-label" htmlFor="destination-decimals">Token decimals</label><input id="destination-decimals" className="workspace-input" type="number" min="0" max="30" value={settings.destinationDecimals} onChange={e => setSettings({ ...settings, destinationDecimals: Number(e.target.value) })} required /></div>
             </div>
+            <label className="field-label" htmlFor="destination-network">Settlement network</label><select id="destination-network" className="workspace-input" value={settings.destinationNetwork || "NEAR"} onChange={e => setSettings({ ...settings, destinationNetwork: e.target.value })} required><option value="NEAR">NEAR · Tidepool testnet</option></select>
             <label className="field-label" htmlFor="recipient">NEAR recipient address</label><input id="recipient" className="workspace-input mono-input" value={settings.recipient || ""} onChange={e => setSettings({ ...settings, recipient: e.target.value })} placeholder="account.near or supported token receiver" required maxLength={256} />
             <div className="field-hint"><ShieldCheck size={14} /> Use a public recipient address only. Never enter a seed phrase or private key. Confirm the token ID and decimal precision against the provider catalogue before accepting payments.</div>
             <div className="form-footer"><span>Changes are saved to your account.</span><button className="primary-button" disabled={busy}>{busy ? "Saving…" : "Save destination"} <ArrowUpRight size={15} /></button></div>
