@@ -27,7 +27,9 @@ const verified = await verifyCheckoutSession(token, env);
 assert.equal(verified?.merchantId, claims.merchantId, "valid session should verify");
 assert.equal(verified?.amountAtomic, claims.amountAtomic, "signed amount should be preserved");
 
-const tampered = token.replace(/.$/, token.endsWith("A") ? "B" : "A");
+const [encodedPayload, encodedSignature] = token.split(".");
+const tamperedSignature = (encodedSignature[0] === "A" ? "B" : "A") + encodedSignature.slice(1);
+const tampered = `${encodedPayload}.${tamperedSignature}`;
 assert.equal(await verifyCheckoutSession(tampered, env), null, "tampered token must be rejected");
 
 const expired = await signCheckoutSession({ ...claims, jti: "expired", exp: now - 1 }, env);
