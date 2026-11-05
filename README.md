@@ -101,7 +101,7 @@ The active branch adds a Cloudflare D1-backed merchant/order/session model.
 
 1. Create a Cloudflare D1 database named `pelargo-checkout` in the same Cloudflare account as the Pages project.
 2. Add a Pages Function binding named `DB` pointing to that database (preview and production bindings are separate; configure preview first).
-3. Apply `migrations/0001_checkout_storage.sql` through `migrations/0004_commit_state_sync.sql` in numerical order.
+3. Apply `migrations/0001_checkout_storage.sql` through `migrations/0007_match_settlement_network.sql` in numerical order.
 4. Add the following as Cloudflare Pages secrets for the preview environment:
    - `MERCHANT_PROVISIONING_SECRET`: high-entropy provisioning secret.
    - `ORDER_SESSION_SECRET`: random signing secret of at least 32 characters.
@@ -118,6 +118,14 @@ A merchant server sends an order reference, amount, atomic amount, destination a
 
 Run `bun run test:security` for session-token signing and verification. Run `bun run test:api` for merchant provisioning, API-key hashing, merchant authentication, checkout-session issuance/retrieval, duplicate-order rejection, quote binding, dry-quote behavior, mainnet commit protection, merchant-scoped order lookup and authenticated provider-status polling. The status tests verify deposit-memo forwarding, provider-status persistence and that provider `SUCCESS` cannot independently settle an order. These route-handler tests use an in-memory SQLite adapter and mocked upstream responses; they do not replace a live Cloudflare D1 or live 1Click test. GitHub Actions run `41949603160` passed TypeScript, session-security tests, API integration tests and the frontend build on commit `3bba71b`. The API suite also exercises mocked committed-quote persistence, including rollback when the order/session rows cannot be synchronized atomically.
 
+
+### Settlement evidence gate (verification not yet implemented)
+
+- Migrations `0005`–`0007` add immutable settlement-evidence storage and a database guard for the `settled` transition.
+- Evidence must match the order's destination network, exact Intents asset ID, recipient, atomic amount and provider-reported candidate transaction hash. It also records block number/hash, confirmations and verification source.
+- A successful settlement transition synchronizes the order status to `paid` in the same SQLite write.
+- The generic lifecycle transition helper cannot set `settled`; only a future dedicated verifier path should write evidence and perform the settlement transition.
+- This is a fail-closed database control, not a chain verifier. No RPC receipt/log verification is implemented yet, and evidence must not be inserted from provider status alone.
 
 ### Payment status polling (not settlement verification)
 
