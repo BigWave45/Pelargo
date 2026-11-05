@@ -294,7 +294,7 @@ export function PelargoCheckout({
       const committedAmount = payload.quote?.amountIn;
       if (typeof address !== "string" || !address.trim() ||
           typeof committedQuoteId !== "string" || !committedQuoteId.trim() ||
-          typeof committedAmount !== "string" || !/^\\d+$/.test(committedAmount) || BigInt(committedAmount) <= 0n) {
+          typeof committedAmount !== "string" || !/^\d+$/.test(committedAmount) || BigInt(committedAmount) <= 0n) {
         throw new Error("The committed provider response is missing a valid deposit address, quote reference or exact source amount. Do not retry this order; contact the merchant.");
       }
       setPaymentInstructions({
