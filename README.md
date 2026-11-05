@@ -171,7 +171,7 @@ This change does not add background reconciliation, retry provider execution, ch
 
 ## Durable background payment reconciliation — implementation in progress — 5 November 2026
 
-Committed payments with a persisted deposit address are now scheduled for background reconciliation by a D1-backed job table (migrations/0017_payment_reconciliation_jobs.sql). Lifecycle triggers enqueue eligible orders, backfill existing eligible orders when the migration is applied, and remove jobs after terminal lifecycle states. Jobs use conditional D1 lease claims, so concurrent cron invocations cannot both own the same unexpired lease.
+Committed payments with a persisted deposit address are now scheduled for background reconciliation by a D1-backed job table (migrations/0017_payment_reconciliation_jobs.sql). Lifecycle triggers enqueue newly eligible orders; the migration backfills only existing deposit-detected, processing and incomplete-deposit orders, avoiding stale awaiting-deposit test checkouts; terminal lifecycle states remove their jobs. Jobs use conditional D1 lease claims, so concurrent cron invocations cannot both own the same unexpired lease.
 
 The scheduled Worker reuses the existing GET /api/payment-status implementation in-process through a private, secret-authenticated internal path. This preserves the existing provider polling, candidate verification, immutable settlement evidence and database settlement guards. It does not create quotes, submit deposits, retry provider execution or mark payments paid from provider status alone. Retryable outcomes release the lease and schedule an exponential retry capped at one hour.
 
