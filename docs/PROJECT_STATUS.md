@@ -706,3 +706,12 @@ This section is the current source of truth and supersedes older dated notes bel
 - Updated the API integration mock to assert the GET route, API-key header and hash-bound `data.transaction` response.
 - The public NearScanner developer page documents the route but does not expose a complete response/authentication schema in its indexed documentation. The response shape and header are therefore an explicit adapter assumption, not a live-verified contract.
 - The user reports that `NEARSCANNER_API_KEY` has been added to Cloudflare. The next eligible Preview deployment will be required for the runtime to receive the secret. No production deployment, Worker activation, mainnet deposit or real payment was performed.
+
+## Merchant destination network validation fix — 5 November 2026
+
+- Fixed the destination-settings save failure caused by the UI loading a legacy/null `destinationNetwork` value from D1 and then submitting it unchanged, while the API requires a non-empty network.
+- `refreshWorkspace()` now normalizes a missing saved network to `NEAR`; the save request also sends that fallback defensively.
+- Added an explicit settlement-network selector showing the currently supported destination: `NEAR · Tidepool testnet`. The stored API value remains `NEAR`.
+- Commit: `4db7c8a6e3be3628367693704f91c321f26e50c8` on `ops/live-d1-readiness`.
+- Not yet verified: CI, refreshed Pages Preview deployment, and a successful authenticated save followed by reload. The user must confirm the business name and destination fields remain present after reload.
+- No Production deployment, merge to `main`, committed quote, or testnet transfer. Mainnet deposits remain disabled.
