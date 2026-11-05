@@ -267,10 +267,12 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
   const destinationHashes = Array.isArray(provider.swapDetails?.destinationChainTxHashes)
     ? provider.swapDetails.destinationChainTxHashes
     : [];
-  const candidateHash = destinationHashes.find((tx) =>
-    tx !== null && typeof tx === "object" &&
-    typeof tx.hash === "string" && tx.hash.trim().length > 0 && tx.hash.length <= 256
-  )?.hash ?? readProviderHashes(provider.swapDetails?.nearTxHashes)[0] ?? null;
+  // The 1Click API represents transaction hashes as either strings or
+  // { hash } objects. Normalize both forms before selecting a candidate.
+  const candidateHash =
+    readProviderHashes(destinationHashes)[0] ??
+    readProviderHashes(provider.swapDetails?.nearTxHashes)[0] ??
+    null;
   // A later provider response may omit hashes already observed on an earlier
   // poll. Preserve and reuse the persisted candidate for SUCCESS verification.
   const effectiveCandidateHash = candidateHash ?? payment.destination_tx_candidate;
