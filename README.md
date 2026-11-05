@@ -131,3 +131,8 @@ bun run build
 ## License
 
 MIT
+
+
+### Committed payment recovery after checkout-session expiry
+
+If a buyer's short-lived checkout token expires after the quote was committed, the same signed token can still be used to read and poll only its own committed order. The API verifies the signature and exact persisted session/order binding and requires the session to remain in the `committed` state. This recovery exception does not allow quote creation, session reactivation, or access to another order. Uncommitted and expired checkout sessions remain rejected.
