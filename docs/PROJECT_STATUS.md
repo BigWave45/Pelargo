@@ -9,7 +9,7 @@
 - Updated workers/expiry-sweeper.ts: bounded batch processing, conditional D1 lease claims, 10-minute lease expiry, existing payment-status verifier reuse, exponential retry capped at one hour, and lease release after retryable results. No quote creation or provider execution endpoint is called.
 - Updated wrangler.expiry.preview.toml to bind only Preview D1 and explicitly select https://www.usetidepool.tech; the secret value is not stored in source. Production Worker configuration was not modified.
 - Added API integration coverage applying migration 0017 to in-memory SQLite and testing durable enqueue, private worker invocation, retry scheduling, lease release and no false settlement from provider PROCESSING.
-- GitHub Actions CI passed on commit bcc8b982061cb034e59bb2a2fb5087b3cfdbc6aa (run 42099838987): type-check, checkout-session security tests, checkout API integration tests and frontend build. The subsequent lease-tuning commit is pending CI. Cloudflare Preview D1 migration 0017 is not applied; Pages Preview and Worker secrets are not configured; the Worker is not deployed and no cron is active.
+- GitHub Actions CI passed on commit bcc8b982061cb034e59bb2a2fb5087b3cfdbc6aa (run 42099838987): type-check, checkout-session security tests, checkout API integration tests and frontend build. The subsequent lease-tuning commit is pending CI. Cloudflare Preview D1 migration 0017 has been applied and read back successfully; the existing processing payment ORDER-83587591 was backfilled into one job. Pages Preview and Worker secrets are not configured; the Worker is not deployed and no cron is active.
 - Cloudflare automatically created a Pages Preview deployment for the branch; the latest deployment status is being checked. No Worker was deployed or activated, no D1 schema/data was changed in Cloudflare, no payment was executed, and Production remains untouched.
 - Next gates: CI; validate migration against isolated Preview D1; configure the same high-entropy secret on Pages Preview and the Preview Worker; deploy only the Preview Worker after a separate explicit operational confirmation; observe cron and job state before considering Production.
 
@@ -896,3 +896,12 @@ No database writes or configuration changes were made during the audit. No Produ
 ### Preview backfill scope correction — 5 November 2026
 
 A read-only Preview D1 inspection found three old awaiting-deposit test checkouts with expired checkout deadlines and provider status PENDING_DEPOSIT, alongside the active processing order ORDER-83587591. The initial migration backfill would have scheduled all four for recurring provider polling. Before applying the migration, narrowed the one-time backfill to deposit_detected, processing and incomplete_deposit states. Lifecycle triggers still enqueue newly created/transitioned awaiting-deposit payments after migration. This avoids automatically polling stale pre-existing test checkouts while retaining background detection for new checkouts.
+
+
+### Preview D1 migration 0017 applied — 5 November 2026
+
+- Applied the reviewed migration to isolated Preview D1 database 0335acdc-f0e0-42f6-ba87-e3448fb91728 only. Production D1 was not touched.
+- Read-back verified d1_migrations contains 0017_payment_reconciliation_jobs.sql and all three expected triggers exist.
+- The one-time backfill inserted exactly one job: internal order 32dc4b6f-0288-4357-b0ee-1f754bf75860 (external order ORDER-83587591), lifecycle processing, attempt_count 0, no lease.
+- Three stale awaiting_deposit test checkouts were excluded from the one-time backfill. Newly eligible orders will still be enqueued by lifecycle triggers.
+- Worker deployment, cron activation and RECONCILIATION_SECRET configuration remain outstanding. No payment was executed; the queued job has not been run.
