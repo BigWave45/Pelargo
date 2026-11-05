@@ -51,6 +51,8 @@ See [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) for the exact verification 
 - Session replay protection and merchant-scoped order lookup.
 - Provider asset discovery, dry quote handling and committed-quote persistence.
 - Authenticated provider status polling with stale-response protection; concurrent polls return the latest persisted state instead of a misleading conflict.
+- Independent Base Sepolia ERC-20 source-deposit verification (chain ID, receipt hash/status, exact token contract, deposit recipient, exact amount and 12-confirmation minimum), immutable source evidence, and authenticated `/api/deposit-submit` notification to Tidepool.
+- NEAR destination settlement verification runs when a correlated destination transaction hash is available, even if Tidepool still reports `PROCESSING`; only finalized exact NEP-141 transfer evidence can mark an order paid.
 - Merchant/buyer-authorized recovery of the original source asset, exact input amount, output amount and deadline from the provider's original quote response, without creating another quote.
 - A NEAR NEP-141 settlement verifier with exact token-contract, recipient and net-amount checks.
 - Database guards that prevent an order being marked paid without matching settlement evidence.
@@ -92,6 +94,7 @@ These are possible later product requirements, not prerequisites for demonstrati
 - `GET/PUT /api/merchant-settings` — retrieve and persist merchant destination settings.
 - `POST /api/auth/register`, `POST /api/auth/login`, `GET /api/auth/session`, `POST /api/auth/logout` — merchant account and session lifecycle.
 - `GET /api/payment-status?orderId=...` — merchant-scoped provider polling, recovery of original committed-quote deposit instructions when returned by the provider, and eligible NEAR settlement verification.
+- `POST /api/deposit-submit` — merchant-authenticated source transaction recovery; verifies the exact Base Sepolia ERC-20 deposit against the provider quote before notifying Tidepool.
 - `GET /api/operator/recovery-cases` — operator-authenticated read-only queue for ambiguous quote commits.
 - `GET /api/status` — retired; returns HTTP 410.
 
@@ -99,7 +102,7 @@ See [docs/INTEGRATION.md](docs/INTEGRATION.md) for merchant request contracts an
 
 ## Database
 
-Migrations `0001` through `0015` are in the repository. Preview D1 was previously verified through `0011`; migrations `0012`–`0015` are required for self-service accounts, merchant settings and authentication throttling. They have not yet been applied to Preview. Production migration state must be checked separately. Do not apply production migrations as part of ordinary hackathon testing.
+Migrations `0001` through `0016` are in the repository. Preview D1 was previously verified through `0011`; migrations `0012`–`0015` are required for self-service accounts, merchant settings and authentication throttling. They have not yet been applied to Preview. Production migration state must be checked separately. Do not apply production migrations as part of ordinary hackathon testing.
 
 ## Safety boundaries
 
