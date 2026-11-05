@@ -491,3 +491,13 @@ This section supersedes earlier infrastructure statements in this file where the
 - The status handler now uses the current response hash when supplied, otherwise the previously persisted candidate. The compare-and-set still protects against stale concurrent polls.
 - Added a regression test where provider `SUCCESS` omits the hash, Pelargo reuses its stored candidate, and independent NEAR verification still runs. A transfer with a refund-adjusted amount mismatch remains unsettled.
 - This is a mocked integration test; it does not establish live 1Click response consistency or live NEAR RPC/indexer availability.
+
+
+## Scheduled expiry of abandoned, uncommitted checkouts
+
+- Added a separate Cloudflare Worker entrypoint in `workers/expiry-sweeper.ts`, configured by `wrangler.expiry.toml` to run every five minutes against the production D1 binding when separately deployed.
+- The sweep expires only orders that remain in lifecycle `pending`, whose order and active session expiry timestamps have elapsed. It does not expire `commit_attempted` sessions, committed quotes, deposits detected, or payments being processed.
+- Added migration `0010_pending_expiry_sync.sql` to atomically synchronize a pending lifecycle expiry to the order and active checkout session. A failed dependent update aborts the lifecycle transition.
+- Added integration coverage for the expiry sweep, synchronized order/session state, and idempotent repeated execution.
+- The worker and migration are code/configuration only at this stage. Migration 0010 has not been applied to Cloudflare D1, the expiry Worker has not been deployed, and no cron has been activated. The five-minute schedule is proposed configuration, not an operationally active job.
+- Committed quotes and uncertain `commit_attempted` outcomes are deliberately excluded; they need provider-aware reconciliation and must not be expired solely because the original checkout session TTL elapsed.

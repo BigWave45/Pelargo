@@ -8,6 +8,7 @@ import { onRequest as getOrder } from "../functions/api/order.ts";
 import { onRequest as paymentStatus } from "../functions/api/payment-status.ts";
 import { onRequest as legacyStatus } from "../functions/api/status.ts";
 import { transitionPayment, PaymentTransitionError } from "../functions/_lib/payment-lifecycle.ts";
+import { expireAbandonedCheckouts } from "../workers/expiry-sweeper.ts";
 
 class Statement {
   constructor(db, sql, values = []) { this.db = db; this.sql = sql; this.values = values; }
@@ -30,6 +31,7 @@ sqlite.exec(readFileSync(new URL("../migrations/0006_order_destination_metadata.
 sqlite.exec(readFileSync(new URL("../migrations/0007_match_settlement_network.sql", import.meta.url), "utf8"));
 sqlite.exec(readFileSync(new URL("../migrations/0008_settlement_evidence_contract_guard.sql", import.meta.url), "utf8"));
 sqlite.exec(readFileSync(new URL("../migrations/0009_settlement_evidence_insert_guard.sql", import.meta.url), "utf8"));
+sqlite.exec(readFileSync(new URL("../migrations/0010_pending_expiry_sync.sql", import.meta.url), "utf8"));
 const db = {
   prepare(sql) { return new Statement(sqlite, sql); },
   batch(statements) {
@@ -124,6 +126,25 @@ const expiredLookup = await checkoutSession({
   env,
 });
 assert.equal(expiredLookup.status, 410, "stored expired sessions must be rejected even when token verification is otherwise valid");
+sqlite.query("UPDATE checkout_orders SET expires_at = ? WHERE external_order_id = ?").run(
+  new Date(Date.now() - 60_000).toISOString(), "order-expired-session",
+);
+const expiryCount = await expireAbandonedCheckouts(db);
+assert.equal(expiryCount, 1, "expiry sweep should expire an elapsed uncommitted order");
+const expiredLifecycle = sqlite.query(
+  "SELECT status FROM payment_lifecycle WHERE order_id = (SELECT id FROM checkout_orders WHERE external_order_id = ?)"
+).get("order-expired-session");
+const expiredOrderState = sqlite.query(
+  "SELECT status FROM checkout_orders WHERE external_order_id = ?"
+).get("order-expired-session");
+const expiredSessionState = sqlite.query(
+  "SELECT status FROM checkout_sessions WHERE jti = ?"
+).get(expiredJti);
+assert.equal(expiredLifecycle.status, "expired");
+assert.equal(expiredOrderState.status, "expired");
+assert.equal(expiredSessionState.status, "expired");
+assert.equal(await expireAbandonedCheckouts(db), 0, "expiry sweep must be idempotent");
+
 
 const revokedOrder = await responseJson(await checkoutSession({
   request: request("https://pelargo.test/api/checkout-session", "POST", {
