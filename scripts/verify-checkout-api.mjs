@@ -1135,7 +1135,7 @@ try {
       }, { "x-pelargo-merchant-key": created.body.apiKey }),
       env,
     }));
-    assert.equal(invalidOriginAmount.status, 200);
+    assert.equal(invalidOriginAmount.status, 200, JSON.stringify(invalidOriginAmount.body));
     assert.equal(invalidOriginAmount.body.originDeposit, "verified");
     assert.equal(invalidOriginAmount.body.providerNotification, "accepted");
     assert.equal(providerSubmitCalls, 1);
