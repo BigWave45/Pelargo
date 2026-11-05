@@ -95,7 +95,8 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
         "INSERT INTO payment_lifecycle (order_id, status) SELECT id, 'pending' FROM checkout_orders WHERE merchant_id = ? AND external_order_id = ?"
       ).bind(merchant.id, claims.orderId),
     ]);
-  } catch {
+  } catch (error) {
+    console.error("Checkout session persistence failed", error);
     return json({ error: "Order already exists or checkout storage rejected the session" }, 409);
   }
   return json({ token, session: publicClaims(claims) }, 201);
