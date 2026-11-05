@@ -18,15 +18,6 @@ class Statement {
   }
 }
 
-class D1TestDatabase {
-  constructor() { this.sqlite = new Database(":memory:"); this.sqlite.exec("PRAGMA foreign_keys = ON"); }
-  prepare(sql) { return new Statement(this.sqlite, sql); }
-  batch(statements) {
-    const transaction = this.sqlite.transaction(() => statements.map((statement) => statement.run()));
-    return Promise.resolve(transaction());
-  }
-}
-
 const sqlite = new Database(":memory:");
 sqlite.exec("PRAGMA foreign_keys = ON");
 sqlite.exec(readFileSync(new URL("../migrations/0001_checkout_storage.sql", import.meta.url), "utf8"));
@@ -105,6 +96,56 @@ const issued = await responseJson(await checkoutSession({
   env,
 }));
 assert.equal(issued.status, 201, "authenticated merchant should receive a checkout session");
+
+const missingSigningSecret = await checkoutSession({
+  request: request("https://pelargo.test/api/checkout-session", "POST", {
+    ...order, orderId: "order-no-signing-secret",
+  }, { "x-pelargo-merchant-key": created.body.apiKey }),
+  env: { ...env, ORDER_SESSION_SECRET: undefined },
+});
+assert.equal(missingSigningSecret.status, 503, "session issuance must fail closed without its signing secret");
+
+const expiredOrder = await responseJson(await checkoutSession({
+  request: request("https://pelargo.test/api/checkout-session", "POST", {
+    ...order, orderId: "order-expired-session",
+  }, { "x-pelargo-merchant-key": created.body.apiKey }),
+  env,
+}));
+assert.equal(expiredOrder.status, 201, "expiry test order should be created");
+const expiredJti = JSON.parse(atob(expiredOrder.body.token.split(".")[0].replace(/-/g, "+").replace(/_/g, "/"))).jti;
+sqlite.query("UPDATE checkout_sessions SET expires_at = ? WHERE jti = ?").run(
+  new Date(Date.now() - 60_000).toISOString(), expiredJti,
+);
+const expiredLookup = await checkoutSession({
+  request: new Request("https://pelargo.test/api/checkout-session?token=" + encodeURIComponent(expiredOrder.body.token)),
+  env,
+});
+assert.equal(expiredLookup.status, 410, "stored expired sessions must be rejected even when token verification is otherwise valid");
+
+const revokedOrder = await responseJson(await checkoutSession({
+  request: request("https://pelargo.test/api/checkout-session", "POST", {
+    ...order, orderId: "order-revoked-session",
+  }, { "x-pelargo-merchant-key": created.body.apiKey }),
+  env,
+}));
+assert.equal(revokedOrder.status, 201, "revocation test order should be created");
+const revokedJti = JSON.parse(atob(revokedOrder.body.token.split(".")[0].replace(/-/g, "+").replace(/_/g, "/"))).jti;
+sqlite.query("UPDATE checkout_sessions SET status = 'revoked' WHERE jti = ?").run(revokedJti);
+const revokedLookup = await checkoutSession({
+  request: new Request("https://pelargo.test/api/checkout-session?token=" + encodeURIComponent(revokedOrder.body.token)),
+  env,
+});
+assert.equal(revokedLookup.status, 410, "revoked sessions must not be retrievable");
+
+sqlite.query("UPDATE merchants SET active = 0 WHERE id = ?").run("shop_test");
+const inactiveMerchantOrder = await getOrder({
+  request: new Request("https://pelargo.test/api/order?orderId=order-001", {
+    headers: { "x-pelargo-merchant-key": created.body.apiKey },
+  }),
+  env,
+});
+assert.equal(inactiveMerchantOrder.status, 401, "deactivated merchant credentials must stop authorizing order access");
+sqlite.query("UPDATE merchants SET active = 1 WHERE id = ?").run("shop_test");
 const unauthorizedOrderLookup = await getOrder({
   request: new Request("https://pelargo.test/api/order?orderId=order-001"),
   env,
@@ -419,4 +460,4 @@ try {
   sqlite.close();
 }
 
-console.log("Checkout API integration checks passed: provisioning auth, API-key hashing, merchant auth, session issuance, duplicate-order rejection, session retrieval, merchant-scoped order lookup, authenticated provider status polling, provider status persistence, SUCCESS settlement guard, payment lifecycle initialization, transition validation, audit events, quote binding, dry quote persistence and mainnet commit guard.");
+console.log("Checkout API integration checks passed: provisioning auth, API-key hashing, merchant auth, inactive merchant rejection, session issuance, missing-secret fail-closed behavior, expiry and revocation enforcement, duplicate-order rejection, session retrieval, merchant-scoped order lookup, authenticated provider status polling, provider status persistence, SUCCESS settlement guard, payment lifecycle initialization, transition validation, audit events, quote binding, dry quote persistence and mainnet commit guard.");
