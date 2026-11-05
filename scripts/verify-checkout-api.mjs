@@ -1238,6 +1238,131 @@ try {
     env.INTENTS_API_BASE_URL = undefined;
   }
 
+  // Failure injection: provider timeout must release the lease and leave
+  // the payment non-terminal so a later scheduled run can retry it.
+  async function makeWorkerFixture(externalOrderId, lifecycleStatus = "awaiting_deposit") {
+    const issued = await responseJson(await checkoutSession({
+      request: request("https://pelargo.test/api/checkout-session", "POST", {
+        ...order, orderId: externalOrderId,
+      }, { "x-pelargo-merchant-key": created.body.apiKey }),
+      env,
+    }));
+    assert.equal(issued.status, 201);
+    const id = sqlite.query(
+      "SELECT id FROM checkout_orders WHERE external_order_id = ?"
+    ).get(externalOrderId).id;
+    sqlite.query(
+      "UPDATE payment_lifecycle SET status = ?, quote_id = ?, deposit_address = ? WHERE order_id = ?"
+    ).run(lifecycleStatus, externalOrderId + "-quote", "deposit-" + externalOrderId, id);
+    sqlite.query("UPDATE checkout_orders SET status = 'quote_committed' WHERE id = ?").run(id);
+    return id;
+  }
+
+  env.RECONCILIATION_SECRET = "test-reconciliation-secret-with-at-least-32-characters";
+  env.INTENTS_API_BASE_URL = "https://www.usetidepool.tech";
+
+  const timeoutJobOrderId = await makeWorkerFixture("order-worker-timeout");
+  sqlite.query("DELETE FROM payment_reconciliation_jobs WHERE order_id <> ?").run(timeoutJobOrderId);
+  const fetchBeforeWorkerTimeout = globalThis.fetch;
+  globalThis.fetch = async () => { throw new DOMException("injected timeout", "TimeoutError"); };
+  try {
+    const timeoutStats = await reconcileDuePayments(env, new Date(), 1);
+    assert.deepEqual(timeoutStats, { claimed: 1, settled: 0, deferred: 1 });
+    const timeoutJob = sqlite.query(
+      "SELECT attempt_count, lease_token, last_error FROM payment_reconciliation_jobs WHERE order_id = ?"
+    ).get(timeoutJobOrderId);
+    assert.equal(timeoutJob.attempt_count, 1);
+    assert.equal(timeoutJob.lease_token, null);
+    assert.match(timeoutJob.last_error, /HTTP 504/);
+    assert.equal(
+      sqlite.query("SELECT status FROM payment_lifecycle WHERE order_id = ?").get(timeoutJobOrderId).status,
+      "awaiting_deposit",
+    );
+  } finally {
+    globalThis.fetch = fetchBeforeWorkerTimeout;
+  }
+
+  // A Worker crash after claim leaves a lease. A second invocation must not
+  // steal it early, but must recover it after the lease expires.
+  const orphanedLeaseOrderId = await makeWorkerFixture("order-worker-orphaned-lease");
+  sqlite.query("DELETE FROM payment_reconciliation_jobs WHERE order_id <> ?").run(orphanedLeaseOrderId);
+  const leaseStart = new Date();
+  const leaseExpiry = new Date(leaseStart.getTime() + 5 * 60_000).toISOString();
+  sqlite.query(
+    "UPDATE payment_reconciliation_jobs SET attempt_count = 1, lease_token = ?, lease_until = ? WHERE order_id = ?"
+  ).run("simulated-crashed-worker", leaseExpiry, orphanedLeaseOrderId);
+  const fetchBeforeLeaseRecovery = globalThis.fetch;
+  let leaseRecoveryPolls = 0;
+  globalThis.fetch = async () => {
+    leaseRecoveryPolls++;
+    return Response.json({ correlationId: "order-worker-orphaned-lease-quote", status: "PROCESSING", swapDetails: {} });
+  };
+  try {
+    const activeLease = await reconcileDuePayments(env, leaseStart, 1);
+    assert.deepEqual(activeLease, { claimed: 0, settled: 0, deferred: 0 });
+    assert.equal(leaseRecoveryPolls, 0);
+    const expiredLease = await reconcileDuePayments(env, new Date(leaseStart.getTime() + 6 * 60_000), 1);
+    assert.deepEqual(expiredLease, { claimed: 1, settled: 0, deferred: 1 });
+    assert.equal(leaseRecoveryPolls, 1);
+    const recovered = sqlite.query(
+      "SELECT attempt_count, lease_token FROM payment_reconciliation_jobs WHERE order_id = ?"
+    ).get(orphanedLeaseOrderId);
+    assert.equal(recovered.attempt_count, 2);
+    assert.equal(recovered.lease_token, null);
+  } finally {
+    globalThis.fetch = fetchBeforeLeaseRecovery;
+  }
+
+  // Two concurrent invocations with two due jobs should claim distinct work.
+  // A CAS collision on the first selected row must retry selection.
+  const concurrentA = await makeWorkerFixture("order-worker-concurrent-a");
+  const concurrentB = await makeWorkerFixture("order-worker-concurrent-b");
+  sqlite.query("DELETE FROM payment_reconciliation_jobs WHERE order_id NOT IN (?, ?)").run(concurrentA, concurrentB);
+  const concurrentFetchBefore = globalThis.fetch;
+  let concurrentPolls = 0;
+  globalThis.fetch = async () => {
+    concurrentPolls++;
+    return Response.json({ status: "PROCESSING", swapDetails: {} });
+  };
+  try {
+    const concurrentStats = await Promise.all([
+      reconcileDuePayments(env, new Date(), 1),
+      reconcileDuePayments(env, new Date(), 1),
+    ]);
+    assert.equal(concurrentStats.reduce((sum, stat) => sum + stat.claimed, 0), 2);
+    assert.equal(concurrentPolls, 2);
+    for (const id of [concurrentA, concurrentB]) {
+      const job = sqlite.query(
+        "SELECT attempt_count, lease_token FROM payment_reconciliation_jobs WHERE order_id = ?"
+      ).get(id);
+      assert.equal(job.attempt_count, 1);
+      assert.equal(job.lease_token, null);
+    }
+  } finally {
+    globalThis.fetch = concurrentFetchBefore;
+  }
+
+  // Terminal lifecycle transitions remove their durable reconciliation job.
+  sqlite.query("UPDATE payment_lifecycle SET status = 'failed' WHERE order_id = ?").run(concurrentA);
+  assert.equal(
+    sqlite.query("SELECT COUNT(*) AS count FROM payment_reconciliation_jobs WHERE order_id = ?").get(concurrentA).count,
+    0,
+    "terminal lifecycle trigger must delete the reconciliation job",
+  );
+
+  // Internal reconciliation must reject a caller without the shared secret.
+  const invalidWorkerSecret = await paymentStatus({
+    request: new Request(
+      "https://pelargo.test/api/payment-status?internalOrderId=" + encodeURIComponent(concurrentB),
+      { headers: { "x-pelargo-reconciliation-secret": "incorrect-worker-secret" } },
+    ),
+    env,
+  });
+  assert.equal(invalidWorkerSecret.status, 401);
+
+  env.RECONCILIATION_SECRET = undefined;
+  env.INTENTS_API_BASE_URL = undefined;
+
   // Origin-chain recovery requires a quote-bound, exact Base Sepolia ERC-20 transfer.
   const originValidOrder = { ...order, orderId: "order-origin-valid" };
   const originValidIssued = await responseJson(await checkoutSession({
