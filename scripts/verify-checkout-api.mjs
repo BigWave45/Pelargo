@@ -268,7 +268,35 @@ try {
 } finally {
   globalThis.fetch = originalFetchForRace;
 }
-sqlite.query("UPDATE payment_lifecycle SET destination_tx_candidate = NULL WHERE order_id = (SELECT id FROM checkout_orders WHERE external_order_id = ?)").run("order-001");
+sqlite.query("UPDATE payment_lifecycle SET destination_tx_candidate = NULL, last_polled_at = NULL WHERE order_id = (SELECT id FROM checkout_orders WHERE external_order_id = ?)").run("order-001");
+
+// Even when lifecycle status and candidate are unchanged, a newer poll must
+// invalidate a response that was based on an older poll snapshot.
+const originalFetchForPollRace = globalThis.fetch;
+globalThis.fetch = async () => {
+  sqlite.query("UPDATE payment_lifecycle SET last_polled_at = ? WHERE order_id = (SELECT id FROM checkout_orders WHERE external_order_id = ?)")
+    .run("2026-11-05T00:02:00.000Z", "order-001");
+  return Response.json({ status: "KNOWN_DEPOSIT_TX", updatedAt: "2026-11-05T00:02:01Z" });
+};
+try {
+  const stalePoll = await paymentStatus({
+    request: new Request("https://pelargo.test/api/payment-status?orderId=order-001", {
+      headers: { "x-pelargo-merchant-key": created.body.apiKey },
+    }),
+    env,
+  });
+  assert.equal(stalePoll.status, 409, "a newer poll timestamp must invalidate an older in-flight poll");
+  const afterPollRace = sqlite.query(
+    "SELECT status, provider_status, destination_tx_candidate, last_polled_at FROM payment_lifecycle WHERE order_id = (SELECT id FROM checkout_orders WHERE external_order_id = ?)"
+  ).get("order-001");
+  assert.equal(afterPollRace.status, "awaiting_deposit");
+  assert.equal(afterPollRace.provider_status, null);
+  assert.equal(afterPollRace.destination_tx_candidate, null);
+  assert.equal(afterPollRace.last_polled_at, "2026-11-05T00:02:00.000Z");
+} finally {
+  globalThis.fetch = originalFetchForPollRace;
+}
+sqlite.query("UPDATE payment_lifecycle SET last_polled_at = NULL WHERE order_id = (SELECT id FROM checkout_orders WHERE external_order_id = ?)").run("order-001");
 
 const originalFetch = globalThis.fetch;
 globalThis.fetch = async (url) => {
