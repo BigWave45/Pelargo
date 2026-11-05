@@ -37,7 +37,12 @@ async function requestJson(url: string, init: RequestInit): Promise<JsonRecord> 
     headers: { accept: "application/json", ...init.headers },
     signal: AbortSignal.timeout(12_000),
   });
-  if (!response.ok) throw new Error(`NEAR verification upstream returned HTTP ${response.status}`);
+  if (!response.ok) {
+    // Keep a short upstream body fragment for actionable diagnostics without
+    // returning an unbounded response or changing verification decisions.
+    const detail = (await response.text()).replace(/\\s+/g, " ").slice(0, 240);
+    throw new Error(`NEAR verification upstream returned HTTP ${response.status}${detail ? `: ${detail}` : ""}`);
+  }
   const payload = record(await response.json());
   if (!payload) throw new Error("NEAR verification upstream returned invalid JSON");
   return payload;
