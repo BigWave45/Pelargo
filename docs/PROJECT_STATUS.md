@@ -1,5 +1,18 @@
 # Live handover — 5 November 2026 (supersedes older status notes below)
 
+## Self-service merchant dashboard — 5 November 2026
+
+- Added public merchant registration and email/password login. Passwords are PBKDF2-SHA-256 hashed with per-password salts; browser sessions use random opaque tokens, SHA-256 token hashes in D1, HttpOnly/Secure/SameSite=Lax cookies and server-side revocation on logout.
+- Added database-backed registration and login throttling: five registration attempts per email/IP per hour and ten login attempts per email/IP per 15 minutes.
+- Added authenticated merchant settings for business name, destination asset ID, symbol, network, recipient and token decimals.
+- Added dashboard order creation through the existing signed checkout-session handler, merchant-scoped order activity, and dashboard session access to order and payment-status polling. Server-side integrations can continue using merchant API keys; the browser is never given the internal merchant API key.
+- Replaced the old prototype dashboard with registration/login, persisted destination configuration, checkout-link creation, a public buyer checkout route and merchant order activity.
+- Added API integration coverage for registration, duplicate email, password login failure/success, session authentication, settings persistence, dashboard order creation/listing, logout revocation and existing API-key compatibility.
+- CI passed on commit `7a5c0a2`: TypeScript, checkout-session security tests, checkout API integration tests and frontend build. Documentation commits `4a7d4aa` and `db41cff` also passed CI.
+- Preview D1 was directly inspected and migrated from `0011` through `0015`. Verification confirmed all five migration records, merchant destination columns and the `merchant_accounts`, `merchant_sessions` and `auth_rate_limits` tables.
+- These migrations were applied to **Preview D1 only** (`pelargo-preview-db`). Production D1 was not changed. The new app code has not yet been deployed to Cloudflare Preview, and the deployed runtime has not yet been tested against these new routes.
+- Email verification, password reset/recovery, API-key rotation, multi-user accounts and email delivery are not implemented. The destination settings form accepts the merchant's stated asset ID and decimals; it does not yet validate them against live token discovery. Do not treat arbitrary merchant input as proof that a destination is supported or settleable.
+
 ## Latest checkout implementation — 5 November 2026
 
 - The buyer widget now has a buyer-confirmed committed-quote action after dry quote preview. It validates the committed response contains a correlation ID, deposit address and exact positive atomic source amount before showing instructions; optional memo and provider deadline are displayed.
