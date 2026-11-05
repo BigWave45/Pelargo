@@ -714,6 +714,12 @@ try {
   assert.equal(mismatchedTransfer.body.settlement, "awaiting_destination_chain_verification",
     "persisted candidate hash must be verified when a later SUCCESS response omits hashes");
   assert.equal(
+    mismatchedTransfer.body.verificationDiagnostics.some((item) =>
+      item.hash === destinationHash && item.stage === "exact_nep141_net_transfer_not_found"),
+    true,
+    "mismatched destination transfer must retain its candidate-specific verification stage",
+  );
+  assert.equal(
     sqlite.query("SELECT status FROM payment_lifecycle WHERE order_id = (SELECT id FROM checkout_orders WHERE external_order_id = ?)").get("order-001").status,
     "processing",
     "wrong transfer amount must not settle the order",
