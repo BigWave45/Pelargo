@@ -29,7 +29,7 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
        amount_atomic AS amountAtomic,
        destination_asset AS destinationAsset,
        recipient,
-       COALESCE(payment_lifecycle.status, status) AS status,
+       COALESCE(payment_lifecycle.status, checkout_orders.status) AS status,
        created_at AS createdAt,
        expires_at AS expiresAt
      FROM checkout_orders
