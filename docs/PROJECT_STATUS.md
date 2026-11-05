@@ -725,3 +725,14 @@ This section is the current source of truth and supersedes older dated notes bel
 - Commit: `4db7c8a6e3be3628367693704f91c321f26e50c8` on `ops/live-d1-readiness`.
 - Not yet verified: CI, refreshed Pages Preview deployment, and a successful authenticated save followed by reload. The user must confirm the business name and destination fields remain present after reload.
 - No Production deployment, merge to `main`, committed quote, or testnet transfer. Mainnet deposits remain disabled.
+
+
+## 2026-11-05 — Committed quote persistence reconciliation
+
+- Preview order `ORDER-77530289` was submitted to Tidepool and the provider returned a committed quote. Preview D1 readback confirmed the order, payment lifecycle, and checkout session were all synchronized to committed state.
+- Saved quote reference: `15d46d73-e3b5-4468-b0ac-02ffbf35e671`. A deposit address is present in D1; no memo is stored. This is not proof that the buyer received complete instructions or that the provider quote remains live.
+- The buyer-facing API returned a false failure because `quote.ts` required `persisted.meta.changes === 1`. Migration `0004_commit_state_sync.sql` uses an AFTER UPDATE trigger to update the order and session in the same statement, so the driver change count is not a reliable success criterion.
+- Updated `functions/api/quote.ts` to read back and compare the lifecycle, order, session, quote ID, deposit address, and memo after the atomic update. The API now returns success only when all persisted values match the upstream committed quote. It no longer relies on an exact affected-row count for this final persistence check.
+- The readback query scopes by merchant ID, external order ID, and the server-issued checkout JTI. Checkout amount/asset/recipient validation and the consumed-session fail-closed behavior remain unchanged.
+- CI passed on commit `d70350911b610722edca987c0308c513a232de2e` (type-check, checkout-session security tests, checkout API integration tests, and build).
+- Safety status: no deposit transfer has been made. Do not retry the committed quote or send funds to the saved address until the provider quote validity and buyer deposit instructions are independently checked. Preview only; no Production deployment, merge to `main`, or mainnet activation.
