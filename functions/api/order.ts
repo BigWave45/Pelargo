@@ -29,10 +29,11 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
        amount_atomic AS amountAtomic,
        destination_asset AS destinationAsset,
        recipient,
-       status,
+       COALESCE(payment_lifecycle.status, status) AS status,
        created_at AS createdAt,
        expires_at AS expiresAt
      FROM checkout_orders
+     LEFT JOIN payment_lifecycle ON payment_lifecycle.order_id = checkout_orders.id
      WHERE merchant_id = ? AND external_order_id = ?`
   ).bind(merchant.id, externalOrderId).first<{
     orderId: string;
