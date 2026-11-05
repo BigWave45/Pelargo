@@ -3,12 +3,13 @@ import { sha256Hex } from "./database";
 
 const SESSION_COOKIE = "__Host-pelargo_session";
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7;
-const PASSWORD_ITERATIONS = 310_000;
+const PASSWORD_ITERATIONS = 100_000;
+const PASSWORD_SCHEME = "pbkdf2-sha256-hmac";
 
 function toBase64Url(bytes: Uint8Array): string {
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+  return btoa(binary).replace(/\\+/g, "-").replace(/\\//g, "_").replace(/=+$/g, "");
 }
 
 function fromBase64Url(value: string): Uint8Array {
@@ -30,31 +31,39 @@ function randomToken(): string {
   return toBase64Url(crypto.getRandomValues(new Uint8Array(32)));
 }
 
-export async function hashPassword(password: string): Promise<string> {
-  const salt = crypto.getRandomValues(new Uint8Array(16));
+async function derivePasswordHash(password: string, salt: Uint8Array, pepper: string): Promise<Uint8Array> {
+  if (pepper.length < 32) throw new Error("Password pepper is not configured securely");
   const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveBits"]);
-  const bits = new Uint8Array(await crypto.subtle.deriveBits(
+  const derived = new Uint8Array(await crypto.subtle.deriveBits(
     { name: "PBKDF2", hash: "SHA-256", salt: toArrayBuffer(salt), iterations: PASSWORD_ITERATIONS },
     key,
     256,
   ));
-  return `pbkdf2$${PASSWORD_ITERATIONS}$${toBase64Url(salt)}$${toBase64Url(bits)}`;
+  const pepperKey = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(pepper),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  return new Uint8Array(await crypto.subtle.sign("HMAC", pepperKey, toArrayBuffer(derived)));
 }
 
-export async function verifyPassword(password: string, encoded: string): Promise<boolean> {
+export async function hashPassword(password: string, pepper: string): Promise<string> {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const hash = await derivePasswordHash(password, salt, pepper);
+  return `${PASSWORD_SCHEME}$${PASSWORD_ITERATIONS}$${toBase64Url(salt)}$${toBase64Url(hash)}`;
+}
+
+export async function verifyPassword(password: string, encoded: string, pepper: string): Promise<boolean> {
   const [scheme, iterationsText, saltText, expectedText] = encoded.split("$");
   const iterations = Number(iterationsText);
-  if (scheme !== "pbkdf2" || !Number.isInteger(iterations) || iterations < 100_000 || iterations > 1_000_000 || !saltText || !expectedText) return false;
+  if (scheme !== PASSWORD_SCHEME || iterations !== PASSWORD_ITERATIONS || !saltText || !expectedText) return false;
   try {
     const salt = fromBase64Url(saltText);
     const expected = fromBase64Url(expectedText);
-    const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveBits"]);
-    const actual = new Uint8Array(await crypto.subtle.deriveBits(
-      { name: "PBKDF2", hash: "SHA-256", salt: toArrayBuffer(salt), iterations },
-      key,
-      expected.length * 8,
-    ));
-    if (actual.length !== expected.length) return false;
+    if (salt.length !== 16 || expected.length !== 32) return false;
+    const actual = await derivePasswordHash(password, salt, pepper);
     let difference = 0;
     for (let i = 0; i < actual.length; i += 1) difference |= actual[i] ^ expected[i];
     return difference === 0;
