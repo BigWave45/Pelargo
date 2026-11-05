@@ -2,7 +2,7 @@
 -- Any missing or stale dependent row aborts the lifecycle update atomically.
 CREATE TRIGGER IF NOT EXISTS payment_lifecycle_commit_sync
 AFTER UPDATE OF status ON payment_lifecycle
-WHEN OLD.status = 'pending' AND NEW.status = 'quote_committed'
+WHEN OLD.status = 'pending' AND NEW.status = 'quote_committed' AND NEW.deposit_address IS NOT NULL
 BEGIN
   UPDATE checkout_orders
      SET status = 'quote_committed'
