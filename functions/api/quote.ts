@@ -144,17 +144,44 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
       method: "POST",
       body: JSON.stringify(quoteRequest),
     }, context.env);
+
     if (body.dry === false && upstream.ok) {
-      await context.env.DB!.batch([
+      const payload = await upstream.clone().json() as {
+        correlationId?: unknown;
+        quote?: { depositAddress?: unknown; depositMemo?: unknown };
+      };
+      const depositAddress = payload?.quote?.depositAddress;
+      const depositMemo = payload?.quote?.depositMemo;
+      if (typeof depositAddress !== "string" || !depositAddress.trim() || depositAddress.length > 256 ||
+          (depositMemo !== undefined && (typeof depositMemo !== "string" || depositMemo.length > 256))) {
+        // The provider may have committed a quote, but without its deposit
+        // locator Pelargo cannot safely monitor or reconcile it. Keep the
+        // session consumed and do not represent the order as payable.
+        return json({
+          error: "The payment provider returned an incomplete committed quote. Contact support before retrying.",
+          code: "COMMITTED_QUOTE_MISSING_DEPOSIT_DETAILS",
+        }, 502);
+      }
+
+      const quoteId = typeof payload.correlationId === "string" ? payload.correlationId : null;
+      const now = new Date().toISOString();
+      const updated = await context.env.DB!.batch([
         context.env.DB!.prepare(
-          "UPDATE checkout_sessions SET status = 'committed' WHERE jti = ? AND status = 'commit_attempted'"
-        ).bind(session.jti),
+          "UPDATE payment_lifecycle SET status = 'quote_committed', quote_id = ?, deposit_address = ?, deposit_memo = ?, updated_at = ? WHERE order_id = (SELECT id FROM checkout_orders WHERE merchant_id = ? AND external_order_id = ?) AND status = 'pending'"
+        ).bind(quoteId, depositAddress, depositMemo ?? null, now, session.merchantId, session.orderId),
         context.env.DB!.prepare(
           "UPDATE checkout_orders SET status = 'quote_committed' WHERE merchant_id = ? AND external_order_id = ? AND status = 'pending'"
         ).bind(session.merchantId, session.orderId),
+        context.env.DB!.prepare(
+          "UPDATE checkout_sessions SET status = 'committed' WHERE jti = ? AND status = 'commit_attempted'"
+        ).bind(session.jti),
       ]);
+      if (updated.some((result) => !result.success)) {
+        return json({ error: "Quote committed upstream but local payment state could not be saved. Do not submit another payment; contact support." }, 502);
+      }
     }
     return await forwardJson(upstream);
+
   } catch {
     return json({ error: "Unable to reach the NEAR Intents quote service" }, 502);
   }
