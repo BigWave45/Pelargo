@@ -61,6 +61,12 @@ const env = {
 };
 const responseJson = async (response) => ({ status: response.status, body: await response.json() });
 
+const request = (url, method, body, headers = {}) => new Request(url, {
+  method,
+  headers: { "content-type": "application/json", ...headers },
+  body: body === undefined ? undefined : JSON.stringify(body),
+});
+
 const selfServeRegistration = await registerMerchant({
   request: request("https://pelargo.test/api/auth/register", "POST", {
     name: "Self Serve Shop", email: "owner@example.test", password: "a-long-test-password-123",
