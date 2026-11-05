@@ -276,7 +276,7 @@ try {
   ).get("order-commit").id;
 
   assert.throws(
-    () => sqlite.query("UPDATE payment_lifecycle SET status = 'quote_committed' WHERE order_id = ?").run(commitLifecycleId),
+    () => sqlite.query("UPDATE payment_lifecycle SET status = 'quote_committed', quote_id = 'premature-test', deposit_address = 'premature-deposit' WHERE order_id = ?").run(commitLifecycleId),
     /checkout session state could not be synchronized/,
     "lifecycle commit must abort if the session is not in commit_attempted state",
   );
