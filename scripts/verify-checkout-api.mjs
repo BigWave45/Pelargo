@@ -1198,6 +1198,9 @@ try {
   ).get(scheduledOrderId);
   assert.ok(enqueued, "eligible committed payment must be durably enqueued by the lifecycle trigger");
   assert.equal(enqueued.attempt_count, 0);
+  // Earlier API scenarios can legitimately enqueue other committed orders.
+  // Isolate this deterministic worker assertion to the fixture under test.
+  sqlite.query("DELETE FROM payment_reconciliation_jobs WHERE order_id <> ?").run(scheduledOrderId);
 
   env.RECONCILIATION_SECRET = "test-reconciliation-secret-with-at-least-32-characters";
   env.INTENTS_API_BASE_URL = "https://www.usetidepool.tech";
