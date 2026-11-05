@@ -116,7 +116,15 @@ A merchant server sends an order reference, amount, atomic amount, destination a
 
 ### Automated security checks
 
-Run `bun run test:security` for session-token signing and verification. Run `bun run test:api` for merchant provisioning, API-key hashing, merchant authentication, checkout-session issuance/retrieval, duplicate-order rejection, quote binding, dry-quote behavior, mainnet commit protection and merchant-scoped order lookup. These route-handler tests use an in-memory SQLite adapter; they do not replace a live Cloudflare D1 preview test. GitHub Actions runs both suites alongside TypeScript and the frontend build.
+Run `bun run test:security` for session-token signing and verification. Run `bun run test:api` for merchant provisioning, API-key hashing, merchant authentication, checkout-session issuance/retrieval, duplicate-order rejection, quote binding, dry-quote behavior, mainnet commit protection, merchant-scoped order lookup and authenticated provider-status polling. The status tests verify deposit-memo forwarding, provider-status persistence and that provider `SUCCESS` cannot independently settle an order. These route-handler tests use an in-memory SQLite adapter and mocked upstream responses; they do not replace a live Cloudflare D1 or live 1Click test. GitHub Actions run `41949348566` passed TypeScript, session-security tests, API integration tests and the frontend build on commit `5214c1f`.
+
+
+### Payment status polling (not settlement verification)
+
+- `GET /api/payment-status?orderId=...` requires the merchant's server-side API key and scopes the order lookup to that merchant.
+- The handler polls NEAR Intents using the persisted deposit address and optional memo, then records the provider status and any destination transaction hash candidate.
+- Provider `SUCCESS` is not treated as Pelargo `settled`. Independent destination-chain verification is still required.
+- This endpoint is covered by mocked route-handler tests only. Its live 1Click response schema, live D1 behavior and destination-chain verifier are not yet verified or implemented.
 
 ### Durable replay protection
 
