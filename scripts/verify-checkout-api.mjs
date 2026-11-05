@@ -17,6 +17,8 @@ import { transitionPayment, PaymentTransitionError } from "../functions/_lib/pay
 import { verifyNearNep141Settlement } from "../functions/_lib/near-settlement-verifier.ts";
 import { expireAbandonedCheckouts, recordUncertainQuoteCommits } from "../workers/expiry-sweeper.ts";
 import { onRequest as operatorRecoveryCases } from "../functions/api/operator/recovery-cases.ts";
+import { signCheckoutSession } from "../functions/_lib/checkout-session.ts";
+import { sha256Hex } from "../functions/_lib/database.ts";
 
 class Statement {
   constructor(db, sql, values = []) { this.db = db; this.sql = sql; this.values = values; }
@@ -957,6 +959,26 @@ try {
     }));
     assert.equal(buyerStatus.status, 200, "buyer session should retrieve its own committed payment status");
     assert.equal(buyerStatus.body.paymentStatus, "awaiting_deposit");
+
+    // An expired signed token may recover status only when its persisted session
+    // is already committed and remains bound to this exact merchant/order.
+    const committedClaims = JSON.parse(atob(commitIssued.body.token.split(".")[0].replace(/-/g, "+").replace(/_/g, "/")));
+    committedClaims.exp = Math.floor(Date.now() / 1000) - 1;
+    const expiredCommittedToken = await signCheckoutSession(committedClaims, env);
+    sqlite.query("UPDATE checkout_sessions SET token_hash = ?, expires_at = ? WHERE jti = ?").run(
+      await sha256Hex(expiredCommittedToken),
+      new Date(Date.now() - 60_000).toISOString(),
+      commitJti,
+    );
+    const recoveredExpiredBuyer = await responseJson(await paymentStatus({
+      request: new Request("https://pelargo.test/api/payment-status?orderId=order-commit", {
+        headers: { authorization: "Bearer " + expiredCommittedToken },
+      }),
+      env,
+    }));
+    assert.equal(recoveredExpiredBuyer.status, 200, "expired committed buyer session must retain read-only payment recovery");
+    assert.equal(recoveredExpiredBuyer.body.paymentStatus, "awaiting_deposit");
+
     const crossOrderStatus = await paymentStatus({
       request: new Request("https://pelargo.test/api/payment-status?orderId=order-001", {
         headers: { authorization: "Bearer " + commitIssued.body.token },
