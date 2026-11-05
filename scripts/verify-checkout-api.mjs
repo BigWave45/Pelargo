@@ -637,14 +637,17 @@ try {
   assert.equal(sqlite.query("SELECT provider_status FROM payment_lifecycle WHERE order_id = (SELECT id FROM checkout_orders WHERE external_order_id = ?)").get("order-001").provider_status, "KNOWN_DEPOSIT_TX");
   // The next SUCCESS poll intentionally skips the provider's PROCESSING state;
   // the route must fill the internal lifecycle gap before chain verification.
+  const intermediateHash = "2222222222222222222222222222222222222222222";
   const destinationHash = "1111111111111111111111111111111111111111111";
   const mockNearVerifier = (transferAmount, refundAmount = "0", includeDestinationHash = true, providerStatus = "SUCCESS") => async (url, init = {}) => {
     const parsed = new URL(String(url));
     if (parsed.hostname === "1click.chaindefuser.com") {
       return Response.json({
         status: providerStatus, updatedAt: "2026-11-05T00:01:00Z",
+        // The first hash is an intermediate transaction with the wrong
+        // transfer amount; the second is the actual destination settlement.
         swapDetails: includeDestinationHash
-          ? { destinationChainTxHashes: [{ hash: destinationHash }] }
+          ? { destinationChainTxHashes: [{ hash: intermediateHash }, { hash: destinationHash }] }
           : {},
       });
     }
@@ -652,9 +655,10 @@ try {
       assert.equal(init.method, "GET", "NearScanner transaction lookup must use GET");
       assert.equal(new Headers(init.headers).get("x-api-key"), "test-nearscanner-api-key",
         "NearScanner transaction lookup must send the configured API key");
-      assert.equal(decodeURIComponent(parsed.pathname.split("/").at(-1)), destinationHash);
+      const requestedHash = decodeURIComponent(parsed.pathname.split("/").at(-1));
+      assert.ok([intermediateHash, destinationHash].includes(requestedHash));
       return Response.json({
-        data: { transaction: { hash: destinationHash, signer_id: "sender.near" } },
+        data: { transaction: { hash: requestedHash, signer_id: "sender.near" } },
       });
     }
     if (parsed.hostname === "rpc.mainnet.near.org") {
@@ -664,6 +668,8 @@ try {
       }
       if (rpcRequest.method === "EXPERIMENTAL_tx_status") {
         assert.equal(rpcRequest.params.wait_until, "FINAL", "NEAR transaction verification must request FINAL execution status");
+        const isIntermediate = rpcRequest.params.tx_hash === intermediateHash;
+        const candidateAmount = isIntermediate ? "1999999" : transferAmount;
         return Response.json({ result: {
           status: { SuccessValue: "" },
           receipts_outcome: [{
@@ -674,7 +680,7 @@ try {
               logs: [
                 `EVENT_JSON:${JSON.stringify({
                   standard: "nep141", version: "1.0.0", event: "ft_transfer",
-                  data: [{ old_owner_id: "sender.near", new_owner_id: "merchant.near", amount: transferAmount }],
+                  data: [{ old_owner_id: "sender.near", new_owner_id: "merchant.near", amount: candidateAmount }],
                 })}`,
                 ...(refundAmount === "0" ? [] : [`EVENT_JSON:${JSON.stringify({
                   standard: "nep141", version: "1.0.0", event: "ft_transfer",
@@ -805,6 +811,13 @@ try {
   assert.equal(verifiedTransfer.status, 200);
   assert.equal(verifiedTransfer.body.paymentStatus, "settled");
   assert.equal(verifiedTransfer.body.settlement, "verified");
+  assert.equal(verifiedTransfer.body.destinationTransactionHash, destinationHash,
+    "response must expose the candidate that passed exact settlement verification");
+  assert.equal(
+    sqlite.query("SELECT destination_tx_candidate FROM payment_lifecycle WHERE order_id = (SELECT id FROM checkout_orders WHERE external_order_id = ?)").get("order-001").destination_tx_candidate,
+    destinationHash,
+    "the verified later candidate must replace the first intermediate candidate before evidence is committed",
+  );
   const settledOrder = sqlite.query(
     "SELECT o.status AS order_status, p.status AS payment_status FROM checkout_orders o JOIN payment_lifecycle p ON p.order_id = o.id WHERE o.external_order_id = ?"
   ).get("order-001");
