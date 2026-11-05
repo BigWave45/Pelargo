@@ -337,7 +337,7 @@ try {
        recipient, amount_atomic, block_number, block_hash, confirmations, verification_source, verified_at)
       VALUES (?, 'NEAR', 'nep141:usdc.omft.near', 'usdc.omft.near', 'stale-candidate',
               'merchant.near', '2000000', '90', 'receipt-block-hash', 11, 'chain_rpc', ?)`)
-      .run(commitLifecycleId, new Date().toISOString()),
+      .run(sqlite.query("SELECT id FROM checkout_orders WHERE external_order_id = ?").get("order-001").id, new Date().toISOString()),
     /settlement evidence requires matching processing candidate/,
     "evidence insert must reject a stale or non-matching candidate hash",
   );
