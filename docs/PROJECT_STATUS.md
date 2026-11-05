@@ -3,7 +3,7 @@
 ## Durable background payment reconciliation — implementation checkpoint — 5 November 2026
 
 - Work is isolated on reliability/background-reconciliation, based on reliability/near-verifier-diagnostics. No merge.
-- Added migrations/0017_payment_reconciliation_jobs.sql: durable per-order jobs, due-time index, backfill of existing eligible committed/in-flight payments, lifecycle enqueue triggers, and terminal-state cleanup trigger.
+- Added migrations/0017_payment_reconciliation_jobs.sql: durable per-order jobs, due-time index, backfill of existing deposit-detected/processing/incomplete-deposit payments only (stale awaiting-deposit sessions are excluded), lifecycle enqueue triggers, and terminal-state cleanup trigger.
 - Updated functions/_lib/intents.ts with the optional private RECONCILIATION_SECRET binding.
 - Updated functions/api/payment-status.ts with a private internal invocation path. It requires the configured secret and resolves the order by its internal database ID, then calls the same existing status/polling/canonical settlement verification logic. It does not weaken merchant/buyer authentication on public requests.
 - Updated workers/expiry-sweeper.ts: bounded batch processing, conditional D1 lease claims, 10-minute lease expiry, existing payment-status verifier reuse, exponential retry capped at one hour, and lease release after retryable results. No quote creation or provider execution endpoint is called.
@@ -891,3 +891,8 @@ No database writes or configuration changes were made during the audit. No Produ
 - Inspection found that Cloudflare Worker bindings are separate from Pages Preview bindings. Without copying the existing order-scoped recovery tuple into the Preview Worker config, the background Worker could not use the configured signer hint/hash even if Pages Preview had those variables.
 - Added non-secret `NEAR_TX_HASH`, `NEAR_TX_SIGNER_ID`, and `NEAR_TX_ORDER_ID` to `wrangler.expiry.preview.toml`, scoped to the already-authorized testnet order `ORDER-83587591`. The verifier still requires canonical NEAR RPC finality and exact NEP-141 transfer evidence; these values only identify a candidate and signer.
 - The tuple is absent from `wrangler.expiry.toml` and is not a Production setting. No Worker deployment or cron activation occurred.
+
+
+### Preview backfill scope correction — 5 November 2026
+
+A read-only Preview D1 inspection found three old awaiting-deposit test checkouts with expired checkout deadlines and provider status PENDING_DEPOSIT, alongside the active processing order ORDER-83587591. The initial migration backfill would have scheduled all four for recurring provider polling. Before applying the migration, narrowed the one-time backfill to deposit_detected, processing and incomplete_deposit states. Lifecycle triggers still enqueue newly created/transitioned awaiting-deposit payments after migration. This avoids automatically polling stale pre-existing test checkouts while retaining background detection for new checkouts.
