@@ -16,7 +16,7 @@ import { onRequest as submitDeposit } from "../functions/api/deposit-submit.ts";
 import { onRequest as legacyStatus } from "../functions/api/status.ts";
 import { transitionPayment, PaymentTransitionError } from "../functions/_lib/payment-lifecycle.ts";
 import { verifyNearNep141Settlement } from "../functions/_lib/near-settlement-verifier.ts";
-import { expireAbandonedCheckouts, recordUncertainQuoteCommits } from "../workers/expiry-sweeper.ts";
+import { expireAbandonedCheckouts, recordUncertainQuoteCommits, reconcileDuePayments } from "../workers/expiry-sweeper.ts";
 import { onRequest as operatorRecoveryCases } from "../functions/api/operator/recovery-cases.ts";
 import { signCheckoutSession } from "../functions/_lib/checkout-session.ts";
 import { sha256Hex } from "../functions/_lib/database.ts";
@@ -50,6 +50,7 @@ sqlite.exec(readFileSync(new URL("../migrations/0013_merchant_destination_settin
 sqlite.exec(readFileSync(new URL("../migrations/0014_destination_decimals.sql", import.meta.url), "utf8"));
 sqlite.exec(readFileSync(new URL("../migrations/0015_auth_rate_limits.sql", import.meta.url), "utf8"));
 sqlite.exec(readFileSync(new URL("../migrations/0016_origin_deposit_evidence.sql", import.meta.url), "utf8"));
+sqlite.exec(readFileSync(new URL("../migrations/0017_payment_reconciliation_jobs.sql", import.meta.url), "utf8"));
 const db = {
   prepare(sql) { return new Statement(sqlite, sql); },
   batch(statements) {
@@ -1171,6 +1172,68 @@ try {
     globalThis.fetch = beforeConcurrentPoll;
   }
 
+
+  // Durable background reconciliation: lifecycle eligibility enqueues a job;
+  // the worker uses the private internal path, then releases a lease with backoff
+  // when the provider is temporarily unavailable. It must never execute a quote.
+  const scheduledOrder = { ...order, orderId: "order-scheduled-reconciliation" };
+  const scheduledIssued = await responseJson(await checkoutSession({
+    request: request("https://pelargo.test/api/checkout-session", "POST", scheduledOrder, {
+      "x-pelargo-merchant-key": created.body.apiKey,
+    }),
+    env,
+  }));
+  assert.equal(scheduledIssued.status, 201);
+  const scheduledOrderId = sqlite.query(
+    "SELECT id FROM checkout_orders WHERE external_order_id = ?"
+  ).get("order-scheduled-reconciliation").id;
+  sqlite.query(
+    "UPDATE payment_lifecycle SET status = 'awaiting_deposit', quote_id = ?, deposit_address = ? WHERE order_id = ?"
+  ).run("scheduled-quote", "scheduled-deposit-address", scheduledOrderId);
+  sqlite.query(
+    "UPDATE checkout_orders SET status = 'quote_committed' WHERE id = ?"
+  ).run(scheduledOrderId);
+  const enqueued = sqlite.query(
+    "SELECT order_id, attempt_count FROM payment_reconciliation_jobs WHERE order_id = ?"
+  ).get(scheduledOrderId);
+  assert.ok(enqueued, "eligible committed payment must be durably enqueued by the lifecycle trigger");
+  assert.equal(enqueued.attempt_count, 0);
+
+  env.RECONCILIATION_SECRET = "test-reconciliation-secret-with-at-least-32-characters";
+  env.INTENTS_API_BASE_URL = "https://www.usetidepool.tech";
+  const beforeScheduledSweep = globalThis.fetch;
+  let scheduledStatusCalls = 0;
+  globalThis.fetch = async (url) => {
+    const parsed = new URL(String(url));
+    if (parsed.hostname === "www.usetidepool.tech" && parsed.pathname === "/v0/status") {
+      scheduledStatusCalls++;
+      return Response.json({ correlationId: "scheduled-quote", status: "PROCESSING", swapDetails: {} });
+    }
+    throw new Error("Unexpected background reconciliation request: " + String(url));
+  };
+  try {
+    const sweepStats = await reconcileDuePayments(env, new Date(), 1);
+    assert.deepEqual(sweepStats, { claimed: 1, settled: 0, deferred: 1 });
+    assert.equal(scheduledStatusCalls, 1, "worker should call the existing status verifier once");
+    const scheduledJob = sqlite.query(
+      "SELECT attempt_count, lease_token, lease_until, last_error, next_attempt_at FROM payment_reconciliation_jobs WHERE order_id = ?"
+    ).get(scheduledOrderId);
+    assert.equal(scheduledJob.attempt_count, 1);
+    assert.equal(scheduledJob.lease_token, null, "worker must release the lease after a retryable result");
+    assert.equal(scheduledJob.lease_until, null);
+    assert.match(scheduledJob.last_error, /HTTP 200/);
+    assert.ok(Date.parse(scheduledJob.next_attempt_at) > Date.now(),
+      "retryable payment status must receive a future backoff time");
+    assert.equal(
+      sqlite.query("SELECT status FROM payment_lifecycle WHERE order_id = ?").get(scheduledOrderId).status,
+      "awaiting_deposit",
+      "background reconciliation must not invent settlement",
+    );
+  } finally {
+    globalThis.fetch = beforeScheduledSweep;
+    env.RECONCILIATION_SECRET = undefined;
+    env.INTENTS_API_BASE_URL = undefined;
+  }
 
   // Origin-chain recovery requires a quote-bound, exact Base Sepolia ERC-20 transfer.
   const originValidOrder = { ...order, orderId: "order-origin-valid" };
