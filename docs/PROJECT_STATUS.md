@@ -1,5 +1,14 @@
 # Live handover — 5 November 2026 (supersedes older status notes below)
 
+## Merchant password-hashing runtime fix — 5 November 2026
+
+- Runtime diagnostic from the isolated Preview showed Cloudflare WebCrypto rejects PBKDF2 iteration counts above 100,000; the previous 310,000 setting caused registration to fail before any merchant/account row was inserted.
+- Updated the password scheme to PBKDF2-SHA-256 at the Worker-supported 100,000-iteration ceiling, with a unique 16-byte random salt per account and a post-derivation HMAC-SHA-256 using the server-side ORDER_SESSION_SECRET as a pepper. The pepper is not stored in D1 or returned to the browser.
+- Registration and login now both use the same peppered scheme. Existing sessions are unaffected. The earlier 310,000-iteration scheme was not successfully used to create accounts in Preview, so no account-hash migration is expected there.
+- Changed code on ops/live-d1-readiness; latest code commit before documentation: 856623f186056f44dc5d77ee53d1ecfd377df4ea. README documents the new scheme.
+- Not yet verified: CI, latest Pages deployment, live registration, login and session persistence. Do not call registration fixed until all those checks pass.
+- Preview only. Production, main, and payment execution remain untouched. No testnet transfer has been made.
+
 ## Self-service merchant dashboard — 5 November 2026
 
 - Added public merchant registration and email/password login. Passwords are PBKDF2-SHA-256 hashed with per-password salts; browser sessions use random opaque tokens, SHA-256 token hashes in D1, HttpOnly/Secure/SameSite=Lax cookies and server-side revocation on logout.
