@@ -10,7 +10,8 @@
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
     "build:embed": "vite build --config vite.embed.config.ts",
-    "test:security": "bun run scripts/verify-checkout-session.ts"
+    "test:security": "bun run scripts/verify-checkout-session.ts",
+    "test:api": "bun run scripts/verify-checkout-api.mjs"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
