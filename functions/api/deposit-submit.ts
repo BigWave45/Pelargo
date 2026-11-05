@@ -118,6 +118,9 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
       code: "PROVIDER_QUOTE_DETAILS_MISMATCH",
     }, 409);
   }
+  if (typeof providerBefore.status !== "string" || !statuses.includes(providerBefore.status as ProviderStatus)) {
+    return json({ error: "Provider returned an unrecognized status" }, 502);
+  }
   if (providerBefore.status === "SUCCESS") {
     return json({
       error: "Provider already reports success; do not resubmit the source transaction. Destination reconciliation is required.",
@@ -127,8 +130,12 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
       destinationChainTxHashes: providerBefore.swapDetails?.destinationChainTxHashes ?? [],
     }, 409);
   }
-  if (typeof providerBefore.status !== "string" || !statuses.includes(providerBefore.status as ProviderStatus)) {
-    return json({ error: "Provider returned an unrecognized status" }, 502);
+  if (!["PENDING_DEPOSIT", "KNOWN_DEPOSIT_TX", "PROCESSING"].includes(providerBefore.status)) {
+    return json({
+      error: "Provider reports a terminal non-success state; source deposit submission is not permitted",
+      code: "PROVIDER_TERMINAL_STATUS",
+      providerStatus: providerBefore.status,
+    }, 409);
   }
 
   const evidence = await verifyBaseSepoliaErc20Deposit(env, {
@@ -149,29 +156,37 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
     }, 422);
   }
 
+  const alreadyKnown = Array.isArray(providerBefore.swapDetails?.originChainTxHashes) &&
+    providerBefore.swapDetails.originChainTxHashes.some((entry) =>
+      entry !== null && typeof entry === "object" && entry.hash === transactionHash
+    );
   let submitted: ProviderStatusResponse;
-  try {
-    const response = await intentsRequest("deposit/submit", {
-      method: "POST",
-      body: JSON.stringify({
-        txHash: transactionHash,
-        depositAddress: payment.deposit_address,
-      }),
-    }, env);
-    const payload = await response.json().catch(() => null) as ProviderStatusResponse | null;
-    if (!response.ok || !payload) {
+  if (alreadyKnown) {
+    submitted = providerBefore;
+  } else {
+    try {
+      const response = await intentsRequest("deposit/submit", {
+        method: "POST",
+        body: JSON.stringify({
+          txHash: transactionHash,
+          depositAddress: payment.deposit_address,
+        }),
+      }, env);
+      const payload = await response.json().catch(() => null) as ProviderStatusResponse | null;
+      if (!response.ok || !payload) {
+        return json({
+          error: "The source deposit was verified on Base, but the provider did not accept its transaction notification",
+          code: "PROVIDER_DEPOSIT_SUBMISSION_FAILED",
+          upstreamStatus: response.status,
+        }, 502);
+      }
+      submitted = payload;
+    } catch {
       return json({
-        error: "The source deposit was verified on Base, but the provider did not accept its transaction notification",
-        code: "PROVIDER_DEPOSIT_SUBMISSION_FAILED",
-        upstreamStatus: response.status,
+        error: "The source deposit was verified on Base, but the provider notification could not be completed",
+        code: "PROVIDER_DEPOSIT_SUBMISSION_UNAVAILABLE",
       }, 502);
     }
-    submitted = payload;
-  } catch {
-    return json({
-      error: "The source deposit was verified on Base, but the provider notification could not be completed",
-      code: "PROVIDER_DEPOSIT_SUBMISSION_UNAVAILABLE",
-    }, 502);
   }
 
   if (submitted.correlationId !== payment.quote_id ||
@@ -212,7 +227,7 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
   return json({
     orderId,
     originDeposit: "verified",
-    providerNotification: "accepted",
+    providerNotification: alreadyKnown ? "already_known" : "accepted",
     providerStatus: submitted.status,
     sourceTransactionHash: transactionHash,
     nearTxHashes: submitted.swapDetails?.nearTxHashes ?? [],
