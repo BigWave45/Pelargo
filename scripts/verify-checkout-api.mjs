@@ -145,6 +145,7 @@ const unauthorizedStatus = await paymentStatus({
 assert.equal(unauthorizedStatus.status, 401, "payment status polling must require merchant authentication");
 
 sqlite.query("UPDATE payment_lifecycle SET deposit_address = ?, deposit_memo = ? WHERE order_id = (SELECT id FROM checkout_orders WHERE external_order_id = ?)").run("deposit-address-test", "memo-test", "order-001");
+sqlite.query("UPDATE checkout_orders SET status = 'quote_committed' WHERE external_order_id = ?").run("order-001");
 const originalFetch = globalThis.fetch;
 globalThis.fetch = async (url) => {
   const statusUrl = new URL(String(url));
