@@ -14,6 +14,51 @@ type ProviderStatus =
   | "REFUNDED"
   | "FAILED";
 
+type ProviderQuoteResponse = {
+  quoteRequest?: { originAsset?: unknown };
+  quote?: Record<string, unknown>;
+};
+
+function readQuoteInstructions(value: unknown): {
+  originAssetId: string;
+  amountInAtomic: string;
+  amountInFormatted?: string;
+  amountOutAtomic?: string;
+  amountOutFormatted?: string;
+  deadline?: string;
+} | null {
+  if (!value || typeof value !== "object") return null;
+  const response = value as ProviderQuoteResponse;
+  const quote = response.quote;
+  const originAssetId = response.quoteRequest?.originAsset;
+  const amountIn = quote?.amountIn;
+  if (typeof originAssetId !== "string" || !originAssetId.trim() || originAssetId.length > 256 ||
+      typeof amountIn !== "string" || !/^\\d+$/.test(amountIn) || BigInt(amountIn) <= 0n) return null;
+
+  const result: {
+    originAssetId: string;
+    amountInAtomic: string;
+    amountInFormatted?: string;
+    amountOutAtomic?: string;
+    amountOutFormatted?: string;
+    deadline?: string;
+  } = { originAssetId, amountInAtomic: amountIn };
+
+  if (typeof quote?.amountInFormatted === "string" && quote.amountInFormatted.length <= 80) {
+    result.amountInFormatted = quote.amountInFormatted;
+  }
+  if (typeof quote?.amountOut === "string" && /^\\d+$/.test(quote.amountOut)) {
+    result.amountOutAtomic = quote.amountOut;
+  }
+  if (typeof quote?.amountOutFormatted === "string" && quote.amountOutFormatted.length <= 80) {
+    result.amountOutFormatted = quote.amountOutFormatted;
+  }
+  if (typeof quote?.deadline === "string" && Number.isFinite(Date.parse(quote.deadline))) {
+    result.deadline = quote.deadline;
+  }
+  return result;
+}
+
 async function advanceToProcessing(
   db: NonNullable<Env["DB"]>,
   orderId: string,
@@ -118,6 +163,7 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
     status?: ProviderStatus;
     swapDetails?: { destinationChainTxHashes?: Array<{ hash?: string }> };
     updatedAt?: string;
+    quoteResponse?: unknown;
   };
   try {
     const response = await intentsRequest(`status?${params.toString()}`, { method: "GET" }, env);
@@ -139,6 +185,13 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
       (typeof provider.updatedAt !== "string" || !Number.isFinite(Date.parse(provider.updatedAt)))) {
     return json({ error: "NEAR Intents returned an invalid provider update timestamp" }, 502);
   }
+
+  const quoteInstructions = readQuoteInstructions(provider.quoteResponse);
+  const depositInstructions = quoteInstructions ? {
+    ...quoteInstructions,
+    depositAddress: payment.deposit_address,
+    depositMemo: payment.deposit_memo,
+  } : undefined;
 
   const now = new Date().toISOString();
   // Provider JSON is untrusted. A malformed/null array entry must not crash
@@ -195,12 +248,13 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
   // independent destination-chain verification; do not mark the order settled.
   if (provider.status === "SUCCESS") {
     if (payment.status === "settled") {
-      return json({ orderId, paymentStatus: "settled", providerStatus: provider.status, settlement: "verified" });
+      return json({ orderId, paymentStatus: "settled", providerStatus: provider.status, settlement: "verified", depositInstructions });
     }
     if (!effectiveCandidateHash) {
       return json({
         orderId, paymentStatus: payment.status, providerStatus: provider.status,
         settlement: "provider_success_missing_destination_tx",
+        depositInstructions,
       });
     }
 
@@ -245,7 +299,7 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
           return json({
             orderId, paymentStatus: "settled", providerStatus: provider.status,
             settlement: "verified", destinationTransactionHash: effectiveCandidateHash,
-            verifiedBlockHeight: evidence.blockNumber,
+            verifiedBlockHeight: evidence.blockNumber, depositInstructions,
           });
         }
       }
@@ -256,6 +310,7 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
         settlement: payment.destination_network.trim().toUpperCase() === "NEAR"
           ? "awaiting_destination_chain_verification"
           : "destination_network_verifier_not_supported",
+        depositInstructions,
       });
     } catch (error) {
       if (error instanceof PaymentTransitionError && error.code === "conflict") {
@@ -266,7 +321,7 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
       });
       return json({
         orderId, paymentStatus: verificationStatus, providerStatus: provider.status,
-        settlement: "verification_unavailable_or_mismatched",
+        settlement: "verification_unavailable_or_mismatched", depositInstructions,
       }, 503);
     }
   }
@@ -300,5 +355,6 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
     paymentStatus: transition?.from.includes(payment.status) ? transition.to : payment.status,
     providerStatus: provider.status,
     settlement: "not_settled",
+    depositInstructions,
   });
 }
