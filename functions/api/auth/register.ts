@@ -31,7 +31,7 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
   const internalApiKey = `plg_live_${randomHex()}`;
   let passwordHash: string;
   try {
-    passwordHash = await hashPassword(password);
+    passwordHash = await hashPassword(password, env.ORDER_SESSION_SECRET ?? "");
   } catch (error) {
     const diagnostic = error instanceof Error
       ? { name: error.name, message: error.message }
