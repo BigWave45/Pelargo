@@ -512,3 +512,61 @@ This section supersedes earlier infrastructure statements in this file where the
 - No automatic retry, session reactivation, or expiry occurs for ambiguous commits. Current public 1Click documentation describes quote IDs and deposit-address status lookup but does not document lookup by `sessionId`; therefore a lost response cannot safely be reconstructed automatically using a documented API.
 - Added mocked integration coverage for provider tracking IDs, stale-case creation, idempotency, operator authentication, and preserving the consumed commit session.
 - Migration 0011 and Worker changes are code only until separately applied/deployed. No quote commit or payment was executed.
+
+## Current engineering handover — 5 November 2026
+
+This section is the current source of truth and supersedes older dated notes below where they conflict. Earlier entries are retained as historical records, not current deployment state.
+
+### Repository and release boundaries
+- Repository: `BigWave45/Pelargo`.
+- Application integration branch: `build/live-intents`.
+- Operational hardening branch: `ops/live-d1-readiness`, 45 commits ahead of `build/live-intents` at the latest comparison.
+- PR #1 targets `build/live-intents`; it is not a PR to `main`. Do not merge to `main`.
+- Cloudflare Pages project: `pelargo`; production branch setting: `build/live-intents`.
+- No production deployment, real payment execution or mainnet deposit was performed as part of the current work. Keep `ALLOW_MAINNET_DEPOSITS` unset.
+
+### Implemented backend capabilities
+- Merchant provisioning is operator-authenticated; merchant API keys are returned once and stored as hashes.
+- Merchant-authenticated checkout-session creation persists merchant-scoped orders and short-lived HMAC-signed sessions. Sessions bind amount, destination asset, recipient, merchant and order.
+- Quote handling validates the signed session and persisted D1 session state. Dry quotes do not consume the session. A committed quote attempt consumes the session before the provider request and uses the server-issued session JTI as the provider `sessionId`.
+- Committed quote persistence requires a non-empty bounded provider `correlationId` and valid deposit address. An ambiguous provider result leaves the session consumed to prevent duplicate deposits.
+- Merchant-scoped order lookup and payment-status polling are implemented. Provider polling uses compare-and-set guards over lifecycle state, candidate transaction hash and poll timestamp to reject stale in-flight responses.
+- Provider `SUCCESS` is only a candidate. NEAR mainnet NEP-141 settlement requires independent FastNear signer resolution and finalized NEAR RPC execution/receipt verification. Evidence must match network, token contract, recipient, net atomic amount and stored candidate hash before the order is synchronized to `paid`.
+- Legacy unauthenticated `GET /api/status` is retired with HTTP 410. Use merchant-authenticated `GET /api/payment-status?orderId=...`.
+- The generic lifecycle helper cannot set `settled`; the dedicated evidence-backed path is required.
+- Only NEAR mainnet NEP-141 destination settlement is implemented. EVM, Solana, Bitcoin and other chain verifiers are roadmap work, not current capability.
+
+### Expiry and uncertain quote recovery
+- Migration `0010_pending_expiry_sync.sql` synchronizes expiry across pending lifecycle, order and active session. It intentionally excludes consumed/committed sessions.
+- Migration `0011_payment_recovery_cases.sql` creates unique per-order recovery records.
+- `workers/expiry-sweeper.ts` contains two scheduled tasks: expire abandoned uncommitted pending checkouts; and create an operator recovery case for `commit_attempted` sessions older than ten minutes when the order/lifecycle remain pending and no quote ID or deposit address was persisted.
+- `GET /api/operator/recovery-cases` is read-only and requires `X-Pelargo-Provisioning-Key`. It uses the existing provisioning secret and does not return merchant API keys or session tokens.
+- The Worker never retries, reactivates or expires ambiguous commits. The provider may have accepted a quote despite Pelargo losing the response.
+- `wrangler.expiry.toml` currently targets production D1 and proposes a five-minute cron. The Worker is not deployed and the cron is not active. Do not use that production-bound config for preview. A separate preview config must bind to `pelargo-preview-db`.
+
+### D1 and Cloudflare state
+- Production D1: `pelargo-db` (ID `eae6ecc8-d79d-4d12-8a37-2d38ab84a0b1`).
+- Isolated preview D1: `pelargo-preview-db` (ID `0335acdc-f0e0-42f6-ba87-e3448fb91728`).
+- Preview Pages `DB` binding targets the isolated preview database; production Pages `DB` binding targets production D1.
+- Preview D1 migration history records `0001` through `0011`, including migrations 0010 and 0011 applied on 5 November 2026.
+- Production D1 migration state is not established by the preview migration history and must be checked independently before a release.
+- Preview D1 migration history was read back after applying 0010/0011. The latest attempt to run synthetic expiry-trigger and recovery-case insertion tests through the Cloudflare connector was blocked by tool safety checks. Do not claim those two direct remote-D1 behaviours passed. Their application logic has mocked/in-memory integration coverage.
+- Pages preview HTTP runtime testing against D1 remains outstanding.
+
+### Secrets and external dependencies
+- Separate encrypted `MERCHANT_PROVISIONING_SECRET` and `ORDER_SESSION_SECRET` entries exist for preview and production; values are redacted by Cloudflare.
+- `NEAR_INDEXER_API_KEY` is required by the verifier but has not been configured because no FastNear key has been supplied. Do not claim live NEAR settlement verification is operational.
+- Defaults target NEAR mainnet RPC and FastNear transaction indexer. API tests mock both dependencies; endpoint and authentication compatibility need live validation.
+- Do not expose secret values in logs, chat, source code or browser bundles.
+
+### Test evidence and remaining validation
+- `bun run test:security` and `bun run test:api` cover session signing/validation, merchant authentication, quote binding, replay protection, lifecycle transitions, stale poll rejection, provider status handling, recovery-case creation and settlement evidence rules using in-memory SQLite and mocked upstream responses.
+- These tests do not prove deployed Pages Function behavior, live 1Click contract compatibility, FastNear credentials/response compatibility, NEAR RPC availability or real-chain settlement.
+- Preview D1 has previously had direct synthetic tests for lifecycle synchronization and migration 0009's stale-candidate evidence guard. Those do not establish all 0010/0011 trigger/worker behaviours.
+- Remaining release gates: obtain/configure a valid FastNear API key; verify provider/indexer/RPC contracts; run authenticated preview HTTP tests against isolated D1; directly test 0010 expiry synchronization and 0011 recovery idempotency on preview; deploy and observe the Worker only after a separate preview-safe config and tests exist; review the full buyer checkout flow.
+- Mainnet committed quotes, deposits and actual transfers remain disabled pending explicit release authorization.
+
+### Documentation refresh
+- README rewritten to describe current architecture, API endpoints, supported settlement scope, migration state and verification gaps.
+- Merchant integration guide rewritten with current API contracts, trust boundaries, lifecycle behavior and unsupported capabilities.
+- This handover section reconciles historical status entries below. Do not copy old deployment/migration claims forward without rechecking the live environment.
