@@ -150,8 +150,15 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
         correlationId?: unknown;
         quote?: { depositAddress?: unknown; depositMemo?: unknown };
       };
+      const quoteId = payload?.correlationId;
       const depositAddress = payload?.quote?.depositAddress;
       const depositMemo = payload?.quote?.depositMemo;
+      if (typeof quoteId !== "string" || !quoteId.trim() || quoteId.length > 256) {
+        return json({
+          error: "The payment provider committed a quote without a valid correlation ID. Contact support before retrying.",
+          code: "COMMITTED_QUOTE_MISSING_ID",
+        }, 502);
+      }
       if (typeof depositAddress !== "string" || !depositAddress.trim() || depositAddress.length > 256 ||
           (depositMemo !== undefined && (typeof depositMemo !== "string" || depositMemo.length > 256))) {
         // The provider may have committed a quote, but without its deposit
@@ -163,7 +170,6 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
         }, 502);
       }
 
-      const quoteId = typeof payload.correlationId === "string" ? payload.correlationId : null;
       const now = new Date().toISOString();
       // One compare-and-set is the commit point. Migration 0004's trigger
       // synchronizes the order and session rows in the same SQLite statement

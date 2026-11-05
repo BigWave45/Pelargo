@@ -474,3 +474,12 @@ This section supersedes earlier infrastructure statements in this file where the
 - Implementation commit: `6c1a58a`; regression commit: `31b5a87`.
 - CI and preview build for the regression are pending. This test uses mocked provider/indexer responses; no live NEAR verification.
 - No production deployment or migration; no real payment; `main` untouched.
+
+
+## Provider contract and public status hardening — 5 November 2026
+
+- Committed quote persistence now requires a non-empty, bounded 1Click `correlationId` as well as the deposit address. If the provider response omits the identifier, Pelargo returns HTTP 502, leaves the order in `pending`, and keeps the checkout session consumed because the upstream commit outcome may already be real.
+- Retired the unauthenticated legacy `GET /api/status` provider proxy with HTTP 410. The supported merchant interface is `GET /api/payment-status?orderId=...`, which requires merchant authentication and scopes lookup to that merchant.
+- Added regression assertions for missing quote correlation IDs, retired public status access, FastNear Bearer authentication, and NEAR RPC `EXPERIMENTAL_tx_status` using `FINAL`.
+- These are code-level tests using mocked provider/indexer/RPC responses. They do not establish live FastNear credentials, live NEAR RPC compatibility, or live 1Click behavior.
+- Changes are grouped in one commit to conserve preview deployments. No production deployment, main-branch change, committed real quote, or payment execution.

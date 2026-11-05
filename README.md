@@ -149,6 +149,10 @@ Run `bun run test:security` for session-token signing and verification. Run `bun
 
 ### Verification configuration and limits
 
+- A committed 1Click quote is accepted only when both a non-empty provider `correlationId` and a valid deposit address are returned. Missing identifiers leave the checkout session consumed and the order unpayable pending support reconciliation.
+- The legacy unauthenticated `GET /api/status` proxy is retired (HTTP 410). Merchants must use authenticated, merchant-scoped `GET /api/payment-status?orderId=...`.
+
+
 - Defaults target NEAR mainnet RPC (`https://rpc.mainnet.near.org`) and FastNear's mainnet transaction indexer (`https://tx.main.fastnear.com/v0/transactions`).
 - Required Cloudflare secret for NEAR settlement verification: `NEAR_INDEXER_API_KEY` (FastNear documents API-key authentication for transaction-indexer requests). Optional endpoint overrides: `NEAR_RPC_URL` and `NEAR_TX_INDEXER_URL`. The indexer is used only to resolve the transaction signer; NEAR RPC verifies execution and finality.
 - API tests use mocked indexer and RPC responses. They cover mismatched/refunded transfer amounts, matching NEP-141 transfer evidence, skipped provider intermediate states, finalized block checks, atomic settlement evidence persistence and order status synchronization.

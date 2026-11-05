@@ -1,30 +1,16 @@
-import { Env, forwardJson, intentsRequest, json } from "../_lib/intents";
+import { json } from "../_lib/intents";
 
-export async function onRequest(context: { request: Request; env: Env }): Promise<Response> {
+/**
+ * Retired legacy endpoint. Status lookups must use the merchant-scoped
+ * /api/payment-status route so a public deposit address cannot be used as
+ * an unauthenticated provider-status oracle.
+ */
+export async function onRequest(context: { request: Request }): Promise<Response> {
   if (context.request.method !== "GET") {
     return json({ error: "Method not allowed" }, 405);
   }
-
-  const incoming = new URL(context.request.url);
-  const depositAddress = incoming.searchParams.get("depositAddress");
-  const depositMemo = incoming.searchParams.get("depositMemo");
-
-  if (!depositAddress || depositAddress.length > 256) {
-    return json({ error: "A valid depositAddress query parameter is required" }, 400);
-  }
-
-  const params = new URLSearchParams({ depositAddress });
-  if (depositMemo) {
-    if (depositMemo.length > 256) return json({ error: "depositMemo is too long" }, 400);
-    params.set("depositMemo", depositMemo);
-  }
-
-  try {
-    const upstream = await intentsRequest(`status?${params.toString()}`, {
-      method: "GET",
-    }, context.env);
-    return await forwardJson(upstream);
-  } catch {
-    return json({ error: "Unable to reach the NEAR Intents status service" }, 502);
-  }
+  return json({
+    error: "This endpoint has been retired. Use the authenticated merchant order status endpoint.",
+    code: "LEGACY_STATUS_ENDPOINT_RETIRED",
+  }, 410);
 }

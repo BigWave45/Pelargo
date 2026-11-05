@@ -6,6 +6,7 @@ import { onRequest as checkoutSession } from "../functions/api/checkout-session.
 import { onRequest as quote } from "../functions/api/quote.ts";
 import { onRequest as getOrder } from "../functions/api/order.ts";
 import { onRequest as paymentStatus } from "../functions/api/payment-status.ts";
+import { onRequest as legacyStatus } from "../functions/api/status.ts";
 import { transitionPayment, PaymentTransitionError } from "../functions/_lib/payment-lifecycle.ts";
 
 class Statement {
@@ -188,6 +189,13 @@ const unauthorizedStatus = await paymentStatus({
 });
 assert.equal(unauthorizedStatus.status, 401, "payment status polling must require merchant authentication");
 
+const retiredLegacyStatus = await legacyStatus({
+  request: new Request("https://pelargo.test/api/status?depositAddress=public-deposit-address"),
+  env,
+});
+assert.equal(retiredLegacyStatus.status, 410, "legacy public status proxy must be retired");
+assert.equal((await retiredLegacyStatus.json()).code, "LEGACY_STATUS_ENDPOINT_RETIRED");
+
 // The status endpoint requires a committed quote/deposit address before polling.
 sqlite.query("UPDATE payment_lifecycle SET deposit_address = ?, deposit_memo = ? WHERE order_id = (SELECT id FROM checkout_orders WHERE external_order_id = ?)").run("deposit-address-test", "memo-test", "order-001");
 sqlite.query("UPDATE checkout_orders SET status = 'quote_committed' WHERE external_order_id = ?").run("order-001");
@@ -331,6 +339,8 @@ try {
       });
     }
     if (parsed.hostname === "tx.main.fastnear.com") {
+      assert.equal(new Headers(init.headers).get("authorization"), "Bearer test-fastnear-api-key",
+        "FastNear indexer request must use Bearer API-key authentication");
       return Response.json({
         transactions: [{ transaction: { hash: destinationHash, signer_id: "sender.near" } }],
       });
@@ -338,6 +348,7 @@ try {
     if (parsed.hostname === "rpc.mainnet.near.org") {
       const rpcRequest = JSON.parse(init.body);
       if (rpcRequest.method === "EXPERIMENTAL_tx_status") {
+        assert.equal(rpcRequest.params[2], "FINAL", "NEAR transaction verification must request FINAL execution status");
         return Response.json({ result: {
           status: { SuccessValue: "" },
           receipts_outcome: [{
@@ -611,6 +622,40 @@ try {
       quote: { depositAddress: "provider-deposit-test", depositMemo: "provider-memo-test" },
     });
   };
+  const missingIdOrder = { ...order, orderId: "order-commit-missing-id" };
+  const missingIdIssued = await responseJson(await checkoutSession({
+    request: request("https://pelargo.test/api/checkout-session", "POST", missingIdOrder, {
+      "x-pelargo-merchant-key": created.body.apiKey,
+    }),
+    env,
+  }));
+  assert.equal(missingIdIssued.status, 201);
+  const missingIdLifecycleId = sqlite.query(
+    "SELECT id FROM checkout_orders WHERE external_order_id = ?"
+  ).get("order-commit-missing-id").id;
+  omitCorrelationId = true;
+  const missingQuoteId = await responseJson(await quote({
+    request: request("https://pelargo.test/api/quote", "POST", {
+      ...quoteBody, dry: false, sessionToken: missingIdIssued.body.token,
+    }),
+    env,
+  }));
+  assert.equal(missingQuoteId.status, 502, "committed quote without correlationId must fail closed");
+  assert.equal(missingQuoteId.body.code, "COMMITTED_QUOTE_MISSING_ID");
+  assert.equal(
+    sqlite.query("SELECT status FROM payment_lifecycle WHERE order_id = ?").get(missingIdLifecycleId).status,
+    "pending",
+    "quote without correlationId must not become a payable order",
+  );
+  assert.equal(
+    sqlite.query("SELECT status FROM checkout_sessions WHERE jti = ?").get(
+      JSON.parse(atob(missingIdIssued.body.token.split(".")[0].replace(/-/g, "+").replace(/_/g, "/"))).jti,
+    ).status,
+    "commit_attempted",
+    "uncertain upstream commit must keep its session consumed",
+  );
+  omitCorrelationId = false;
+
   const committed = await responseJson(await quote({
     request: request("https://pelargo.test/api/quote", "POST", {
       ...quoteBody, dry: false, sessionToken: commitIssued.body.token,
