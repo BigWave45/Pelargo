@@ -1,5 +1,19 @@
 
 
+## Durable background payment reconciliation — implementation checkpoint — 5 November 2026
+
+- Work is isolated on reliability/background-reconciliation, based on reliability/near-verifier-diagnostics. No merge.
+- Added migrations/0017_payment_reconciliation_jobs.sql: durable per-order jobs, due-time index, backfill of existing eligible committed/in-flight payments, lifecycle enqueue triggers, and terminal-state cleanup trigger.
+- Updated functions/_lib/intents.ts with the optional private RECONCILIATION_SECRET binding.
+- Updated functions/api/payment-status.ts with a private internal invocation path. It requires the configured secret and resolves the order by its internal database ID, then calls the same existing status/polling/canonical settlement verification logic. It does not weaken merchant/buyer authentication on public requests.
+- Updated workers/expiry-sweeper.ts: bounded batch processing, conditional D1 lease claims, 90-second lease expiry, existing payment-status verifier reuse, exponential retry capped at one hour, and lease release after retryable results. No quote creation or provider execution endpoint is called.
+- Updated wrangler.expiry.preview.toml to bind only Preview D1 and explicitly select https://www.usetidepool.tech; the secret value is not stored in source. Production Worker configuration was not modified.
+- Added API integration coverage applying migration 0017 to in-memory SQLite and testing durable enqueue, private worker invocation, retry scheduling, lease release and no false settlement from provider PROCESSING.
+- Verification pending: GitHub Actions CI has not yet been confirmed for this branch. Cloudflare Preview D1 migration 0017 is not applied; Pages Preview and Worker secrets are not configured; the Worker is not deployed and no cron is active.
+- No D1 data was changed, no Cloudflare deployment or Worker activation occurred, no payment was executed, and Production remains untouched.
+- Next gates: CI; validate migration against isolated Preview D1; configure the same high-entropy secret on Pages Preview and the Preview Worker; deploy only the Preview Worker after a separate explicit operational confirmation; observe cron and job state before considering Production.
+
+
 ## Backend reliability review — implementation checkpoint — 5 November 2026
 
 - Created isolated branch reliability/near-verifier-diagnostics from ops/settlement-reconciliation-system-fix. No merge or deployment.
