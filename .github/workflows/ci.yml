@@ -19,5 +19,7 @@ jobs:
         run: bun install --frozen-lockfile
       - name: Type-check
         run: bun run lint
+      - name: Checkout session security tests
+        run: bun run test:security
       - name: Build frontend
         run: bun run build
