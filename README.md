@@ -150,7 +150,7 @@ Run `bun run test:security` for session-token signing and verification. Run `bun
 ### Verification configuration and limits
 
 - Defaults target NEAR mainnet RPC (`https://rpc.mainnet.near.org`) and FastNear's mainnet transaction indexer (`https://tx.main.fastnear.com/v0/transactions`).
-- Optional Cloudflare secrets/variables: `NEAR_RPC_URL`, `NEAR_TX_INDEXER_URL`, and `NEAR_INDEXER_API_KEY`. The indexer is used only to resolve the transaction signer; NEAR RPC verifies execution and finality.
+- Required Cloudflare secret for NEAR settlement verification: `NEAR_INDEXER_API_KEY` (FastNear documents API-key authentication for transaction-indexer requests). Optional endpoint overrides: `NEAR_RPC_URL` and `NEAR_TX_INDEXER_URL`. The indexer is used only to resolve the transaction signer; NEAR RPC verifies execution and finality.
 - API tests use mocked indexer and RPC responses. They cover mismatched/refunded transfer amounts, matching NEP-141 transfer evidence, skipped provider intermediate states, finalized block checks, atomic settlement evidence persistence and order status synchronization.
 - This is not live-chain validation. Live 1Click response compatibility, FastNear/RPC availability and response-shape compatibility, D1 batch/trigger behavior, RPC rate limits and production confirmation policy still require preview/testnet or controlled mainnet validation. No real payment has been tested.
 
