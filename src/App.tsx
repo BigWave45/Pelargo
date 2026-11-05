@@ -149,6 +149,7 @@ export default function App() {
   const [recoveryOrderId, setRecoveryOrderId] = useState("");
   const [sourceTransactionHash, setSourceTransactionHash] = useState("");
   const [recoveryBusy, setRecoveryBusy] = useState(false);
+  const [checkingOrderId, setCheckingOrderId] = useState<string | null>(null);
 
   async function refreshWorkspace() {
     const [profile, activity] = await Promise.all([
@@ -218,7 +219,7 @@ export default function App() {
   }
 
   async function checkPaymentStatus(orderId: string) {
-    setBusy(true); setError(""); setNotice("");
+    setBusy(true); setCheckingOrderId(orderId); setError(""); setNotice("");
     try {
       const result = await api<{
         paymentStatus: string; providerStatus: string; settlement: string;
@@ -226,7 +227,9 @@ export default function App() {
           originChainTxHashes?: string[]; nearTxHashes?: string[];
           destinationChainTxHashes?: string[]; quoteCorrelationMatches?: boolean | null;
         };
-      }>(`/api/payment-status?orderId=${encodeURIComponent(orderId)}`);
+      }>(`/api/payment-status?orderId=${encodeURIComponent(orderId)}`, {
+        signal: AbortSignal.timeout(20_000),
+      });
       await refreshWorkspace();
       const evidence = result.providerEvidence;
       const providerRefs = evidence
@@ -235,8 +238,11 @@ export default function App() {
       setNotice(result.settlement === "verified"
         ? `Payment ${orderId} is settled and independently verified.`
         : `Payment ${orderId}: ${result.paymentStatus}. Provider: ${result.providerStatus}. Settlement: ${result.settlement}.${providerRefs}`);
-    } catch (e) { setError(e instanceof Error ? e.message : "Unable to refresh payment status."); }
-    finally { setBusy(false); }
+    } catch (e) {
+      setError(e instanceof DOMException && e.name === "TimeoutError"
+        ? "Status check timed out after 20 seconds. The provider did not respond; retrying will not submit another payment."
+        : e instanceof Error ? e.message : "Unable to refresh payment status.");
+    } finally { setBusy(false); setCheckingOrderId(null); }
   }
 
   async function submitSourceDeposit(event: React.FormEvent) {
@@ -297,7 +303,7 @@ export default function App() {
           <div className="section-heading"><div><h2>Payment activity</h2><p>Orders belonging to this merchant account.</p></div><button className="quiet-button" onClick={() => refreshWorkspace().catch(e => setError(String(e)))}><RefreshCw size={14} /> Refresh</button></div>
           <section className="workspace-card">
             {orders.length === 0 ? <div className="empty-state"><div className="empty-icon"><Radio size={20} /></div><strong>No checkout orders yet</strong><p>Save a destination and create your first checkout link.</p></div> :
-              <div className="order-list">{orders.map(order => <div className="order-row" key={order.orderId}><div><strong>{order.orderId}</strong><span>{order.destinationSymbol || "Asset"} · {new Date(order.createdAt).toLocaleString()}</span></div><span className="readiness-state state-pending">{order.status.replaceAll("_", " ")}</span>{["quote_committed", "awaiting_deposit", "deposit_detected", "processing"].includes(order.status) && <><button className="quiet-button" type="button" disabled={busy} onClick={() => checkPaymentStatus(order.orderId)}>Check status</button><button className="quiet-button" type="button" onClick={() => { setRecoveryOrderId(order.orderId); setSourceTransactionHash(""); }}>Reconcile deposit</button></>}</div>)}</div>}
+              <div className="order-list">{orders.map(order => <div className="order-row" key={order.orderId}><div><strong>{order.orderId}</strong><span>{order.destinationSymbol || "Asset"} · {new Date(order.createdAt).toLocaleString()}</span></div><span className="readiness-state state-pending">{order.status.replaceAll("_", " ")}</span>{["quote_committed", "awaiting_deposit", "deposit_detected", "processing"].includes(order.status) && <><button className="quiet-button" type="button" disabled={busy} onClick={() => checkPaymentStatus(order.orderId)}>{checkingOrderId === order.orderId ? "Checking…" : "Check status"}</button><button className="quiet-button" type="button" onClick={() => { setRecoveryOrderId(order.orderId); setSourceTransactionHash(""); }}>Reconcile deposit</button></>}</div>)}</div>}
           </section>
           {recoveryOrderId && <form className="form-panel" onSubmit={submitSourceDeposit}>
             <div className="form-panel-heading"><span className="form-icon"><ShieldCheck size={18} /></span><div><h2>Reconcile source deposit</h2><p>Submit the existing source-chain transaction for {recoveryOrderId}. Pelargo verifies the token contract, deposit address and exact quoted amount before notifying the provider. This does not move funds.</p></div></div>
