@@ -361,7 +361,7 @@ try {
         deadline: "2026-11-05T00:10:00.000Z",
       },
     },
-    swapDetails: { destinationChainTxHashes: [null, {}, { hash: "" }, { hash: "valid-candidate-hash" }] },
+    swapDetails: { destinationChainTxHashes: [null, {}, { hash: "" }, { hash: "2222222222222222222222222222222222222222222" }] },
   });
   const malformedHashes = await responseJson(await paymentStatus({
     request: new Request("https://pelargo.test/api/payment-status?orderId=order-001", {
@@ -384,7 +384,7 @@ try {
   }, "status response should expose the original provider source asset, exact deposit amount and deadline");
   assert.equal(
     sqlite.query("SELECT destination_tx_candidate FROM payment_lifecycle WHERE order_id = (SELECT id FROM checkout_orders WHERE external_order_id = ?)").get("order-001").destination_tx_candidate,
-    "valid-candidate-hash",
+    "2222222222222222222222222222222222222222222",
     "status parser should select the first valid transaction hash",
   );
 } finally {
