@@ -736,3 +736,12 @@ This section is the current source of truth and supersedes older dated notes bel
 - The readback query scopes by merchant ID, external order ID, and the server-issued checkout JTI. Checkout amount/asset/recipient validation and the consumed-session fail-closed behavior remain unchanged.
 - CI passed on commit `d70350911b610722edca987c0308c513a232de2e` (type-check, checkout-session security tests, checkout API integration tests, and build).
 - Safety status: no deposit transfer has been made. Do not retry the committed quote or send funds to the saved address until the provider quote validity and buyer deposit instructions are independently checked. Preview only; no Production deployment, merge to `main`, or mainnet activation.
+
+
+## Concurrent payment polling response refinement — 5 November 2026
+
+- Provider polling retains its compare-and-set guard over lifecycle status, destination transaction candidate and last-poll timestamp. A stale in-flight response still cannot overwrite newer provider state.
+- Changed the compare-and-set conflict path to reload the latest persisted lifecycle state and return it with HTTP 200 and `concurrentPoll: true`, rather than returning HTTP 409 and asking the caller to retry. If the row cannot be reloaded, the endpoint fails with HTTP 503.
+- Updated both regression cases: a competing poll that changes the candidate hash, and a competing poll that changes only the poll timestamp. Both now assert the endpoint returns the persisted state and does not overwrite the newer values.
+- Implementation commit: `b58ca89`; regression commit: `42f58e0`. The implementation commit's CI failed only because the test assertions still expected HTTP 409; the assertion update is in the subsequent commit. The subsequent CI run is pending.
+- Preview deployment has not been refreshed for this change. No provider quote was reissued, no deposit was made, no production deployment or main-branch merge occurred.
