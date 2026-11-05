@@ -1,5 +1,29 @@
 # Backend update — 5 November 2026
 
+## NEAR NEP-141 settlement verifier — mocked CI verified
+
+- Added `functions/_lib/near-settlement-verifier.ts`. For NEAR destination orders whose Intents asset ID is `nep141:<token-contract>`, it resolves the signer from FastNear's transaction indexer and verifies the transaction through NEAR RPC at `FINAL`.
+- The verifier requires successful transaction execution, a successful receipt executed by the exact token contract, and a NEP-141 `ft_transfer` event matching the order's exact recipient and atomic amount.
+- It checks the receipt block hash/height and ensures the block is no higher than the latest finalized block before creating evidence.
+- `GET /api/payment-status` now invokes the verifier only after provider `SUCCESS`, while the lifecycle is `processing`, and a destination transaction hash is supplied.
+- Settlement evidence insertion and the `processing -> settled` update occur in one D1 batch. Existing database triggers verify the evidence/order/candidate match and synchronize order status to `paid`.
+- Non-NEAR destinations, non-NEP-141 asset IDs, missing candidate hashes, failed execution, missing/mismatched transfer events and unfinalized blocks do not settle.
+- Added mocked integration tests for a wrong transfer amount (must remain processing) and an exact transfer match (must persist evidence and atomically settle the order).
+- GitHub Actions run `41973082530`, commit `d60c4fd`, passed TypeScript, checkout-session security tests, checkout API integration tests and frontend build.
+
+## Operational configuration and unverified scope
+
+- Defaults: NEAR mainnet RPC `https://rpc.mainnet.near.org`; FastNear mainnet transaction indexer `https://tx.main.fastnear.com/v0/transactions`.
+- Optional configuration: `NEAR_RPC_URL`, `NEAR_TX_INDEXER_URL`, and `NEAR_INDEXER_API_KEY`. FastNear is used to resolve the signer only; canonical NEAR RPC verifies transaction execution and finality.
+- The integration tests mock all external HTTP responses. No live FastNear, NEAR RPC, 1Click or Cloudflare D1 call has been validated.
+- NEAR mainnet NEP-141 is the only implemented settlement verifier. EVM, Solana, Bitcoin, NEAR native coin transfers and other token standards remain unsupported and fail closed.
+- The current verifier uses the NEAR finality boundary, but production operational policy still needs RPC redundancy, rate-limit/backoff handling, reorg/incident reconciliation, indexer outage handling and an agreed confirmation policy.
+- No deployment, merge to `main`, mainnet committed quote or real payment execution has been performed.
+
+---
+
+# Backend update — 5 November 2026
+
 ## Settlement guard CI verification
 
 - GitHub Actions run `41972481094`, commit `20996a9`, passed all checks: TypeScript, checkout-session security tests, checkout API integration tests and frontend build.
