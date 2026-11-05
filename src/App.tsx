@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { TokenDiscovery } from "./components/TokenDiscovery.tsx";
+import { PelargoCheckout } from "./components/PelargoCheckout.tsx";
 import {
   ArrowUpRight, Check, ChevronDown, Code2, Copy, ExternalLink,
   FileCode2, LayoutDashboard, Link2, Radio, Settings2, ShieldCheck,
@@ -121,8 +121,14 @@ export default function App() {
           {section === "checkout" && (
             <>
               <div className="workspace-heading-row"><div><div className="eyebrow">INTENTS ROUTE DISCOVERY</div><h1>Checkout assets</h1><p className="workspace-subtitle">Pelargo reads the currently supported source assets from NEAR Intents. The embeddable buyer flow will use this catalogue dynamically.</p></div><span className="draft-pill">Live API · read only</span></div>
-              <TokenDiscovery />
-              <div className="notice-panel"><strong>Asset discovery is the first connected checkout capability.</strong><p>Showing an asset here does not mean a wallet is connected or that a payment route has been quoted. Live dry quotes require a merchant destination and a buyer refund address. Committed quotes and deposits remain disabled.</p></div>
+              <PelargoCheckout
+                merchantName={merchantName}
+                destinationSymbol={asset}
+                destinationNetwork={network}
+                recipient={recipient}
+                orderId="LOCAL-PREVIEW"
+              />
+              <div className="notice-panel"><strong>Quote preview only.</strong><p>This component uses live token discovery and requests a dry exact-output quote. It does not connect a wallet, create a deposit address, initiate a transfer or mark an order paid. Configure a compatible destination and recipient address first.</p></div>
             </>
           )}
 
