@@ -209,7 +209,7 @@ const inspected = await responseJson(await checkoutSession({
 assert.equal(inspected.status, 200, "active signed session should be retrievable");
 assert.equal(inspected.body.session.orderId, "order-001");
 
-const originalFetch = globalThis.fetch;
+const originalFetchForQuote = globalThis.fetch;
 let upstreamCalls = 0;
 globalThis.fetch = async () => {
   upstreamCalls += 1;
@@ -257,7 +257,7 @@ try {
   assert.equal(disabledCommit.status, 403, "committed quotes must remain disabled by default");
   assert.equal(upstreamCalls, 1, "disabled commit must not reach upstream");
 } finally {
-  globalThis.fetch = originalFetch;
+  globalThis.fetch = originalFetchForQuote;
   sqlite.close();
 }
 
