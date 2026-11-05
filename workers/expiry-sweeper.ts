@@ -132,7 +132,7 @@ async function retryOrReleaseJob(
 export async function reconcileDuePayments(
   env: ExpiryWorkerEnv,
   now = new Date(),
-  batchSize = 10,
+  batchSize = 3,
 ): Promise<{ claimed: number; settled: number; deferred: number }> {
   if (!env.RECONCILIATION_SECRET || env.RECONCILIATION_SECRET.length < 32) {
     throw new Error("RECONCILIATION_SECRET must be configured with at least 32 characters");
@@ -140,7 +140,7 @@ export async function reconcileDuePayments(
   const stats = { claimed: 0, settled: 0, deferred: 0 };
 
   for (let index = 0; index < batchSize; index++) {
-    const job = await claimNextJob(env.DB, now.toISOString(), 90_000);
+    const job = await claimNextJob(env.DB, now.toISOString(), 10 * 60_000);
     if (!job) break;
     stats.claimed++;
 
