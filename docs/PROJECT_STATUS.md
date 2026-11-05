@@ -465,3 +465,12 @@ This section supersedes earlier infrastructure statements in this file where the
 - Regression commit: `564e714`. CI and preview deployment are pending; do not mark passed until confirmed.
 - This is an in-memory SQLite transaction test. Preview D1 has separately verified migration 0009's insert guard, but this batch rollback scenario has not yet been exercised against remote D1 or authenticated Pages HTTP.
 - No production deployment, no real payment, `main` untouched.
+
+
+## Settlement verifier failure-state reporting — 5 November 2026
+
+- Fixed `payment-status.ts` so an exception after the lifecycle has advanced to `processing` returns the current persisted lifecycle state rather than the stale pre-verification state.
+- Added an integration regression where provider status returns `SUCCESS`, the lifecycle advances, and the FastNear lookup fails. The response must be HTTP 503 and report `processing`; the database lifecycle must also remain `processing`.
+- Implementation commit: `6c1a58a`; regression commit: `31b5a87`.
+- CI and preview build for the regression are pending. This test uses mocked provider/indexer responses; no live NEAR verification.
+- No production deployment or migration; no real payment; `main` untouched.
