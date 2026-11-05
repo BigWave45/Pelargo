@@ -143,7 +143,10 @@ assert.equal(unauthorizedStatus.status, 401, "payment status polling must requir
 sqlite.query("UPDATE payment_lifecycle SET deposit_address = ?, deposit_memo = ? WHERE order_id = (SELECT id FROM checkout_orders WHERE external_order_id = ?)").run("deposit-address-test", "memo-test", "order-001");
 const originalFetch = globalThis.fetch;
 globalThis.fetch = async (url) => {
-  assert.match(String(url), /status\\?depositAddress=deposit-address-test&depositMemo=memo-test/);
+  const statusUrl = new URL(String(url));
+  assert.equal(statusUrl.pathname, "/v0/status");
+  assert.equal(statusUrl.searchParams.get("depositAddress"), "deposit-address-test");
+  assert.equal(statusUrl.searchParams.get("depositMemo"), "memo-test");
   return new Response(JSON.stringify({ status: "KNOWN_DEPOSIT_TX", updatedAt: "2026-11-05T00:00:00Z" }), {
     status: 200, headers: { "content-type": "application/json" },
   });
