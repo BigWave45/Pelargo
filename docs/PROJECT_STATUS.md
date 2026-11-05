@@ -436,3 +436,14 @@ This section supersedes earlier infrastructure statements in this file where the
 - This verifies preview D1 schema/trigger behavior. It does not verify HTTP Pages Function execution, real NEAR RPC/indexer behavior, or live 1Click quote compatibility.
 - Production database has not received migration 0009. No production deployment or real payment. `main` remains untouched; `ALLOW_MAINNET_DEPOSITS` remains unset.
 - Next: solve authenticated preview HTTP runtime testing, then validate quote/status against the actual 1Click response contract using provider test facilities or captured fixtures. Only after those pass proceed with the already-approved controlled production release.
+
+
+## Provider-poll concurrency hardening — 5 November 2026
+
+- `functions/api/payment-status.ts` now compare-and-sets provider poll results against the lifecycle status and destination transaction candidate observed before the upstream request. If another poll/verifier changes either while the request is in flight, the stale response returns HTTP 409 and cannot overwrite the newer provider state/candidate.
+- Added a regression in `scripts/verify-checkout-api.mjs` that mutates the candidate during the mocked upstream request, then asserts HTTP 409 and confirms the newer candidate and prior provider state remain intact.
+- Implementation commit: `d0c71f5`; concurrency regression commit: `685bacf`.
+- CI for the concurrency regression has just been triggered; results are pending. Do not treat this change as verified until the workflow completes successfully.
+- The preview D1 database has migration 0009 applied and the trigger's stale-candidate rejection was verified directly. The latest Pages preview is built from commit `cffaca9`; it predates the provider-poll compare-and-set change.
+- Next: verify CI, deploy a fresh preview, and use a real HTTP client path to test unauthenticated rejection and D1-backed endpoint execution. Do not expose merchant keys or session tokens.
+- No production deployment, no production migration 0009, no real payment. `main` untouched; `ALLOW_MAINNET_DEPOSITS` unset.
