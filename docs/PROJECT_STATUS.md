@@ -1,3 +1,57 @@
+# Live handover — 5 November 2026 (supersedes older status notes below)
+
+## Current branch and deployment state
+
+- Operational branch: `ops/live-d1-readiness`.
+- Application integration branch: `build/live-intents`. Do not confuse the two; `main` remains untouched.
+- Latest operational commit: `024133d6800e436dbac2abdce7f0a53ea3e91016` — isolated Tidepool Preview configuration.
+- Cloudflare Pages Preview deployment succeeded: `https://ae9cf247.pelargo.pages.dev`; branch alias: `https://ops-live-d1-readiness.pelargo.pages.dev`.
+- GitHub verification and Pages deployment checks passed for that commit. This confirms build/deployment, not successful live provider calls or payment execution.
+- Preview uses isolated D1 database `pelargo-preview-db` (`0335acdc-f0e0-42f6-ba87-e3448fb91728`). Production remains bound to `pelargo-db`.
+- Preview variables select Tidepool (`INTENTS_API_BASE_URL=https://www.usetidepool.tech`) and enable only the testnet committed-quote gate (`ALLOW_TESTNET_DEPOSITS=true`). Mainnet committed quotes remain disabled; do not set `ALLOW_MAINNET_DEPOSITS=true`.
+- No production deployment, merge to `main`, committed quote, deposit or real testnet transfer has been performed.
+
+## What is implemented now
+
+- Provider selection is server-side and allowlisted: official 1Click mainnet remains the default; Tidepool is selected explicitly for testnet.
+- The mainnet partner JWT is not forwarded to Tidepool.
+- The committed-quote handler has separate mainnet and testnet gates, persists provider quote/deposit details and consumes the signed checkout session before the upstream commit attempt.
+- Payment-status polling treats provider `SUCCESS` as a candidate, not settlement proof.
+- The NEAR NEP-141 verifier selects RPC by provider network and checks the RPC chain identity. Testnet signer resolution is configured through NearBlocks v3; mainnet signer resolution uses NearScanner.
+- Settlement verification checks the exact token contract, recipient and net atomic amount (including refund effects), and requires final execution evidence before the order can become paid.
+- CI covers the provider selection, network gates and testnet verifier parsing with mocked external responses.
+
+## What is verified vs not verified
+
+**Verified**
+- CI passed for the Tidepool provider implementation and the isolated Preview configuration.
+- Cloudflare successfully built and deployed the Preview commit.
+- The Preview deployment is configured to use its separate D1 binding and Tidepool testnet settings.
+
+**Not yet verified**
+- A live request from the deployed Pelargo Preview to Tidepool `GET /v0/tokens`.
+- A live Tidepool quote response through Pelargo Preview.
+- A committed quote and actual testnet deposit instructions.
+- NearBlocks v3's actual response envelope and signer fields for a real destination transaction.
+- A real testnet destination transaction independently verified by NEAR RPC through Pelargo.
+- The full buyer widget journey. The current widget remains a dry-quote integration prototype; backend committed-quote capability does not mean the widget already supports buyer confirmation, deposit submission/instructions, or a complete payment UX.
+- Merchant order transition to paid from live settlement evidence.
+
+The external URL checks attempted so far were blocked by the available browsing path and did not return an HTTP response. That is an inspection limitation, not evidence that Tidepool or Pelargo Preview is down.
+
+## Exact next sequence
+
+1. Verify the Tidepool API contract and live token response using a supported runtime path; do not infer success from a successful Pages build.
+2. Verify NearBlocks v3 response shape against a real, already-published testnet transaction hash before relying on the signer parser.
+3. Run read-only Preview checks for token discovery and dry quote.
+4. Inspect and complete the buyer widget's committed-quote/payment-instructions states so it can invoke the backend commit only after explicit buyer confirmation.
+5. Only after those checks, request explicit approval for one small test-token transaction. State the token, amount, source, destination and expected testnet action before submitting it.
+6. Verify the resulting destination transaction independently through NearBlocks signer resolution and NEAR testnet RPC; confirm the order becomes paid only after matching evidence is persisted.
+
+Do not broaden chain support, add another indexer, activate the expiry Worker, enable mainnet commits, merge to `main`, or deploy Production as part of this verification sequence.
+
+---
+
 # Tidepool testnet integration preparation — 5 November 2026
 
 ## Compatibility evidence reviewed
