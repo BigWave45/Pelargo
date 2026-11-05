@@ -82,7 +82,7 @@ Ambiguous commits are never automatically retried, reactivated or expired. The p
 - API/security tests use an in-memory SQLite database and mocked upstream provider, FastNear and NEAR RPC responses. They validate application logic; they are not live provider or chain tests.
 - Preview D1 has migration history 0001–0011. Migrations 0010 and 0011 were applied to preview on 5 November 2026.
 - Direct synthetic preview-D1 tests passed for migration 0010 expiry synchronization and migration 0011 recovery-case insertion/idempotency. All synthetic records were removed; cleanup returned zero remaining probe records.
-- Deployed Pages HTTP runtime testing against the preview D1 binding remains outstanding. The Pages preview `DB` binding now targets the isolated preview database; an existing deployment must be refreshed before runtime verification.
+- The Pages preview `DB` binding targets the isolated preview database. Preview deployments have been re-enabled only for `ops/live-d1-readiness`; the next eligible push is intended to create the single refreshed preview needed for runtime verification.
 - Live 1Click response compatibility, FastNear authentication/response compatibility and live NEAR RPC verification remain outstanding.
 - `NEAR_INDEXER_API_KEY` is required by the verifier. It has not been configured in Cloudflare because no key has been supplied.
 - Merchant webhooks, self-serve onboarding, credential rotation, production rate limiting and non-NEAR settlement verifiers are not implemented.

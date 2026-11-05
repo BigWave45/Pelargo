@@ -545,13 +545,13 @@ This section is the current source of truth and supersedes older dated notes bel
 - `wrangler.expiry.toml` targets production D1. New `wrangler.expiry.preview.toml` targets only `pelargo-preview-db`. Both define a five-minute cron; neither Worker is deployed and neither cron is active. Deploying either config activates its schedule.
 
 ### D1 and Cloudflare state
-- The Pages preview `DB` binding is configured to the isolated preview D1 database; production remains bound to production D1. The existing preview deployment predates this binding update and must be refreshed before runtime testing.
+- The Pages preview `DB` binding is configured to the isolated preview D1 database; production remains bound to production D1. Preview auto-deploy was re-enabled only for `ops/live-d1-readiness` (all other branches excluded). The prior preview deployment was skipped while previews were disabled; this commit is the first eligible push intended to create the refreshed preview.
 - Production D1: `pelargo-db` (ID `eae6ecc8-d79d-4d12-8a37-2d38ab84a0b1`).
 - Isolated preview D1: `pelargo-preview-db` (ID `0335acdc-f0e0-42f6-ba87-e3448fb91728`).
 - Preview Pages `DB` binding targets the isolated preview database; production Pages `DB` binding targets production D1.
 - Preview D1 migration history records `0001` through `0011`, including migrations 0010 and 0011 applied on 5 November 2026.
 - Production D1 migration state is not established by the preview migration history and must be checked independently before a release.
-- Direct synthetic preview-D1 tests passed for migration 0010 expiry synchronization and migration 0011 recovery-case insertion/idempotency. The tests used temporary synthetic merchant/order/session records, and cleanup confirmed zero remaining probe records.
+- Direct synthetic preview-D1 tests passed for migration 0010 expiry synchronization and migration 0011 recovery-case insertion/idempotency. The tests used temporary synthetic merchant/order/session records, and cleanup confirmed zero remaining probe records. GitHub Actions CI passed on commit `5a5be7e` (type-check, security tests, API tests and frontend build).
 - Pages preview HTTP runtime testing against D1 remains outstanding.
 
 ### Secrets and external dependencies
