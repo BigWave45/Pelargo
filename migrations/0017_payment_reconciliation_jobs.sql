@@ -22,7 +22,7 @@ SELECT p.order_id, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
        strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
        strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
   FROM payment_lifecycle p
- WHERE p.status IN ('quote_committed', 'awaiting_deposit', 'deposit_detected', 'processing', 'incomplete_deposit')
+ WHERE p.status IN ('deposit_detected', 'processing', 'incomplete_deposit')
    AND p.deposit_address IS NOT NULL;
 
 CREATE TRIGGER IF NOT EXISTS payment_reconciliation_enqueue_after_insert
