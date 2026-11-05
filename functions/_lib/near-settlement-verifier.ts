@@ -103,7 +103,7 @@ export async function verifyNearNep141Settlement(
 
       for (const rawEntry of event.data) {
         const entry = record(rawEntry);
-        if (!entry || typeof entry.amount !== "string" || !/^\\d+$/.test(entry.amount)) continue;
+        if (!entry || typeof entry.amount !== "string" || !/^\d+$/.test(entry.amount)) continue;
         const incoming = entry.new_owner_id === order.recipient;
         const outgoing = entry.old_owner_id === order.recipient;
         if (!incoming && !outgoing) continue;
