@@ -39,6 +39,7 @@ export type PelargoCheckoutProps = {
   apiBaseUrl?: string;
   fixedAmount?: boolean;
   sessionToken?: string;
+  sessionExpiresAt?: string;
 };
 
 const NETWORK_ALIASES: Record<string, string[]> = {
@@ -83,6 +84,7 @@ export function PelargoCheckout({
   apiBaseUrl = "",
   fixedAmount = false,
   sessionToken = "",
+  sessionExpiresAt = "",
 }: PelargoCheckoutProps) {
   const [tokens, setTokens] = useState<Token[]>([]);
   const [sourceAssetId, setSourceAssetId] = useState("");
@@ -104,6 +106,15 @@ export function PelargoCheckout({
   const [paymentStatus, setPaymentStatus] = useState<{ paymentStatus: string; providerStatus?: string; settlement?: string } | null>(null);
   const [statusError, setStatusError] = useState("");
   const quoteRequestRef = useRef(0);
+  const [clockNow, setClockNow] = useState(Date.now());
+  const sessionExpiryMs = sessionExpiresAt ? Date.parse(sessionExpiresAt) : Number.NaN;
+  const sessionExpired = Number.isFinite(sessionExpiryMs) && clockNow >= sessionExpiryMs;
+
+  useEffect(() => {
+    if (!Number.isFinite(sessionExpiryMs)) return;
+    const timer = window.setInterval(() => setClockNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [sessionExpiryMs]);
 
   function clearQuote() {
     quoteRequestRef.current += 1;
@@ -188,6 +199,10 @@ export function PelargoCheckout({
   async function requestDryQuote() {
     setError("");
     clearQuote();
+    if (sessionExpired) {
+      setError("This checkout link has expired. Ask the merchant to create a new checkout link.");
+      return;
+    }
     if (!sessionToken) {
       setError("This checkout has no signed merchant order session. Ask the merchant to initialize the checkout session.");
       return;
@@ -260,6 +275,10 @@ export function PelargoCheckout({
 
   async function createDepositInstructions() {
     if (!quote || !sessionToken || !selectedSource || !destinationToken) return;
+    if (sessionExpired) {
+      setError("This checkout link has expired. No deposit instructions were created. Ask the merchant to create a new checkout link.");
+      return;
+    }
     if (paymentInstructions) return;
     const confirmed = window.confirm(
       "Create a real Tidepool testnet deposit quote? This creates payment instructions. It does not send funds. Only send testnet tokens to the address shown."
@@ -375,6 +394,13 @@ export function PelargoCheckout({
         </div>
         <span className="pelargo-order">Order {orderId}</span>
       </div>
+      {Number.isFinite(sessionExpiryMs) && (
+        <div className={sessionExpired ? "pelargo-error" : "pelargo-muted"} role={sessionExpired ? "alert" : "status"}>
+          {sessionExpired
+            ? "This checkout link has expired. Ask the merchant to create a new link."
+            : `Checkout link expires ${new Date(sessionExpiryMs).toLocaleTimeString()}.`}
+        </div>
+      )}
 
       {!configReady && !loadingTokens && (
         <div className="pelargo-warning"><AlertCircle size={15} /> Merchant destination is incomplete or not present in the supported token list.</div>
@@ -399,7 +425,7 @@ export function PelargoCheckout({
       <label className="pelargo-field-label" htmlFor="pelargo-refund">Your refund address on {selectedSource?.blockchain ?? "the source network"}</label>
       <input id="pelargo-refund" className="pelargo-text-input" value={refundTo} onChange={(event) => { setRefundTo(event.target.value); clearQuote(); }} placeholder="Wallet address for refunds" autoComplete="off" />
 
-      <button className="pelargo-quote-button" onClick={requestDryQuote} disabled={loadingTokens || quoting || !configReady || !selectedSource}>
+      <button className="pelargo-quote-button" onClick={requestDryQuote} disabled={loadingTokens || quoting || !configReady || !selectedSource || sessionExpired}>
         {quoting ? <><LoaderCircle size={15} className="pelargo-spin" /> Getting quote…</> : <>Preview payment <ArrowRight size={15} /></>}
       </button>
 
@@ -418,7 +444,7 @@ export function PelargoCheckout({
           <p>This is a quote preview only. No deposit address has been created and no payment has been initiated.</p>
           {quoteId && <small>Quote reference: {quoteId}</small>}
           {requestedAt && <small>Requested at {requestedAt}</small>}
-          <button className="pelargo-quote-button" onClick={createDepositInstructions} disabled={committing || !refundTo.trim()}>
+          <button className="pelargo-quote-button" onClick={createDepositInstructions} disabled={committing || !refundTo.trim() || sessionExpired}>
             {committing ? <><LoaderCircle size={15} className="pelargo-spin" /> Creating deposit instructions…</> : <>Continue to testnet deposit instructions <ArrowRight size={15} /></>}
           </button>
         </div>
