@@ -370,6 +370,9 @@ export function PelargoCheckout({
           <p>This is a quote preview only. No deposit address has been created and no payment has been initiated.</p>
           {quoteId && <small>Quote reference: {quoteId}</small>}
           {requestedAt && <small>Requested at {requestedAt}</small>}
+          <button className="pelargo-quote-button" onClick={createDepositInstructions} disabled={committing || !refundTo.trim()}>
+            {committing ? <><LoaderCircle size={15} className="pelargo-spin" /> Creating deposit instructions…</> : <>Continue to testnet deposit instructions <ArrowRight size={15} /></>}
+          </button>
         </div>
       )}
       {paymentInstructions && (
