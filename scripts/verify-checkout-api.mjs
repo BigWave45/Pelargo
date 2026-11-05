@@ -956,6 +956,50 @@ try {
     globalThis.fetch = originalFetchForBuyerStatus;
   }
 
+  // A concurrent poll that wins the provider-state compare-and-set must
+  // cause the losing request to return the persisted state, not HTTP 409.
+  const concurrentOrder = { ...order, orderId: "order-concurrent-poll" };
+  const concurrentIssued = await responseJson(await checkoutSession({
+    request: request("https://pelargo.test/api/checkout-session", "POST", concurrentOrder, {
+      "x-pelargo-merchant-key": created.body.apiKey,
+    }),
+    env,
+  }));
+  assert.equal(concurrentIssued.status, 201);
+  const concurrentOrderRow = sqlite.query(
+    "SELECT id FROM checkout_orders WHERE external_order_id = ?"
+  ).get("order-concurrent-poll");
+  sqlite.query(
+    "UPDATE payment_lifecycle SET status = 'awaiting_deposit', deposit_address = ?, provider_status = NULL, destination_tx_candidate = NULL, last_polled_at = NULL WHERE order_id = ?"
+  ).run("concurrent-deposit-address", concurrentOrderRow.id);
+
+  const beforeConcurrentPoll = globalThis.fetch;
+  try {
+    globalThis.fetch = async () => {
+      sqlite.query(
+        "UPDATE payment_lifecycle SET provider_status = ?, last_polled_at = ? WHERE order_id = ?"
+      ).run("PENDING_DEPOSIT", "2026-11-05T12:00:00.000Z", concurrentOrderRow.id);
+      return Response.json({ status: "PENDING_DEPOSIT" });
+    };
+    const concurrentPoll = await responseJson(await paymentStatus({
+      request: new Request("https://pelargo.test/api/payment-status?orderId=order-concurrent-poll", {
+        headers: { "x-pelargo-merchant-key": created.body.apiKey },
+      }),
+      env,
+    }));
+    assert.equal(concurrentPoll.status, 200, "losing concurrent poll should return current state");
+    assert.equal(concurrentPoll.body.concurrentPoll, true);
+    assert.equal(concurrentPoll.body.paymentStatus, "awaiting_deposit");
+    assert.equal(concurrentPoll.body.providerStatus, "PENDING_DEPOSIT");
+    assert.equal(
+      sqlite.query("SELECT last_polled_at FROM payment_lifecycle WHERE order_id = ?").get(concurrentOrderRow.id).last_polled_at,
+      "2026-11-05T12:00:00.000Z",
+      "losing poll must not overwrite the winning poll timestamp",
+    );
+  } finally {
+    globalThis.fetch = beforeConcurrentPoll;
+  }
+
   env.ALLOW_MAINNET_DEPOSITS = undefined;
 } finally {
   globalThis.fetch = originalFetchForQuote;
