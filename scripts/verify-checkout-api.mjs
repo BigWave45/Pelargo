@@ -186,6 +186,48 @@ const unauthorizedStatus = await paymentStatus({
 });
 assert.equal(unauthorizedStatus.status, 401, "payment status polling must require merchant authentication");
 
+const originalFetchForInvalidProvider = globalThis.fetch;
+try {
+  globalThis.fetch = async () => Response.json({
+    status: "SUCCESS",
+    updatedAt: "not-a-date",
+    swapDetails: { destinationChainTxHashes: [{ hash: "valid-looking-hash" }] },
+  });
+  const invalidTimestamp = await paymentStatus({
+    request: new Request("https://pelargo.test/api/payment-status?orderId=order-001", {
+      headers: { "x-pelargo-merchant-key": created.body.apiKey },
+    }),
+    env,
+  });
+  assert.equal(invalidTimestamp.status, 502, "invalid provider timestamps must be rejected");
+  assert.equal(
+    sqlite.query("SELECT provider_status FROM payment_lifecycle WHERE order_id = (SELECT id FROM checkout_orders WHERE external_order_id = ?)").get("order-001").provider_status,
+    null,
+    "invalid provider payload must not be persisted",
+  );
+
+  globalThis.fetch = async () => Response.json({
+    status: "SUCCESS",
+    updatedAt: "2026-11-05T00:00:00Z",
+    swapDetails: { destinationChainTxHashes: [null, {}, { hash: "" }, { hash: "valid-candidate-hash" }] },
+  });
+  const malformedHashes = await responseJson(await paymentStatus({
+    request: new Request("https://pelargo.test/api/payment-status?orderId=order-001", {
+      headers: { "x-pelargo-merchant-key": created.body.apiKey },
+    }),
+    env,
+  }));
+  assert.equal(malformedHashes.status, 200, "malformed hash entries must not crash provider status parsing");
+  assert.equal(malformedHashes.body.settlement, "awaiting_destination_chain_verification");
+  assert.equal(
+    sqlite.query("SELECT destination_tx_candidate FROM payment_lifecycle WHERE order_id = (SELECT id FROM checkout_orders WHERE external_order_id = ?)").get("order-001").destination_tx_candidate,
+    "valid-candidate-hash",
+    "status parser should select the first valid transaction hash",
+  );
+} finally {
+  globalThis.fetch = originalFetchForInvalidProvider;
+}
+
 sqlite.query("UPDATE payment_lifecycle SET deposit_address = ?, deposit_memo = ? WHERE order_id = (SELECT id FROM checkout_orders WHERE external_order_id = ?)").run("deposit-address-test", "memo-test", "order-001");
 sqlite.query("UPDATE checkout_orders SET status = 'quote_committed' WHERE external_order_id = ?").run("order-001");
 const originalFetch = globalThis.fetch;
