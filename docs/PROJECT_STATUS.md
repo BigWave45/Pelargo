@@ -37,11 +37,13 @@ The widget is the product. Merchant setup and developer documentation are suppor
 
 ### Frontend
 
-- Current merchant workspace is provisional and should be reduced to the minimum setup/integration surface needed by the widget.
-- Buyer checkout is currently a design preview, not a live checkout.
-- Existing demo components/data contain mock token choices, quote calculations, deposit addresses, QR artwork, transaction hashes, receipts and settlement history. These must not be used as live payment data.
+- The merchant workspace remains provisional. Reduce it to the minimum setup/integration surface needed by the widget.
+- **Added:** `src/components/TokenDiscovery.tsx` requests `GET /api/tokens`, validates the basic token record shape, and provides search and network filtering.
+- **Connected:** The Checkout workspace now renders the token-discovery component instead of the static buyer checkout preview.
+- **Not verified:** No Cloudflare deployment has yet been confirmed to contain this commit, and the live token API response has not yet been tested through that deployment.
+- Buyer quote, confirmation, deposit and settlement screens are not connected to the live payment lifecycle.
+- Existing legacy demo components/data still contain mock token choices, quote calculations, deposit addresses, QR artwork, transaction hashes, receipts and settlement history. Do not use them as live payment data.
 - The illustrative embed snippet is not a published or executable SDK.
-- No complete order-to-settlement flow is connected.
 
 ### Cloudflare Pages Functions
 
@@ -50,6 +52,8 @@ The widget is the product. Merchant setup and developer documentation are suppor
 - `GET /api/status?depositAddress=...`: proxies status lookups.
 
 The earlier quote request reached the upstream service but failed schema validation because `depositType`, `refundType`, `recipientType` and ISO 8601 `deadline` were missing. The payload was updated with those fields, but the corrected dry quote has not yet been verified. Treat endpoint scaffolding as implemented, not proven operational.
+
+The token UI expects the documented token array fields `assetId`, `decimals`, `blockchain` and `symbol`. It accepts either a raw array or an object with a `tokens` array. It does not construct asset IDs manually.
 
 ## Payment lifecycle
 
@@ -90,13 +94,22 @@ A quote is not payment. A deposit address is not payment. Detecting a deposit is
 
 ## Next engineering sequence
 
-1. Verify the corrected `dry: true` quote request through the Cloudflare preview; fix request/response mapping based on actual upstream output.
-2. Connect the widget to live token discovery and dry quotes. Remove hardcoded mock payment options from the active checkout path.
-3. Define the merchant embed contract and order payload. Build the widget as a reusable component/script rather than coupling it to a demo storefront.
-4. Add server-side order/session binding and validate merchant destination details.
-5. Implement explicit buyer confirmation, committed quote handling behind the existing safety gate, and real deposit address/memo rendering.
-6. Implement status reconciliation and destination transaction verification.
-7. Add merchant-facing payment result delivery, then publish integration documentation and SDK/embed distribution.
+1. Verify the live token list through the Cloudflare preview and inspect actual response shape.
+2. Verify the corrected `dry: true` quote request through the Cloudflare preview; fix request/response mapping based on actual upstream output.
+3. Build the reusable checkout component around merchant order context, dynamically loaded assets and a real dry quote. Remove hardcoded mock payment options from the active checkout path.
+4. Define the merchant embed contract and order payload. Build the widget as a reusable component/script rather than coupling it to a demo storefront.
+5. Add server-side order/session binding and validate merchant destination details.
+6. Implement explicit buyer confirmation, committed quote handling behind the existing safety gate, and real deposit address/memo rendering.
+7. Implement status reconciliation and destination transaction verification.
+8. Add merchant-facing payment result delivery, then publish integration documentation and SDK/embed distribution.
+
+## Verification record
+
+- Latest code change: live token discovery UI connected to `/api/tokens` in the Checkout workspace.
+- CI/workflow runs for the latest code commit: none reported by GitHub at time of update.
+- Build/lint: not run in this environment.
+- Deployment: not verified. Do not assume Cloudflare Pages has deployed this branch head.
+- Production deployment and merge to `main`: not authorised.
 
 ## Hosting
 
