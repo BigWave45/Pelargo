@@ -61,7 +61,7 @@ The Checkout workspace now renders a reusable `PelargoCheckout` component. It lo
 - Existing token choices, quote calculations, deposit addresses, QR artwork, transaction hashes, receipts and settlement history in demo components/data are mock values unless explicitly replaced by live API responses.
 - A decorative QR pattern is not a valid payment QR code.
 - A quote, deposit address or detected deposit is not proof of merchant payment.
-- No order persistence, merchant authentication, webhook delivery or verified settlement ledger is established.
+- Merchant and order persistence is being implemented through Cloudflare D1; payment settlement verification and webhook delivery are not yet established.
 - No public SDK/CDN package is published.
 
 ## Payment safety
@@ -93,6 +93,38 @@ Merchant application
 
 The widget must remain independent of any one merchant storefront. Merchant-specific order details and destination settings are inputs to checkout, not hardcoded demo data.
 
+## Merchant provisioning and durable checkout storage
+
+The active branch adds a Cloudflare D1-backed merchant/order/session model.
+
+### One-time infrastructure setup
+
+1. Create a Cloudflare D1 database named `pelargo-checkout` in the same Cloudflare account as the Pages project.
+2. Add a Pages Function binding named `DB` pointing to that database (preview and production bindings are separate; configure preview first).
+3. Apply `migrations/0001_checkout_storage.sql` to the database.
+4. Add the following as Cloudflare Pages secrets for the preview environment:
+   - `MERCHANT_PROVISIONING_SECRET`: high-entropy provisioning secret.
+   - `ORDER_SESSION_SECRET`: random signing secret of at least 32 characters.
+5. Call `POST /api/merchant` from a trusted operator environment with `X-Pelargo-Provisioning-Key` to create a merchant. The API key is returned once; store it securely.
+6. The merchant's own server calls `POST /api/checkout-session` with `X-Pelargo-Merchant-Key`. The merchant identity and name are resolved from the stored API-key hash, not accepted from the browser request.
+
+The merchant provisioning secret and merchant API keys must never be put in frontend code, HTML attributes, public repositories or `VITE_*` variables. The browser receives only the short-lived signed checkout-session token.
+
+### Server-side order session request
+
+A merchant server sends an order reference, amount, atomic amount, destination asset and recipient to `POST /api/checkout-session`. The API creates a unique merchant order row and a signed session row. Duplicate external order IDs for the same merchant are rejected.
+
+### Durable replay protection
+
+- Checkout sessions are stored by unique session ID and SHA-256 token hash.
+- Quote requests verify the signature and require a matching active D1 record.
+- Dry quotes leave the session active so the buyer can review and refresh a quote.
+- A committed quote attempt atomically changes the session from `active` to `commit_attempted` before contacting 1Click. A second attempt cannot pass that state transition.
+- A successful upstream commit records `committed` and updates the order to `quote_committed`.
+- An uncertain upstream result leaves the session consumed. This intentionally favors preventing duplicate deposits over automatic retry.
+
+**Current limitations:** merchant credentials are provisioned manually by an operator; there is no self-serve merchant signup, credential rotation UI or rate limiting yet. A commit attempt is single-use, but no automated payment settlement verification is implemented. Keep mainnet commit configuration disabled until separately reviewed and explicitly approved.
+
 ## Merchant order sessions (early security boundary)
 
 The active branch includes:
@@ -103,13 +135,11 @@ The active branch includes:
 - `POST /api/quote`: requires a valid signed session and enforces the session's destination asset, recipient and exact output amount. The buyer can still choose the source asset and refund address.
 - The custom element requires a `session-token` attribute. The merchant must create the session from its own server and pass the returned token into the browser widget.
 
-Required Cloudflare Pages secrets:
-- `PELARGO_MERCHANT_API_KEY`: server-to-server key used to authorize session issuance.
-- `ORDER_SESSION_SECRET`: random signing secret of at least 32 characters.
+Required Cloudflare Pages secrets are documented in the D1 setup section above. The previous shared `PELARGO_MERCHANT_API_KEY` design has been replaced by individually provisioned merchant API keys stored as hashes.
 
 Never put `PELARGO_MERCHANT_API_KEY` or `ORDER_SESSION_SECRET` in browser code, HTML attributes, a public repository or a Vite `VITE_*` variable. The browser receives only the short-lived signed session token.
 
-**Current limitation:** session issuance currently uses one shared gateway API key, not separate merchant credentials or a merchant account registry. The `merchantId` claim is supplied by the trusted caller and is not independently looked up. This is a first server-side boundary, not production multi-tenant merchant authentication. There is no persistent store for one-time use, order uniqueness or replay revocation. Keep committed quotes disabled and do not configure a production payment flow.
+**Current limitation:** merchant credentials are provisioned by an operator, not through a self-serve portal. D1 persistence and atomic commit-attempt consumption are implemented in source but require a configured D1 binding and migration before they work in a deployment. Keep committed quotes disabled until the preview database is configured and the complete flow is tested.
 
 ## Embeddable checkout element (integration prototype)
 
