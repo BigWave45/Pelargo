@@ -113,7 +113,7 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
 
         if (evidence) {
           const verifiedAt = new Date().toISOString();
-          const results = await env.DB.batch<{ success: boolean; meta?: { changes?: number } }>([
+          const results = await env.DB.batch([
             env.DB.prepare(
               `INSERT INTO payment_settlement_evidence
                 (order_id, destination_chain, destination_asset, token_contract, transaction_hash,
@@ -129,7 +129,7 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
                   SET status = 'settled', updated_at = ?
                 WHERE order_id = ? AND status = 'processing' AND destination_tx_candidate = ?`
             ).bind(verifiedAt, payment.id, candidateHash),
-          ]);
+          ]) as Array<{ success: boolean; meta?: { changes?: number } }>;
           if (!results[0]?.success || !results[1]?.success || (results[1]?.meta?.changes ?? 0) !== 1) {
             return json({ error: "Verified transfer could not be committed to the payment ledger; reconciliation is required" }, 502);
           }
