@@ -158,7 +158,7 @@ The current widget requests dry quotes only. A dry quote is a preview, not a pay
 
 Before testing this flow, the target Cloudflare Pages environment must have:
 
-- D1 binding named `DB`, with migrations `0001` through `0007` applied in numerical order.
+- D1 binding named `DB`, with migrations `0001` through `0008` applied in numerical order.
 - `ORDER_SESSION_SECRET` set to a high-entropy secret of at least 32 characters.
 - A merchant provisioned through the operator-only `POST /api/merchant` endpoint.
 - The merchant API key stored only in the merchant server's secret manager.
