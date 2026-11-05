@@ -884,3 +884,10 @@ No database writes or configuration changes were made during the audit. No Produ
 - Draft PR #4: https://github.com/BigWave45/Pelargo/pull/4. Branch reliability/background-reconciliation; base reliability/near-verifier-diagnostics. No merge.
 - No Cloudflare Worker deployment, cron activation, Preview D1 migration, secret configuration, Production change, or payment execution occurred.
 - Next engineering step: inspect and harden the job lifecycle for terminal-state races and stale leases, then validate migration 0017 against isolated Preview D1 before requesting explicit authorization to activate the Preview Worker.
+
+
+### Preview Worker recovery binding parity — 5 November 2026
+
+- Inspection found that Cloudflare Worker bindings are separate from Pages Preview bindings. Without copying the existing order-scoped recovery tuple into the Preview Worker config, the background Worker could not use the configured signer hint/hash even if Pages Preview had those variables.
+- Added non-secret `NEAR_TX_HASH`, `NEAR_TX_SIGNER_ID`, and `NEAR_TX_ORDER_ID` to `wrangler.expiry.preview.toml`, scoped to the already-authorized testnet order `ORDER-83587591`. The verifier still requires canonical NEAR RPC finality and exact NEP-141 transfer evidence; these values only identify a candidate and signer.
+- The tuple is absent from `wrangler.expiry.toml` and is not a Production setting. No Worker deployment or cron activation occurred.
