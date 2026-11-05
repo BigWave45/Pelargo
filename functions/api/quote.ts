@@ -56,7 +56,6 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
     depositType: ["ORIGIN_CHAIN", "INTENTS", "CONFIDENTIAL_INTENTS"],
     refundType: ["ORIGIN_CHAIN", "INTENTS", "CONFIDENTIAL_INTENTS"],
     recipientType: ["DESTINATION_CHAIN", "INTENTS", "CONFIDENTIAL_INTENTS"],
-    depositMode: ["SIMPLE", "MEMO"],
   };
   for (const [field, allowed] of Object.entries(enumFields)) {
     if (body[field] !== undefined &&
