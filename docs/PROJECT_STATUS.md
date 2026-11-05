@@ -41,7 +41,10 @@ The widget is the product. Merchant setup and developer documentation are suppor
 - **Added:** `src/components/TokenDiscovery.tsx` requests `GET /api/tokens`, validates the basic token record shape, and provides search and network filtering.
 - **Connected:** The Checkout workspace now renders the token-discovery component instead of the static buyer checkout preview.
 - **Not verified:** No Cloudflare deployment has yet been confirmed to contain this commit, and the live token API response has not yet been tested through that deployment.
-- Buyer quote, confirmation, deposit and settlement screens are not connected to the live payment lifecycle.
+- **Added:** `src/components/PelargoCheckout.tsx` is a reusable buyer-facing checkout component. It loads live token records, selects a source asset, accepts a source-network refund address, converts destination amount using token decimals, and requests an `EXACT_OUTPUT` dry quote.
+- **Connected:** The Checkout workspace renders the reusable component using the current local merchant destination settings. The order reference is a local preview placeholder, not a persisted merchant order.
+- **Dry-run only:** The component does not request a committed quote, connect a wallet, create deposit instructions, initiate a transfer or mark an order paid.
+- **Not verified:** The new component and quote request have not been tested against a current Cloudflare deployment; the corrected upstream schema and response mapping remain unverified.
 - Existing legacy demo components/data still contain mock token choices, quote calculations, deposit addresses, QR artwork, transaction hashes, receipts and settlement history. Do not use them as live payment data.
 - The illustrative embed snippet is not a published or executable SDK.
 
@@ -94,18 +97,17 @@ A quote is not payment. A deposit address is not payment. Detecting a deposit is
 
 ## Next engineering sequence
 
-1. Verify the live token list through the Cloudflare preview and inspect actual response shape.
-2. Verify the corrected `dry: true` quote request through the Cloudflare preview; fix request/response mapping based on actual upstream output.
-3. Build the reusable checkout component around merchant order context, dynamically loaded assets and a real dry quote. Remove hardcoded mock payment options from the active checkout path.
-4. Define the merchant embed contract and order payload. Build the widget as a reusable component/script rather than coupling it to a demo storefront.
-5. Add server-side order/session binding and validate merchant destination details.
-6. Implement explicit buyer confirmation, committed quote handling behind the existing safety gate, and real deposit address/memo rendering.
-7. Implement status reconciliation and destination transaction verification.
-8. Add merchant-facing payment result delivery, then publish integration documentation and SDK/embed distribution.
+1. Verify the live token list and dry quote flow through the Cloudflare preview; inspect actual upstream response fields and correct any mismatch.
+2. Add server-side validation for merchant destination configuration, buyer refund address and quote request constraints.
+3. Define a real merchant order/session contract. Replace the current local preview order ID with server-issued, expiring order sessions.
+4. Design the embeddable checkout interface and distribution mechanism so merchants can invoke the component from existing websites and apps.
+5. Only after explicit project-owner approval, enable a controlled committed-quote test and render actual deposit address/memo instructions.
+6. Implement status reconciliation and destination transaction verification.
+7. Add merchant-facing payment result delivery and publish integration documentation/SDK.
 
 ## Verification record
 
-- Latest code change: live token discovery UI connected to `/api/tokens` in the Checkout workspace.
+- Latest implementation: reusable buyer checkout component connected to live token discovery and dry-quote request paths. No live quote result has yet been verified.
 - CI/workflow runs for the latest code commit: none reported by GitHub at time of update.
 - Build/lint: not run in this environment.
 - Deployment: not verified. Do not assume Cloudflare Pages has deployed this branch head.
