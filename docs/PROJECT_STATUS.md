@@ -456,3 +456,12 @@ This section supersedes earlier infrastructure statements in this file where the
 - Implementation commit: `7207241`; regression commit: `60d232e`.
 - CI and preview deployment for the new commits are pending. Do not treat this refinement as verified until checks complete.
 - Preview D1 remains on migration 0009. Production database and production deployment remain unchanged. No real payment execution; main branch untouched.
+
+
+## Settlement batch rollback and retry test — 5 November 2026
+
+- Reviewed the settlement sequence: verified chain evidence is inserted and lifecycle status changed to `settled` in a single D1 batch. Database triggers require matching evidence and atomically synchronize the order to `paid`.
+- Added an integration regression that forces the lifecycle update in the batch to fail after the evidence insert is attempted. It asserts the endpoint does not report settlement, the evidence insert rolls back, lifecycle remains `processing`, and order remains unpaid. The test then removes the injected failure and retries the same provider success to verify a successful commit.
+- Regression commit: `564e714`. CI and preview deployment are pending; do not mark passed until confirmed.
+- This is an in-memory SQLite transaction test. Preview D1 has separately verified migration 0009's insert guard, but this batch rollback scenario has not yet been exercised against remote D1 or authenticated Pages HTTP.
+- No production deployment, no real payment, `main` untouched.
