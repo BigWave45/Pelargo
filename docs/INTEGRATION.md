@@ -1,5 +1,16 @@
 # Merchant integration guide
 
+## Buyer checkout capabilities
+
+The embedded widget can request a dry quote, then ask the buyer to explicitly confirm creation of a committed quote. It displays the provider's deposit address, optional memo, exact committed source amount and deadline only after validating the provider response. It does not connect a wallet or submit a transfer; the buyer must send the exact testnet asset and amount using a wallet on the selected source network.
+
+After deposit instructions are created, the widget polls `GET /api/payment-status?orderId=...` with the signed checkout session in the `Authorization: Bearer` header. The API verifies the session signature, stored token hash, committed session state and order binding. A buyer session cannot query a different order. Merchant server-side polling continues to use `x-pelargo-merchant-key`.
+
+Payment state is not considered paid until independent destination-chain verification succeeds and matching settlement evidence is persisted. Provider `SUCCESS` alone is insufficient.
+
+The buyer committed-quote and polling paths have mocked integration coverage and passed CI. They have not yet been exercised end-to-end against live Tidepool or a real testnet deposit.
+
+
 > **Current testnet status — 5 November 2026:** Pelargo Preview is configured to use the community-operated Tidepool NEAR testnet sandbox. The backend has a gated committed-quote path, but live token discovery, quote creation, deposit instructions and settlement have not yet been validated through Pelargo Preview. The embedded widget still supports dry-quote preview only; it is not yet a complete buyer payment flow. Do not use this integration to collect funds. See [PROJECT_STATUS.md](PROJECT_STATUS.md) for the live verification record.
 
 The embedded widget currently supports source-asset selection, dry quote preview, and an explicit buyer-confirmed request for committed deposit instructions. The committed step calls `POST /api/quote` with `dry:false`; Preview must be configured with Tidepool and `ALLOW_TESTNET_DEPOSITS=true`. When the provider returns a valid correlation ID and deposit address, the widget displays the address and optional memo. This does not initiate a transfer, connect a wallet, provide browser-side payment-status polling, or mark the order paid. The live testnet path remains unverified.
