@@ -19,6 +19,23 @@ type ProviderQuoteResponse = {
   quote?: Record<string, unknown>;
 };
 
+function readProviderHashes(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const hashes: string[] = [];
+  for (const item of value) {
+    const candidate = typeof item === "string"
+      ? item
+      : item !== null && typeof item === "object" && !Array.isArray(item)
+        ? (item as Record<string, unknown>).hash
+        : null;
+    if (typeof candidate === "string" && candidate.trim().length > 0 &&
+        candidate.length <= 256 && !hashes.includes(candidate)) {
+      hashes.push(candidate);
+    }
+  }
+  return hashes;
+}
+
 function readQuoteInstructions(value: unknown): {
   originAssetId: string;
   amountInAtomic: string;
@@ -145,14 +162,14 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
   const payment = await env.DB.prepare(
     `SELECT o.id, o.external_order_id, o.status AS order_status,
             o.destination_network, o.destination_asset, o.recipient, o.amount_atomic,
-            p.status, p.deposit_address, p.deposit_memo, p.provider_status, p.destination_tx_candidate, p.last_polled_at
+            p.status, p.quote_id, p.deposit_address, p.deposit_memo, p.provider_status, p.destination_tx_candidate, p.last_polled_at
        FROM checkout_orders o
        JOIN payment_lifecycle p ON p.order_id = o.id
       WHERE o.merchant_id = ? AND o.external_order_id = ?`
   ).bind(merchantId, orderId).first<{
     id: string; external_order_id: string; order_status: string;
     destination_network: string; destination_asset: string; recipient: string; amount_atomic: string;
-    status: PaymentStatus; deposit_address: string | null; deposit_memo: string | null; provider_status: string | null; destination_tx_candidate: string | null; last_polled_at: string | null;
+    status: PaymentStatus; quote_id: string | null; deposit_address: string | null; deposit_memo: string | null; provider_status: string | null; destination_tx_candidate: string | null; last_polled_at: string | null;
   }>();
 
   if (!payment) return json({ error: "Order not found" }, 404);
@@ -167,8 +184,13 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
   if (payment.deposit_memo) params.set("depositMemo", payment.deposit_memo);
 
   let provider: {
+    correlationId?: unknown;
     status?: ProviderStatus;
-    swapDetails?: { destinationChainTxHashes?: Array<{ hash?: string }> };
+    swapDetails?: {
+      originChainTxHashes?: unknown;
+      nearTxHashes?: unknown;
+      destinationChainTxHashes?: unknown;
+    };
     updatedAt?: string;
     quoteResponse?: unknown;
   };
@@ -194,6 +216,24 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
   }
 
   const quoteInstructions = readQuoteInstructions(provider.quoteResponse);
+  const providerCorrelationId = typeof provider.correlationId === "string"
+    ? provider.correlationId : null;
+  const quoteResponse = provider.quoteResponse !== null && typeof provider.quoteResponse === "object"
+    ? provider.quoteResponse as Record<string, unknown> : null;
+  const quoteCorrelationId = typeof quoteResponse?.correlationId === "string"
+    ? quoteResponse.correlationId : null;
+  const quoteCorrelationMatches = payment.quote_id && (providerCorrelationId || quoteCorrelationId)
+    ? providerCorrelationId === payment.quote_id || quoteCorrelationId === payment.quote_id
+    : null;
+  const providerEvidence = {
+    providerCorrelationId,
+    savedQuoteId: payment.quote_id,
+    quoteCorrelationId,
+    quoteCorrelationMatches,
+    originChainTxHashes: readProviderHashes(provider.swapDetails?.originChainTxHashes),
+    nearTxHashes: readProviderHashes(provider.swapDetails?.nearTxHashes),
+    destinationChainTxHashes: readProviderHashes(provider.swapDetails?.destinationChainTxHashes),
+  };
   const depositInstructions = quoteInstructions ? {
     ...quoteInstructions,
     depositAddress: payment.deposit_address,
@@ -363,5 +403,6 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
     providerStatus: provider.status,
     settlement: "not_settled",
     depositInstructions,
+    providerEvidence,
   });
 }
