@@ -252,3 +252,8 @@ See [docs/INTEGRATION.md](docs/INTEGRATION.md) for the server-to-server merchant
 ## License
 
 MIT
+
+
+### Preview environment isolation
+
+The Pages preview environment uses a separate D1 database, `pelargo-preview-db`, with migrations `0001`–`0008` applied. Its `DB` binding and its own encrypted `MERCHANT_PROVISIONING_SECRET` / `ORDER_SESSION_SECRET` are separate from production. Do not copy production secrets into preview. Configuration has been read back from Cloudflare; deployed preview runtime access still requires smoke testing.
