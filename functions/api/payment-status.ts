@@ -120,8 +120,28 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
   let merchantId = "";
   let orderId = url.searchParams.get("orderId") ?? "";
   let buyerSessionExpired = false;
+  const internalCredential = request.headers.get("x-pelargo-reconciliation-secret");
+  const isInternalReconciliation = internalCredential !== null;
+  if (isInternalReconciliation) {
+    if (!env.RECONCILIATION_SECRET ||
+        internalCredential.length > 512 ||
+        internalCredential !== env.RECONCILIATION_SECRET) {
+      return json({ error: "Internal reconciliation authentication failed" }, 401);
+    }
+    if (!orderId || orderId.length > 256) {
+      return json({ error: "A valid orderId query parameter is required" }, 400);
+    }
+    const internalOrder = await env.DB.prepare(
+      "SELECT merchant_id FROM checkout_orders WHERE external_order_id = ?"
+    ).bind(orderId).first<{ merchant_id: string }>();
+    if (!internalOrder) return json({ error: "Order not found" }, 404);
+    merchantId = internalOrder.merchant_id;
+  }
 
-  if (suppliedKey) {
+  if (isInternalReconciliation) {
+    // The scheduled Worker is trusted only after the private secret check above.
+    // It still enters the same provider polling, chain verifier and D1 guards.
+  } else if (suppliedKey) {
     if (suppliedKey.length > 512) return json({ error: "Merchant authentication failed" }, 401);
     const keyHash = await sha256Hex(suppliedKey);
     const merchant = await env.DB.prepare(
