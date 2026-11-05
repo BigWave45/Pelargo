@@ -340,6 +340,7 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
           payment.destination_network.trim().toUpperCase() === "NEAR") {
         let evidence = null;
         let candidateVerificationError: unknown = null;
+        const candidateDiagnostics: Array<{ hash: string; stage: string }> = [];
         // Provider responses can contain multiple NEAR transactions for one
         // intent. Verify each hash independently; never assume the first is
         // the destination transfer. A bad indexer response for one candidate
@@ -355,7 +356,7 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
               destinationAsset: payment.destination_asset,
               recipient: payment.recipient,
               amountAtomic: payment.amount_atomic,
-            }, hash);
+            }, hash, (stage) => candidateDiagnostics.push({ hash, stage }));
             if (evidence) break;
           } catch (error) {
             candidateVerificationError = error;
@@ -399,6 +400,7 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
         settlement: payment.destination_network.trim().toUpperCase() === "NEAR"
           ? "awaiting_destination_chain_verification"
           : "destination_network_verifier_not_supported",
+        verificationDiagnostics: candidateDiagnostics,
         depositInstructions,
       });
     } catch (error) {
