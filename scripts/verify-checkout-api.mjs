@@ -1131,7 +1131,6 @@ try {
 
     // A different amount on the same token/recipient must be rejected before provider notification.
     transferAmount = 1012632n;
-    sqlite.query("DELETE FROM payment_origin_deposit_evidence WHERE order_id = ?").run(originOrderId);
     // Evidence is immutable by design; use a second order for the negative case.
     const wrongOriginOrder = { ...order, orderId: "order-origin-wrong-amount" };
     const wrongOriginIssued = await responseJson(await checkoutSession({
