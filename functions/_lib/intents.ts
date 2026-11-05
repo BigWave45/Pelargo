@@ -11,6 +11,7 @@ export interface Env {
   NEAR_TX_INDEXER_API_KEY?: string;
   NEARSCANNER_TX_API_URL?: string;
   NEARSCANNER_API_KEY?: string;
+  BASE_SEPOLIA_RPC_URL?: string;
 }
 
 const MAINNET_API_BASE = "https://1click.chaindefuser.com";
