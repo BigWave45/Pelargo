@@ -1,41 +1,89 @@
 # Pelargo
 
-Pelargo is merchant checkout infrastructure built around NEAR Intents. A merchant defines the destination asset and recipient address. A buyer chooses a supported source asset and pays through an embedded checkout.
+Pelargo is a universal checkout widget powered by NEAR Intents.
+
+Any merchant or application can add a checkout button to an existing website or app. A customer opens Pelargo, chooses a supported token and blockchain they can pay from, and completes payment through a wallet they already use. NEAR Intents routes the payment so the merchant receives the asset configured for settlement.
+
+The widget is the product. The merchant-facing surface exists only to configure checkout and help developers integrate it. Pelargo is not a storefront builder or a full merchant SaaS dashboard.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-## Product direction
+## Product experience
 
-The primary application is a merchant workspace. It is organised around four tasks:
+### Merchant integration
 
-- **Overview:** setup progress, integration readiness and verified payment activity.
-- **Payment destination:** merchant settlement asset, network and recipient address.
-- **Checkout:** the buyer-facing flow intended to be embedded in a merchant's existing storefront.
-- **Developers:** API and SDK integration guidance.
+A merchant creates an order in their own application and invokes Pelargo with the order amount, order reference, destination asset and receiving address. The checkout must be embeddable in an existing website or application, with a small integration surface and no requirement to rebuild the merchant's storefront.
 
-The Northwind Goods demo storefront is no longer the primary application entry point. The checkout preview is illustrative and does not create quotes or payments.
+### Customer checkout
+
+1. The customer opens the merchant's Pelargo checkout.
+2. Pelargo loads the assets and networks currently supported by NEAR Intents.
+3. The customer selects a source asset and network available to them.
+4. Pelargo requests a quote and displays the source amount, destination amount, fees, route details where available, and quote expiry.
+5. The customer explicitly confirms before any committed quote or deposit instructions are created.
+6. The customer pays from a compatible wallet using the instructions returned by the payment service.
+7. Pelargo reconciles the payment and verifies destination settlement.
+8. The merchant receives a payment result only after settlement is verified.
+
+“Any wallet and blockchain” is the product ambition, not a claim of universal compatibility. Actual payment options depend on NEAR Intents asset/network support and the wallet's ability to send the selected asset. The interface must show only options that can actually be used.
+
+## Product boundaries
+
+- **Core:** embeddable checkout button/widget, order context, supported-asset discovery, quote review, payment instructions, status reconciliation and verified payment result.
+- **Supporting merchant setup:** destination asset, receiving address and basic checkout configuration.
+- **Supporting developer docs:** embed contract, SDK/API reference and integration examples.
+- **Optional activity:** real orders and verified settlements only.
+
+Do not expand this into a general merchant dashboard. Storefront building, fabricated analytics, billing, teams/roles, elaborate account management and decorative route visualisations are outside the MVP.
 
 ## Implementation status
 
-**The current frontend is a prototype. It does not yet execute or verify payments.** The workspace deliberately shows no fabricated transaction volume, settlement history, successful payment states or live gateway indicators.
+**The repository is not yet an operational universal checkout. The current frontend contains prototype/demo elements and must not be treated as a live payment flow.**
 
-The `build/live-intents` branch contains an initial Cloudflare Pages Functions API layer:
+The active `build/live-intents` branch contains Cloudflare Pages Functions scaffolding:
 
 - `GET /api/tokens`: proxy supported-token discovery to NEAR Intents 1Click.
-- `POST /api/quote`: validate and forward quote requests. Dry-run quotes are intended to be used first; committed quotes remain blocked unless `ALLOW_MAINNET_DEPOSITS=true` is deliberately configured.
+- `POST /api/quote`: validate and forward quote requests. Dry-run quotes are intended to be tested first; committed quotes remain blocked unless `ALLOW_MAINNET_DEPOSITS=true` is deliberately configured.
 - `GET /api/status?depositAddress=...`: proxy execution-status lookups.
 
-These endpoints are scaffolding, not a verified end-to-end integration. The dry quote payload was corrected after an upstream schema validation response, but the corrected request still needs to be tested.
+The corrected dry-quote request schema has not yet been verified end to end. The frontend is not yet connected to a complete, tested order-to-settlement lifecycle. The embed snippet is not a published or executable SDK.
 
-**Important:** NEAR Intents 1Click is a mainnet service. A dry quote does not create a deposit address. A committed quote creates a real mainnet deposit address and can lead to an irreversible payment. There is no testnet checkout path in this implementation. Do not enable committed quotes or send funds without explicit approval and a reviewed small-value test.
+### Known prototype limitations
 
-## Frontend boundaries
+- Existing token choices, quote calculations, deposit addresses, QR artwork, transaction hashes, receipts and settlement history in demo components/data are mock values unless explicitly replaced by live API responses.
+- A decorative QR pattern is not a valid payment QR code.
+- A quote, deposit address or detected deposit is not proof of merchant payment.
+- No order persistence, merchant authentication, webhook delivery or verified settlement ledger is established.
+- No public SDK/CDN package is published.
 
-- Merchant destination inputs are currently local UI state only; there is no persistence or merchant authentication.
-- The checkout screen is a non-interactive preview. It does not request a quote.
-- The developer snippet is illustrative markup, not a published or executable SDK.
-- Payment activity remains empty until verified settlement records exist.
-- The API status and readiness labels are conservative; they do not imply successful end-to-end processing.
+## Payment safety
+
+NEAR Intents 1Click is treated as a mainnet service in this implementation. A dry quote is a preview and does not create a deposit address. A committed quote creates real payment instructions and can lead to real, potentially irreversible transfers.
+
+- Keep `ALLOW_MAINNET_DEPOSITS` unset until the payment lifecycle is reviewed and the project owner explicitly approves a small-value test.
+- Do not send funds or create committed quotes without explicit approval.
+- Never request or handle private keys or seed phrases.
+- Never show a success state based on a timer, frontend simulation, quote creation or deposit detection alone.
+- Mark an order paid only after a successful terminal status and verification of destination transaction details.
+- `FAILED`, `REFUNDED` and `INCOMPLETE_DEPOSIT` must never mark an order paid.
+
+## Intended architecture
+
+```text
+Merchant application
+  └─ creates order and invokes Pelargo checkout
+       └─ Pelargo embeddable widget
+            ├─ loads supported assets
+            ├─ requests dry quote
+            ├─ displays quote for buyer review
+            ├─ requests committed quote after explicit confirmation
+            ├─ displays real deposit instructions
+            └─ tracks payment status
+                 └─ server verifies destination settlement
+                      └─ merchant receives verified result/webhook
+```
+
+The widget must remain independent of any one merchant storefront. Merchant-specific order details and destination settings are inputs to checkout, not hardcoded demo data.
 
 ## Run locally
 
@@ -49,42 +97,10 @@ Open `http://localhost:3000`.
 ## Stack
 
 - React 19, TypeScript and Vite.
-- Plain CSS design tokens and workspace styles.
-- Cloudflare Pages Functions for the server-side API layer.
-- NEAR Intents 1Click API for supported-token discovery, quotes and status.
-- No Supabase or paid database is currently required. D1 should be considered only when persistent order records are needed.
-
-## Intended payment lifecycle
-
-```text
-Merchant creates an order
-        |
-        v
-Embedded Pelargo checkout
-        |
-        v
-Buyer selects a supported source asset
-        |
-        v
-Dry quote preview and explicit buyer review
-        |
-        v
-Committed quote only after approved operational controls
-        |
-        v
-Buyer sends the exact quoted amount to the unique deposit address
-        |
-        v
-NEAR Intents solver network
-        |
-        v
-Status reconciliation and destination transaction verification
-        |
-        v
-Order marked paid only after verified successful settlement
-```
-
-A quote is not proof of payment. A deposit address is not proof of deposit. A pending status is not settlement. `FAILED`, `REFUNDED` and `INCOMPLETE_DEPOSIT` must never mark an order paid.
+- Cloudflare Pages Functions for server-side API routes.
+- NEAR Intents 1Click API for supported-asset discovery, quotes and status.
+- Cloudflare-first, free-tier-conscious hosting.
+- No Supabase, Vercel or paid database dependency is required for the current milestone.
 
 ## Hosting and change control
 
@@ -92,9 +108,9 @@ A quote is not proof of payment. A deposit address is not proof of deposit. A pe
 - Public site: https://pelargo.pages.dev
 - Active development branch: `build/live-intents`.
 - Keep `main` untouched unless the project owner explicitly authorises a merge.
-- Do not deploy production changes, enable mainnet deposits or spend funds without explicit approval.
+- Do not deploy production changes, enable committed mainnet quotes or spend funds without explicit approval.
 
-See [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) for the current engineering handover.
+See [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) for the engineering handover.
 
 ## License
 
