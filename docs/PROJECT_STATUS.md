@@ -394,3 +394,11 @@ This section supersedes earlier infrastructure statements in this file where the
 - Production Pages `DB` binding points to `pelargo-db`; preview `DB` binding has now been configured to the isolated `pelargo-preview-db`. The binding change happened after preview deployment `2d869dc1`; a fresh preview deployment is required before runtime testing.
 - `main` remains untouched. No production deployment, committed quote or real payment was performed. Keep `ALLOW_MAINNET_DEPOSITS` unset.
 - Next: publish a fresh preview build after the binding update, then run non-payment HTTP smoke tests using synthetic merchant data. Verify D1-backed merchant provisioning, checkout-session issuance/retrieval, order lookup and unauthenticated rejection. Do not expose API keys or session tokens in logs or chat.
+
+
+## Preview redeployment after D1 binding update — 5 November 2026
+
+- Cloudflare Pages deployed commit `955e64a1f6c1c2ad7c168de53ae7901a971b3f43` to preview URL https://d44c8697.pelargo.pages.dev.
+- Cloudflare project read-back confirms preview environment `DB` now maps to `pelargo-preview-db` (ID `0335acdc-f0e0-42f6-ba87-e3448fb91728`). Production remains mapped to `pelargo-db`.
+- GitHub Actions `verify` and the Cloudflare Pages check were still in progress at the time of this entry; do not record them as passed until their check runs complete.
+- Attempting to open the deployed API URL through the available web reader was unsupported. No HTTP runtime result is claimed. Next test must use a direct HTTP-capable client or Cloudflare-supported runtime tooling with synthetic credentials, and must verify unauthenticated rejection plus authenticated D1-backed operations without logging secrets.
