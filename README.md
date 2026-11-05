@@ -178,3 +178,12 @@ The scheduled Worker reuses the existing GET /api/payment-status implementation 
 The Preview Worker configuration explicitly selects Tidepool testnet and the isolated Preview D1 database. RECONCILIATION_SECRET must be configured as an encrypted secret on both the Pages Preview project and the Worker, using the same random value. The Worker is not deployed, the migration has not yet been applied to Cloudflare Preview D1, and the cron is not active. Production Worker configuration and Production D1 are unchanged.
 
 Automated integration coverage has been added for trigger enqueueing, internal worker polling, lease release, retry scheduling and the invariant that a provider PROCESSING response cannot settle an order. GitHub Actions CI passed on commit bcc8b982061cb034e59bb2a2fb5087b3cfdbc6aa (run 42099838987): type-check, checkout-session security tests, checkout API integration tests and frontend build. A subsequent lease-tuning commit is undergoing CI.
+
+
+### Background reconciliation failure-injection coverage — 5 November 2026
+
+The scheduled reconciliation implementation now has integration tests for provider timeout, NEAR RPC HTTP 403, Worker termination after a lease claim, lease expiry/recovery, concurrent Worker claims, and a database failure after the canonical verifier has accepted a destination transfer but before settlement evidence can be committed. The tests assert that retryable infrastructure failures do not mark an order paid, that a live lease cannot be stolen, that an expired lease can be reclaimed, and that a failed D1 settlement batch leaves both lifecycle state and settlement evidence unchanged. The private internal Worker path also rejects an incorrect shared secret.
+
+GitHub Actions passed on implementation commit abc5defc2ca8ed1ee4f30dafb52db136a56c92ae (run 42099998224), including type-check, checkout-session security tests, checkout API integration tests and frontend build. These are deterministic integration tests using in-memory SQLite and mocked provider/RPC responses; they do not establish live Cloudflare D1 concurrency behavior, live NEAR RPC availability, or successful scheduled execution in Cloudflare.
+
+The Worker remains un-deployed and its cron inactive. Migration 0017 remains unapplied to Cloudflare Preview D1, and the shared Preview secret has not been configured. No Production changes or payment execution occurred.
