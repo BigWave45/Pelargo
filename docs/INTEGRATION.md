@@ -1,32 +1,35 @@
 # Merchant integration guide
 
-This guide describes the current integration prototype. It is not a production payment integration: committed quotes are disabled by default, NEAR mainnet NEP-141 settlement verification is implemented but tested only with mocked RPC/indexer responses, and merchant webhooks are not implemented.
+This describes the current Pelargo API and integration prototype. It is not a production payment integration. The widget currently supports dry quote preview; the full committed-quote, buyer payment and settlement flow has not been validated end to end. Do not use it to collect real customer funds.
 
-## Trust boundary
+## Security model
 
-There are two separate servers:
+The merchant server owns the merchant API key and decides the trusted order amount, destination asset and receiving address. The browser receives only a short-lived signed session token and public order claims.
 
-- **Merchant server:** owns the merchant API key, creates the merchant order, chooses the trusted amount and settlement destination, and requests a Pelargo checkout session.
-- **Buyer browser:** receives only the short-lived signed session token and public order details. It must never receive the merchant API key or provisioning secret.
+Never expose the merchant API key, `MERCHANT_PROVISIONING_SECRET`, `ORDER_SESSION_SECRET` or `NEAR_INDEXER_API_KEY` to browser code, HTML attributes, public repositories or Vite `VITE_*` variables. Treat the session token as a one-order bearer credential: do not log it unnecessarily or reuse it.
 
-Do not let the browser choose or override the amount, destination asset, recipient, merchant identity or order reference used to authorize the payment. The signed session binds those values. The buyer may choose a supported source asset and provide a refund address.
+The signed session binds the merchant, order, amount, destination asset and recipient. Do not accept those authorization values from untrusted browser input. The buyer may select a supported source asset and provide a source refund address.
 
-## 1. Merchant server: create a session
+## Merchant provisioning
 
-After creating or validating an order in your own database, your server calls Pelargo's `POST /api/checkout-session` endpoint.
+An operator provisions a merchant through `POST /api/merchant`, authenticated with `X-Pelargo-Provisioning-Key`. The generated merchant API key is returned once and stored by the merchant in a server-side secret manager. Pelargo stores a hash, not the plaintext API key.
 
-Example using a Node.js server handler. The example assumes the merchant has already been provisioned and that the environment contains the merchant's API key. Keep this key server-side.
+There is no self-serve merchant signup, API-key rotation workflow or merchant credential management UI yet.
+
+## 1. Create a checkout session from your server
+
+Your server should first authenticate the buyer/order, load the canonical order from its own database, and resolve the destination asset and recipient from trusted merchant configuration. Calculate atomic units using the asset's actual decimals and integer arithmetic; do not use floating-point token conversion.
+
+Example:
 
 ```ts
 const PELARGO_API = process.env.PELARGO_API_URL!;
 const PELARGO_MERCHANT_KEY = process.env.PELARGO_MERCHANT_KEY!;
 
-// Example values must come from your trusted order and settlement records.
-// Resolve destination decimals from the exact supported asset metadata.
 async function createPelargoSession(order: {
   id: string;
-  amount: string;          // e.g. "25.00"
-  amountAtomic: string;    // e.g. "25000000" for a 6-decimal asset
+  amount: string;
+  amountAtomic: string;
   destinationAsset: string;
   destinationSymbol: string;
   destinationNetwork: string;
@@ -54,36 +57,17 @@ async function createPelargoSession(order: {
   if (!response.ok) {
     throw new Error(payload.error ?? `Pelargo session request failed: ${response.status}`);
   }
-  return payload as {
-    token: string;
-    session: {
-      merchantName: string;
-      orderId: string;
-      amount: string;
-      destinationAsset: string;
-      destinationSymbol: string;
-      destinationNetwork: string;
-      recipient: string;
-      expiresAt: string;
-    };
-  };
+  return payload;
 }
 ```
 
-Expose this through an authenticated route on your own application, for example `POST /api/pelargo/checkout-session`. That route should:
+Expose this through an authenticated route on your own application. That route should load the order from your database rather than trusting amount or recipient values supplied by the browser. Apply your own CSRF protection, authorization and rate limiting.
 
-1. Authenticate the buyer or validate the server-side cart/order context.
-2. Load the order from your database. Do not trust amount or recipient values sent by the browser.
-3. Resolve the destination asset and recipient from merchant configuration.
-4. Calculate `amountAtomic` using the destination asset's actual decimals. Do not use floating-point arithmetic for token conversion.
-5. Call `createPelargoSession` server-to-server.
-6. Return only the Pelargo session token and the public session fields needed by the widget.
+Sessions expire after 60–1800 seconds; the default is 900 seconds. Duplicate external order IDs for the same merchant are rejected.
 
-Apply your own CSRF protection, authorization and rate limiting to this merchant route.
+## 2. Mount the checkout element
 
-## 2. Buyer page: mount the checkout button
-
-Load the embed bundle from the Pelargo deployment you have verified. Request a session from your own merchant backend, then create the custom element with the returned session fields.
+Load the embed bundle from the same Pelargo deployment that serves its API. The custom element derives its API origin from the loaded script URL.
 
 ```html
 <script type="module" src="https://YOUR_VERIFIED_PELARGO_HOST/pelargo.js"></script>
@@ -94,14 +78,10 @@ Load the embed bundle from the Pelargo deployment you have verified. Request a s
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ orderId: "ORDER-123" })
   });
-
-  if (!response.ok) {
-    throw new Error("Unable to initialize checkout");
-  }
+  if (!response.ok) throw new Error("Unable to initialize checkout");
 
   const { token, session } = await response.json();
   const checkout = document.createElement("pelargo-checkout");
-
   checkout.setAttribute("merchant-name", session.merchantName);
   checkout.setAttribute("amount", session.amount);
   checkout.setAttribute("order-id", session.orderId);
@@ -111,58 +91,97 @@ Load the embed bundle from the Pelargo deployment you have verified. Request a s
   checkout.setAttribute("recipient", session.recipient);
   checkout.setAttribute("session-token", token);
   checkout.setAttribute("button-label", "Pay with crypto");
-
   document.querySelector("#pelargo-checkout-slot").append(checkout);
 </script>
 ```
 
-The element renders a **Pay with crypto** button. Clicking it opens checkout in an isolated modal; on narrow screens the modal becomes a bottom sheet. The custom element requires a session token. Set the attributes before appending it to the page.
+The element name is `<pelargo-checkout>`. The React checkout is mounted inside Shadow DOM. It renders a Pay with crypto launcher and opens a modal/bottom sheet. Set attributes before appending the element.
 
-The session token is a short-lived bearer credential. It is visible to the buyer's browser by design, so scope it to one order, protect it from unnecessary logging, and do not store or reuse it. Current default expiry is 15 minutes; the API permits 60–1800 seconds.
+The bundle is built from `src/embed.tsx` using `bun run build:embed`; the complete app build is `bun run build`. The package is not currently published as a stable SDK/CDN product. Confirm the actual deployment artifact and URL before using it.
 
-## 3. Current API contract
+## 3. API reference
+
+All merchant endpoints require `X-Pelargo-Merchant-Key`, except the public asset-discovery and quote routes described below. Merchant lookups are scoped to the authenticated merchant.
 
 ### `POST /api/checkout-session`
 
-Server-to-server only. Requires `X-Pelargo-Merchant-Key`.
+Creates a merchant order and signed checkout session.
 
-Required JSON fields:
-
-- `orderId`
-- `amount` (positive decimal string)
-- `amountAtomic` (positive integer string in destination asset base units)
-- `destinationAsset` (exact supported asset ID)
-- `destinationSymbol`
-- `destinationNetwork`
-- `recipient`
+Required JSON:
+- `orderId`: merchant's external order reference.
+- `amount`: positive decimal display amount.
+- `amountAtomic`: positive integer string in destination token base units.
+- `destinationAsset`: exact NEAR Intents asset ID.
+- `destinationSymbol` and `destinationNetwork`.
+- `recipient`: destination receiving address.
 
 Optional: `expiresInSeconds` (60–1800; default 900).
 
-Returns HTTP 201 with `token` and public `session` claims. Duplicate order IDs for the same merchant return HTTP 409.
+Returns HTTP 201 with a signed `token` and public `session` claims. Duplicate order references for one merchant return HTTP 409. The API resolves merchant identity from the stored API-key hash, not from browser input.
 
-### `GET /api/payment-status?orderId=...`
+### `GET /api/checkout-session?token=...`
 
-Merchant-authenticated status refresh. Requires `X-Pelargo-Merchant-Key`. Pelargo resolves the order within that merchant, polls 1Click using the committed deposit address and optional memo, and stores the provider status. Non-terminal provider states may advance the internal payment lifecycle. A provider `SUCCESS` is only a candidate. For NEAR mainnet NEP-141 destinations, Pelargo resolves the transaction signer through FastNear, verifies successful execution and an exact NEP-141 transfer event through NEAR RPC at finality, then persists matching evidence before reporting `settled`. Other networks and token standards remain unverified and fail closed. This verifier has mocked integration coverage only; live provider/indexer/RPC compatibility has not been validated.
+Validates a signed session and returns public order claims. The token is a bearer credential and must be protected from unnecessary logging.
 
-### `GET /api/order?orderId=...`
+### `GET /api/tokens`
 
-Merchant-authenticated lookup of one order belonging to the authenticated merchant. Requires `X-Pelargo-Merchant-Key`. Returns the stored order ID, atomic amount, destination asset, recipient, current database status, creation time and expiry time. An order belonging to another merchant returns 404. The endpoint returns the persisted lifecycle state. A `paid` order is only written by the settlement evidence trigger after a verified NEAR transfer; live-chain operation remains unvalidated.
+Proxies supported-token discovery from NEAR Intents / 1Click. Provider availability is dynamic; it is not a guarantee that every token/network pair will remain routable.
 
 ### `POST /api/quote`
 
-The widget sends the signed `sessionToken` with a dry `EXACT_OUTPUT` quote. Pelargo checks the token signature, active D1 session record, exact destination asset, recipient and amount. The session must be backed by configured D1 storage.
+Accepts a signed checkout session and a quote request. Pelargo validates the session signature and persisted active session, then binds the destination asset, recipient and exact output amount to the merchant-created order. The buyer can select a supported source asset and provide a refund address.
 
-The current widget requests dry quotes only. A dry quote is a preview, not a payment instruction or proof of payment.
+The widget currently requests dry quotes only. A dry quote is a preview; it does not create deposit instructions or prove payment. A committed quote can create real deposit instructions and potentially irreversible transfers. Keep committed mainnet quotes disabled.
 
-## 4. Deployment prerequisites and limitations
+For committed quote handling, Pelargo consumes the session before contacting 1Click, overwrites the provider `sessionId` with the server-issued session JTI, and requires a provider correlation ID and deposit details before persisting the quote. An ambiguous upstream response leaves the session consumed; never retry automatically.
 
-Before testing this flow, the target Cloudflare Pages environment must have:
+### `GET /api/order?orderId=...`
 
-- D1 binding named `DB`, with migrations `0001` through `0008` applied in numerical order.
-- `ORDER_SESSION_SECRET` set to a high-entropy secret of at least 32 characters.
-- A merchant provisioned through the operator-only `POST /api/merchant` endpoint.
-- The merchant API key stored only in the merchant server's secret manager.
+Returns the authenticated merchant's stored order and current database status. An order belonging to another merchant returns 404. Session tokens are not returned.
 
-The embed bundle and API must be deployed from the same Pelargo build because the embed derives its API origin from the loaded script URL.
+### `GET /api/payment-status?orderId=...`
 
-This does not yet provide self-serve merchant signup, API-key rotation, production rate limiting, merchant webhooks or live-validated settlement operations. The current verifier supports NEAR mainnet NEP-141 only. Optional verifier settings are `NEAR_RPC_URL`, `NEAR_TX_INDEXER_URL` and `NEAR_INDEXER_API_KEY`; defaults use the public NEAR mainnet RPC and FastNear mainnet transaction indexer. The indexer resolves the transaction signer; NEAR RPC supplies execution/finality evidence. All external calls still require live validation and operational controls. Keep mainnet deposits disabled. Do not use this prototype to collect real customer funds.
+Polls 1Click using the persisted deposit address and optional memo. Provider status and destination transaction candidate are stored with concurrency guards. Provider `SUCCESS` is not sufficient to mark an order paid.
+
+For NEAR mainnet NEP-141 destinations, Pelargo resolves the transaction signer through FastNear and independently verifies finalized NEAR transaction/receipt execution and the exact token contract, recipient and net amount. Verified evidence must match the order and stored transaction candidate before the database marks it paid. Other destination networks/token standards fail closed.
+
+### `GET /api/operator/recovery-cases`
+
+Operator-only, read-only endpoint authenticated with `X-Pelargo-Provisioning-Key`. Returns open uncertain committed-quote recovery cases. It is not a merchant endpoint. Do not expose the provisioning secret to the browser or merchant clients.
+
+### Retired route: `GET /api/status`
+
+Returns HTTP 410. Do not integrate with this legacy unauthenticated provider proxy. Use the merchant-authenticated `GET /api/payment-status` endpoint.
+
+## 4. Payment lifecycle and failure handling
+
+A quote or deposit address is not proof of payment. A provider status of `SUCCESS` is only a candidate until the destination transaction is independently verified. The database only synchronizes an order to `paid` after matching settlement evidence is persisted.
+
+`FAILED`, `REFUNDED` and `INCOMPLETE_DEPOSIT` must never be presented as paid. If a committed quote request times out or returns an ambiguous response, do not create a second quote using the same order/session. Pelargo records stale uncertain commit cases for operator investigation; it does not automatically retry or reactivate the session.
+
+Merchant webhooks/callbacks are not implemented. Merchants must currently poll their authenticated order/payment endpoints.
+
+## 5. Deployment prerequisites and current limits
+
+The target Pages environment needs:
+- D1 binding named `DB`, with the required migrations applied.
+- `MERCHANT_PROVISIONING_SECRET` for operator provisioning and recovery access.
+- `ORDER_SESSION_SECRET` with high entropy (at least 32 characters).
+- A provisioned merchant and its API key stored server-side.
+- `NEAR_INDEXER_API_KEY` for NEAR settlement verification; it has not yet been configured in Cloudflare because no key has been supplied.
+- Optional `NEAR_RPC_URL` and `NEAR_TX_INDEXER_URL` endpoint overrides.
+
+Repository migrations currently run through `0011`. The isolated preview D1 migration history was verified through 0011 on 5 November 2026. Production migration state is separate and must be checked before release. The expiry/recovery Worker code and five-minute cron configuration exist, but the Worker has not been deployed and its cron is not active.
+
+Tests in `bun run test:security` and `bun run test:api` use in-memory SQLite and mocked provider/indexer/RPC responses. They do not prove live 1Click, FastNear, NEAR RPC or deployed Pages runtime compatibility. Preview HTTP runtime testing remains outstanding.
+
+Current product limitations:
+- NEAR mainnet NEP-141 is the only implemented destination settlement verifier.
+- EVM, Solana, Bitcoin and other settlement verifiers are not implemented.
+- No self-serve merchant onboarding or credential rotation.
+- No merchant webhooks.
+- No production rate limiting/admin controls.
+- No published stable SDK/CDN package.
+- No live end-to-end payment validation.
+
+Keep `ALLOW_MAINNET_DEPOSITS` unset. Do not use this prototype to collect real customer funds.
