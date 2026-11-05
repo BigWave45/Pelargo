@@ -16,7 +16,14 @@
 - Settlement evidence insertion and the `processing -> settled` update occur in one D1 batch. Existing database triggers verify the evidence/order/candidate match and synchronize order status to `paid`.
 - Non-NEAR destinations, non-NEP-141 asset IDs, missing candidate hashes, failed execution, missing/mismatched transfer events and unfinalized blocks do not settle.
 - Added mocked integration tests for a wrong transfer amount (must remain processing) and an exact transfer match (must persist evidence and atomically settle the order).
-- GitHub Actions run `41973082530`, commit `d60c4fd`, passed TypeScript, checkout-session security tests, checkout API integration tests and frontend build before the additional refund-handling and migration-0008 hardening. The subsequent NEP-141 refund-handling, integer amount parsing and migration-0008 token-contract guard changes passed CI in run `41973263474`, commit `2952265`.
+- GitHub Actions run `41973414325`, commit `36348bf`, passed TypeScript, checkout-session security tests, checkout API integration tests and frontend build. This run includes refund-aware net amount checks, migration-0008 token-contract binding, automatic internal lifecycle progression when provider polling skips intermediate states, and a corrected signature-tampering test.
+
+
+## Provider polling state-gap handling
+
+- A merchant may poll infrequently and observe 1Click jump directly from a non-terminal state to `SUCCESS`, without observing `PROCESSING`.
+- The status handler now advances the internal lifecycle through the allowed intermediate states (`awaiting_deposit`, `deposit_detected`, `processing`) before attempting destination verification. Each transition is compare-and-set and audited.
+- The API integration test no longer manually sets the order to `processing`; it proves that a `SUCCESS` poll can fill the missing progression and still requires exact chain evidence before settlement.
 
 ## Operational configuration and unverified scope
 
