@@ -100,7 +100,7 @@ export function PelargoCheckout({
   const [quoteId, setQuoteId] = useState("");
   const [requestedAt, setRequestedAt] = useState("");
   const [committing, setCommitting] = useState(false);
-  const [paymentInstructions, setPaymentInstructions] = useState<{ address: string; memo?: string | null; quoteId: string } | null>(null);
+  const [paymentInstructions, setPaymentInstructions] = useState<{ address: string; memo?: string | null; quoteId: string; amountIn: string; amountInFormatted?: string; deadline?: string } | null>(null);
   const quoteRequestRef = useRef(0);
 
   function clearQuote() {
@@ -291,14 +291,19 @@ export function PelargoCheckout({
       }
       const address = payload.quote?.depositAddress;
       const committedQuoteId = payload.correlationId;
+      const committedAmount = payload.quote?.amountIn;
       if (typeof address !== "string" || !address.trim() ||
-          typeof committedQuoteId !== "string" || !committedQuoteId.trim()) {
-        throw new Error("The provider response did not contain a usable deposit address and quote reference. Do not retry this order; contact the merchant.");
+          typeof committedQuoteId !== "string" || !committedQuoteId.trim() ||
+          typeof committedAmount !== "string" || !/^\\d+$/.test(committedAmount) || BigInt(committedAmount) <= 0n) {
+        throw new Error("The committed provider response is missing a valid deposit address, quote reference or exact source amount. Do not retry this order; contact the merchant.");
       }
       setPaymentInstructions({
         address,
         memo: payload.quote?.depositMemo,
         quoteId: committedQuoteId,
+        amountIn: committedAmount,
+        amountInFormatted: payload.quote?.amountInFormatted,
+        deadline: payload.quote?.deadline,
       });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to create deposit instructions.");
@@ -378,7 +383,7 @@ export function PelargoCheckout({
       {paymentInstructions && (
         <div className="pelargo-quote-result" aria-live="polite">
           <div className="pelargo-quote-label">TESTNET DEPOSIT INSTRUCTIONS <span>REAL TESTNET QUOTE</span></div>
-          <strong>Send {quote?.amountInFormatted ?? quote?.amountIn} {selectedSource?.symbol} on {selectedSource?.blockchain}</strong>
+          <strong>Send {paymentInstructions.amountInFormatted ?? paymentInstructions.amountIn} {selectedSource?.symbol} on {selectedSource?.blockchain}</strong>
           <p>Send only the exact source asset and amount shown, using the selected source network. Do not send funds on a different network.</p>
           <div className="pelargo-quote-detail"><span>Deposit address</span><button type="button" onClick={() => copyValue(paymentInstructions.address)}>Copy address</button></div>
           <div className="pelargo-deposit-address">{paymentInstructions.address}</div>
@@ -389,6 +394,7 @@ export function PelargoCheckout({
             </>
           )}
           <div className="pelargo-quote-detail"><span>Provider quote reference</span><strong>{paymentInstructions.quoteId}</strong></div>
+          {paymentInstructions.deadline && <div className="pelargo-quote-detail"><span>Deposit deadline</span><strong>{formatExpiry(paymentInstructions.deadline)}</strong></div>}
           <p>Creating these instructions did not send funds. After you send the testnet deposit, the merchant's server must verify the provider result and destination-chain settlement. Do not treat a wallet send or provider success alone as proof that the order is paid.</p>
         </div>
       )}
