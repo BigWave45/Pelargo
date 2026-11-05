@@ -220,13 +220,21 @@ export default function App() {
   async function checkPaymentStatus(orderId: string) {
     setBusy(true); setError(""); setNotice("");
     try {
-      const result = await api<{ paymentStatus: string; providerStatus: string; settlement: string }>(
-        `/api/payment-status?orderId=${encodeURIComponent(orderId)}`
-      );
+      const result = await api<{
+        paymentStatus: string; providerStatus: string; settlement: string;
+        providerEvidence?: {
+          originChainTxHashes?: string[]; nearTxHashes?: string[];
+          destinationChainTxHashes?: string[]; quoteCorrelationMatches?: boolean | null;
+        };
+      }>(`/api/payment-status?orderId=${encodeURIComponent(orderId)}`);
       await refreshWorkspace();
+      const evidence = result.providerEvidence;
+      const providerRefs = evidence
+        ? ` Provider quote match: ${evidence.quoteCorrelationMatches === true ? "yes" : evidence.quoteCorrelationMatches === false ? "no" : "not reported"}. Source hashes: ${evidence.originChainTxHashes?.join(", ") || "none reported"}. NEAR hashes: ${evidence.nearTxHashes?.join(", ") || "none reported"}. Destination hashes: ${evidence.destinationChainTxHashes?.join(", ") || "none reported"}.`
+        : "";
       setNotice(result.settlement === "verified"
         ? `Payment ${orderId} is settled and independently verified.`
-        : `Payment ${orderId}: ${result.paymentStatus}. Provider: ${result.providerStatus}. Settlement: ${result.settlement}.`);
+        : `Payment ${orderId}: ${result.paymentStatus}. Provider: ${result.providerStatus}. Settlement: ${result.settlement}.${providerRefs}`);
     } catch (e) { setError(e instanceof Error ? e.message : "Unable to refresh payment status."); }
     finally { setBusy(false); }
   }
@@ -238,7 +246,8 @@ export default function App() {
     try {
       const result = await api<{
         originDeposit: string; providerNotification: string; providerStatus: string;
-        sourceTransactionHash: string; nearTxHashes?: string[];
+        sourceTransactionHash: string; originChainTxHashes?: string[];
+        nearTxHashes?: string[]; destinationChainTxHashes?: string[];
       }>("/api/deposit-submit", {
         method: "POST",
         body: JSON.stringify({ orderId: recoveryOrderId, transactionHash: sourceTransactionHash.trim() }),
@@ -249,7 +258,7 @@ export default function App() {
       await refreshWorkspace();
       setNotice(settlement?.settlement === "verified"
         ? "Source deposit verified. Destination settlement independently verified; order is paid."
-        : `Source deposit verified and provider notified. Provider status: ${settlement?.providerStatus || result.providerStatus}. Settlement: ${settlement?.settlement || "pending provider confirmation"}.`);
+        : `Source deposit verified and provider notified. Provider status: ${settlement?.providerStatus || result.providerStatus}. Provider source hashes: ${result.originChainTxHashes?.join(", ") || "none reported"}. Provider NEAR hashes: ${result.nearTxHashes?.join(", ") || "none reported"}. Destination hashes: ${result.destinationChainTxHashes?.join(", ") || "none reported"}. Settlement: ${settlement?.settlement || "pending provider confirmation"}.`);
       setSourceTransactionHash("");
       setRecoveryOrderId("");
     } catch (e) { setError(e instanceof Error ? e.message : "Unable to reconcile source deposit."); }
