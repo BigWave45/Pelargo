@@ -20,6 +20,14 @@ The widget is the product. Merchant setup and developer documentation are suppor
 
 “Any wallet and blockchain” is an ambition, not a compatibility guarantee. The widget must display only source assets/networks supported by the current Intents service and usable through the payment instructions provided.
 
+## NEAR Hackathon track fit
+
+- **Primary:** Track 08 / Real-World Money (RWM). The official track explicitly calls for merchant payments and stablecoin rails for real businesses, including NEAR Intents.
+- **Secondary candidate:** Track 13 / Open Innovation (NEW), if the submission demonstrates a genuinely reusable cross-chain checkout primitive for arbitrary existing apps.
+- **Not a current fit:** Track 06 / AI Security & Defense and Track 07 / Agent Economy. Pelargo does not currently implement AI-agent spending controls or autonomous agent commerce.
+
+Official track source: https://nearhackathon.com/
+
 ## MVP acceptance criteria
 
 1. Merchant can integrate a checkout button/widget into an existing application without adopting a Pelargo storefront.
