@@ -1,5 +1,16 @@
 # Live handover — 5 November 2026
 
+## Live Tidepool testnet settlement investigation — 5 November 2026
+
+- Completed testnet payment: order `ORDER-83587591`, Tidepool quote `6fd9fef3-a12d-4347-a73f-e250c3acd40d`, destination `agentg.testnet`, expected output 1 USDC.
+- The merchant supplied NEAR testnet transaction `vif8EKtCAzHcaihLNuC6XaRMhCzEDxUiHbAJJRQVUVE` and explorer details: successful `execute_intents` execution at block 276,344,865; transfer summary includes 1 Tidepool Testnet USDC from `verifier.tidepool-sandbox.testnet` to `agentg.testnet`. The supplied explorer text does not expose the token contract account ID, so exact-contract verification by Pelargo remains necessary.
+- The last known Pelargo lifecycle state for this order was `processing`, despite the buyer reporting destination receipt. Do not manually mark the order paid based only on the explorer token label or provider status.
+- Code inspection found the testnet verifier resolves the transaction signer through NearBlocks v3 and originally accepted only an object at `data`. The parser now accepts a single object or array in that envelope, while requiring the returned transaction hash to equal the requested hash. A regression fixture covers the array response shape.
+- This compatibility change is a hypothesis-driven fix, not proof that the live indexer response for this transaction uses that shape or that the order will settle. The exact live NearBlocks response, canonical NEAR RPC verification, exact token contract, and D1 settlement evidence remain unverified.
+- Verifier/test commits: `12f2ee0` and `3938e15`. Documentation commits record the investigation. GitHub CI for the latest commit and the Cloudflare Pages Preview build are still running. No Production deployment, merge to `main`, new quote, or additional transfer was initiated.
+
+---
+
 ## Buyer checkout expiry handling — 5 November 2026
 
 - The buyer route already receives the signed session expiry from `GET /api/checkout-session`. It now passes that timestamp into the checkout widget, displays the expiry time, and disables dry-quote/commit actions once the signed session expires.
