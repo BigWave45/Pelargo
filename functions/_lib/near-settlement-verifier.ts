@@ -97,7 +97,7 @@ export async function verifyNearNep141Settlement(
     throw new Error("NearScanner API key is required for NEAR settlement verification");
   }
   const indexerBaseUrl = (env.NEARSCANNER_TX_API_URL ||
-    "https://nearscanner.com/api/v1/explorer/tx").replace(/\\/$/, "");
+    "https://nearscanner.com/api/v1/explorer/tx").replace(/\/$/, "");
   const rpcUrl = env.NEAR_RPC_URL || "https://rpc.mainnet.near.org";
 
   const indexed = await requestJson(
