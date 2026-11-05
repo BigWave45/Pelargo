@@ -391,7 +391,15 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
       });
       return json({
         orderId, paymentStatus: verificationStatus, providerStatus: provider.status,
-        settlement: "verification_unavailable_or_mismatched", depositInstructions,
+        settlement: "verification_unavailable_or_mismatched",
+        code: "NEAR_SETTLEMENT_VERIFICATION_FAILED",
+        diagnostic: {
+          name: error instanceof Error ? error.name : "UnknownError",
+          message: error instanceof Error ? error.message.slice(0, 240) : "Unknown verifier failure",
+        },
+        providerEvidence,
+        candidateHash: effectiveCandidateHash,
+        depositInstructions,
       }, 503);
     }
   }
