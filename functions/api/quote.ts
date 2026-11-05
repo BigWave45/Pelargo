@@ -26,8 +26,8 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
     }
   }
 
-  if (!/^\d+$/.test(body.amount as string)) {
-    return json({ error: "amount must be an integer string in the origin asset's smallest unit" }, 400);
+  if (!/^\d+$/.test(body.amount as string) || BigInt(body.amount as string) <= 0n) {
+    return json({ error: "amount must be a positive integer string in the relevant asset's smallest unit" }, 400);
   }
   if (!["EXACT_INPUT", "EXACT_OUTPUT"].includes(body.swapType as string)) {
     return json({ error: "Only EXACT_INPUT and EXACT_OUTPUT are enabled" }, 400);
@@ -50,6 +50,33 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
       error: "Mainnet deposit quotes are disabled. Only dry-run quotes are currently permitted.",
       code: "MAINNET_DEPOSITS_DISABLED",
     }, 403);
+  }
+
+  const enumFields: Record<string, string[]> = {
+    depositType: ["ORIGIN_CHAIN", "INTENTS", "CONFIDENTIAL_INTENTS"],
+    refundType: ["ORIGIN_CHAIN", "INTENTS", "CONFIDENTIAL_INTENTS"],
+    recipientType: ["DESTINATION_CHAIN", "INTENTS", "CONFIDENTIAL_INTENTS"],
+    depositMode: ["SIMPLE", "MEMO"],
+  };
+  for (const [field, allowed] of Object.entries(enumFields)) {
+    if (body[field] !== undefined &&
+        (typeof body[field] !== "string" || !allowed.includes(body[field] as string))) {
+      return json({ error: `${field} must be one of: ${allowed.join(", ")}` }, 400);
+    }
+  }
+
+  // The upstream currently rejects missing route types and deadline, so require
+  // them at our boundary rather than forwarding a predictably invalid request.
+  for (const field of ["depositType", "refundType", "recipientType"]) {
+    if (typeof body[field] !== "string") {
+      return json({ error: `${field} is required` }, 400);
+    }
+  }
+  if (typeof body.deadline !== "string" ||
+      !/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$/.test(body.deadline) ||
+      !Number.isFinite(Date.parse(body.deadline)) ||
+      Date.parse(body.deadline) <= Date.now()) {
+    return json({ error: "deadline must be a future ISO 8601 timestamp" }, 400);
   }
 
   const slippage = body.slippageTolerance;
