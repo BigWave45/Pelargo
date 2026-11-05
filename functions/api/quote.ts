@@ -3,6 +3,14 @@ import { Env, forwardJson, intentsRequest, json } from "../_lib/intents";
 const MAX_BODY_BYTES = 12_000;
 
 export async function onRequest(context: { request: Request; env: Env }): Promise<Response> {
+  if (context.request.method === "OPTIONS") {
+    return new Response(null, { status: 204, headers: {
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "POST, OPTIONS",
+      "access-control-allow-headers": "Content-Type, Accept",
+      "access-control-max-age": "86400",
+    }});
+  }
   if (context.request.method !== "POST") {
     return json({ error: "Method not allowed" }, 405);
   }
