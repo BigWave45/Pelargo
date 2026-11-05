@@ -128,14 +128,16 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
         internalCredential !== env.RECONCILIATION_SECRET) {
       return json({ error: "Internal reconciliation authentication failed" }, 401);
     }
-    if (!orderId || orderId.length > 256) {
-      return json({ error: "A valid orderId query parameter is required" }, 400);
+    const internalOrderId = url.searchParams.get("internalOrderId") ?? "";
+    if (!internalOrderId || internalOrderId.length > 128) {
+      return json({ error: "A valid internal order ID is required" }, 400);
     }
     const internalOrder = await env.DB.prepare(
-      "SELECT merchant_id FROM checkout_orders WHERE external_order_id = ?"
-    ).bind(orderId).first<{ merchant_id: string }>();
+      "SELECT merchant_id, external_order_id FROM checkout_orders WHERE id = ?"
+    ).bind(internalOrderId).first<{ merchant_id: string; external_order_id: string }>();
     if (!internalOrder) return json({ error: "Order not found" }, 404);
     merchantId = internalOrder.merchant_id;
+    orderId = internalOrder.external_order_id;
   }
 
   if (isInternalReconciliation) {
