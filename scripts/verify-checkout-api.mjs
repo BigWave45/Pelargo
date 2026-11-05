@@ -5,6 +5,7 @@ import { onRequest as provisionMerchant } from "../functions/api/merchant.ts";
 import { onRequest as checkoutSession } from "../functions/api/checkout-session.ts";
 import { onRequest as quote } from "../functions/api/quote.ts";
 import { onRequest as getOrder } from "../functions/api/order.ts";
+import { transitionPayment, PaymentTransitionError } from "../functions/_lib/payment-lifecycle.ts";
 
 class Statement {
   constructor(db, sql, values = []) { this.db = db; this.sql = sql; this.values = values; }
@@ -28,6 +29,7 @@ class D1TestDatabase {
 const sqlite = new Database(":memory:");
 sqlite.exec("PRAGMA foreign_keys = ON");
 sqlite.exec(readFileSync(new URL("../migrations/0001_checkout_storage.sql", import.meta.url), "utf8"));
+sqlite.exec(readFileSync(new URL("../migrations/0002_payment_lifecycle.sql", import.meta.url), "utf8"));
 const db = {
   prepare(sql) { return new Statement(sqlite, sql); },
   batch(statements) {
@@ -110,6 +112,24 @@ const ownOrder = await responseJson(await getOrder({
 }));
 assert.equal(ownOrder.status, 200, "merchant should retrieve its own order");
 assert.equal(ownOrder.body.order.status, "pending");
+const lifecycle = sqlite.query("SELECT status FROM payment_lifecycle WHERE order_id = (SELECT id FROM checkout_orders WHERE external_order_id = ?)").get("order-001");
+assert.equal(lifecycle.status, "pending", "new order must initialize payment lifecycle");
+await transitionPayment(db, { orderId: sqlite.query("SELECT id FROM checkout_orders WHERE external_order_id = ?").get("order-001").id, expectedStatus: "pending", nextStatus: "quote_committed" });
+await transitionPayment(db, { orderId: sqlite.query("SELECT id FROM checkout_orders WHERE external_order_id = ?").get("order-001").id, expectedStatus: "quote_committed", nextStatus: "awaiting_deposit" });
+const eventRows = sqlite.query("SELECT previous_status, new_status FROM payment_events WHERE order_id = (SELECT id FROM checkout_orders WHERE external_order_id = ?) ORDER BY id").all("order-001");
+assert.deepEqual(eventRows.map((event) => [event.previous_status, event.new_status]), [
+  [null, "pending"], ["pending", "quote_committed"], ["quote_committed", "awaiting_deposit"],
+], "lifecycle transitions must append ordered audit events");
+await assert.rejects(
+  transitionPayment(db, { orderId: sqlite.query("SELECT id FROM checkout_orders WHERE external_order_id = ?").get("order-001").id, expectedStatus: "awaiting_deposit", nextStatus: "settled" }),
+  (error) => error instanceof PaymentTransitionError && error.code === "invalid_transition",
+  "settlement must not be reachable directly from awaiting_deposit",
+);
+await assert.rejects(
+  transitionPayment(db, { orderId: sqlite.query("SELECT id FROM checkout_orders WHERE external_order_id = ?").get("order-001").id, expectedStatus: "pending", nextStatus: "quote_committed" }),
+  (error) => error instanceof PaymentTransitionError && error.code === "conflict",
+  "stale expected state must not overwrite a newer state",
+);
 assert.equal(ownOrder.body.order.amountAtomic, "2000000");
 assert.equal("token" in ownOrder.body.order, false, "order lookup must not expose checkout tokens");
 
@@ -197,4 +217,4 @@ try {
   sqlite.close();
 }
 
-console.log("Checkout API integration checks passed: provisioning auth, API-key hashing, merchant auth, session issuance, duplicate-order rejection, session retrieval, merchant-scoped order lookup, quote binding, dry quote persistence and mainnet commit guard.");
+console.log("Checkout API integration checks passed: provisioning auth, API-key hashing, merchant auth, session issuance, duplicate-order rejection, session retrieval, merchant-scoped order lookup, payment lifecycle initialization, transition validation, audit events, quote binding, dry quote persistence and mainnet commit guard.");
