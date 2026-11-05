@@ -1,3 +1,14 @@
+
+
+## Backend reliability review — implementation checkpoint — 5 November 2026
+
+- Created isolated branch reliability/near-verifier-diagnostics from ops/settlement-reconciliation-system-fix. No merge or deployment.
+- Implemented candidate-specific NEAR verifier diagnostics in functions/api/payment-status.ts. Per-candidate thrown failures are retained with the candidate hash and bounded message. Verification continues through later candidates. If no candidate verifies and one or more verifier calls throw, the endpoint returns HTTP 503 with the full bounded diagnostic list and provider evidence. A valid later candidate can still settle through the existing independent canonical verifier and unchanged D1 settlement guards.
+- Added regression assertion in scripts/verify-checkout-api.mjs that a wrong net NEP-141 amount is associated with the exact candidate and rejection stage.
+- No payment execution behavior, state transition policy, settlement evidence constraints, database schema, or financial accounting was changed.
+- No Cloudflare configuration, D1 data, Preview or Production deployment was changed.
+- Verification pending: run type-check, security tests, API integration tests and frontend build. The tests are mocked; they cannot establish live NEAR RPC availability or settle ORDER-83587591.
+- Next proposed work after test results: implement durable scheduled reconciliation for already-committed payments using a separate Preview-only Cloudflare Worker and isolated D1 binding. Before implementation, inspect the existing worker configuration and migration constraints; do not deploy the worker or change production settings.
 # Live handover — 5 November 2026
 
 ## Latest status — hash-scoped NEAR recovery deployed to Preview — 5 November 2026
