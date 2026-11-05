@@ -3,6 +3,7 @@ import { sha256Hex } from "../_lib/database";
 import { PaymentStatus, transitionPayment, PaymentTransitionError } from "../_lib/payment-lifecycle";
 import { verifyNearNep141Settlement } from "../_lib/near-settlement-verifier";
 import { verifyCheckoutSession } from "../_lib/checkout-session";
+import { authenticateMerchantSession } from "../_lib/merchant-auth";
 
 type ProviderStatus =
   | "PENDING_DEPOSIT"
@@ -66,9 +67,14 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
     merchantId = merchant.id;
     if (!orderId || orderId.length > 256) return json({ error: "A valid orderId query parameter is required" }, 400);
   } else {
-    // Buyers may poll only the order bound to their signed, committed checkout session.
-    // The token is accepted in Authorization, never in the URL or response body.
-    const authorization = request.headers.get("authorization") ?? "";
+    const dashboardMerchant = await authenticateMerchantSession(request, env);
+    if (dashboardMerchant) {
+      if (!orderId || orderId.length > 256) return json({ error: "A valid orderId query parameter is required" }, 400);
+      merchantId = dashboardMerchant.id;
+    } else {
+      // Buyers may poll only the order bound to their signed, committed checkout session.
+      // The token is accepted in Authorization, never in the URL or response body.
+      const authorization = request.headers.get("authorization") ?? "";
     const match = /^Bearer ([A-Za-z0-9_.-]{1,4096})$/.exec(authorization);
     if (!match) return json({ error: "Merchant or checkout-session authentication is required" }, 401);
     const claims = await verifyCheckoutSession(match[1], env);
@@ -82,7 +88,8 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
     }
     if (orderId && orderId !== claims.orderId) return json({ error: "Checkout session does not authorize this order" }, 403);
     orderId = claims.orderId;
-    merchantId = claims.merchantId;
+      merchantId = claims.merchantId;
+    }
   }
 
 
