@@ -1,6 +1,6 @@
 # Merchant integration guide
 
-This guide describes the current integration prototype. It is not a production payment integration: committed quotes are disabled by default, and payment settlement verification and merchant webhooks are not implemented.
+This guide describes the current integration prototype. It is not a production payment integration: committed quotes are disabled by default, NEAR mainnet NEP-141 settlement verification is implemented but tested only with mocked RPC/indexer responses, and merchant webhooks are not implemented.
 
 ## Trust boundary
 
@@ -142,11 +142,11 @@ Returns HTTP 201 with `token` and public `session` claims. Duplicate order IDs f
 
 ### `GET /api/payment-status?orderId=...`
 
-Merchant-authenticated status refresh. Requires `X-Pelargo-Merchant-Key`. Pelargo resolves the order within that merchant, polls 1Click using the committed deposit address and optional memo, and stores the provider status. Non-terminal provider states may advance the internal payment lifecycle. A provider `SUCCESS` is recorded as a settlement candidate only; Pelargo does not report `settled` until destination-chain transaction verification is implemented.
+Merchant-authenticated status refresh. Requires `X-Pelargo-Merchant-Key`. Pelargo resolves the order within that merchant, polls 1Click using the committed deposit address and optional memo, and stores the provider status. Non-terminal provider states may advance the internal payment lifecycle. A provider `SUCCESS` is only a candidate. For NEAR mainnet NEP-141 destinations, Pelargo resolves the transaction signer through FastNear, verifies successful execution and an exact NEP-141 transfer event through NEAR RPC at finality, then persists matching evidence before reporting `settled`. Other networks and token standards remain unverified and fail closed. This verifier has mocked integration coverage only; live provider/indexer/RPC compatibility has not been validated.
 
 ### `GET /api/order?orderId=...`
 
-Merchant-authenticated lookup of one order belonging to the authenticated merchant. Requires `X-Pelargo-Merchant-Key`. Returns the stored order ID, atomic amount, destination asset, recipient, current database status, creation time and expiry time. An order belonging to another merchant returns 404. The endpoint does not prove that an order has settled; treat its status as an internal lifecycle record until settlement reconciliation is implemented.
+Merchant-authenticated lookup of one order belonging to the authenticated merchant. Requires `X-Pelargo-Merchant-Key`. Returns the stored order ID, atomic amount, destination asset, recipient, current database status, creation time and expiry time. An order belonging to another merchant returns 404. The endpoint returns the persisted lifecycle state. A `paid` order is only written by the settlement evidence trigger after a verified NEAR transfer; live-chain operation remains unvalidated.
 
 ### `POST /api/quote`
 
@@ -158,11 +158,11 @@ The current widget requests dry quotes only. A dry quote is a preview, not a pay
 
 Before testing this flow, the target Cloudflare Pages environment must have:
 
-- D1 binding named `DB`, with `migrations/0001_checkout_storage.sql` applied.
+- D1 binding named `DB`, with migrations `0001` through `0007` applied in numerical order.
 - `ORDER_SESSION_SECRET` set to a high-entropy secret of at least 32 characters.
 - A merchant provisioned through the operator-only `POST /api/merchant` endpoint.
 - The merchant API key stored only in the merchant server's secret manager.
 
 The embed bundle and API must be deployed from the same Pelargo build because the embed derives its API origin from the loaded script URL.
 
-This does not yet provide self-serve merchant signup, API-key rotation, production rate limiting, verified settlement, merchant webhooks, or an operational paid status. The merchant order lookup reports the stored order record only; it is not a settlement proof. Keep mainnet deposits disabled. Do not use this prototype to collect real customer funds.
+This does not yet provide self-serve merchant signup, API-key rotation, production rate limiting, merchant webhooks or live-validated settlement operations. The current verifier supports NEAR mainnet NEP-141 only. Optional verifier settings are `NEAR_RPC_URL`, `NEAR_TX_INDEXER_URL` and `NEAR_INDEXER_API_KEY`; defaults use the public NEAR mainnet RPC and FastNear mainnet transaction indexer. The indexer resolves the transaction signer; NEAR RPC supplies execution/finality evidence. All external calls still require live validation and operational controls. Keep mainnet deposits disabled. Do not use this prototype to collect real customer funds.
