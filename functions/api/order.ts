@@ -1,0 +1,49 @@
+import { Env, json } from "../_lib/intents";
+import { sha256Hex } from "../_lib/database";
+
+export async function onRequest(context: { request: Request; env: Env }): Promise<Response> {
+  const { request, env } = context;
+  if (request.method !== "GET") return json({ error: "Method not allowed" }, 405);
+  if (!env.DB) return json({ error: "Checkout storage is not configured" }, 503);
+
+  const suppliedKey = request.headers.get("x-pelargo-merchant-key") ?? "";
+  if (!suppliedKey || suppliedKey.length > 512) {
+    return json({ error: "Merchant authentication failed" }, 401);
+  }
+
+  const keyHash = await sha256Hex(suppliedKey);
+  const merchant = await env.DB.prepare(
+    "SELECT id FROM merchants WHERE api_key_hash = ? AND active = 1"
+  ).bind(keyHash).first<{ id: string }>();
+  if (!merchant) return json({ error: "Merchant authentication failed" }, 401);
+
+  const url = new URL(request.url);
+  const externalOrderId = url.searchParams.get("orderId") ?? "";
+  if (!externalOrderId || externalOrderId.length > 256) {
+    return json({ error: "A valid orderId query parameter is required" }, 400);
+  }
+
+  const order = await env.DB.prepare(
+    `SELECT
+       external_order_id AS orderId,
+       amount_atomic AS amountAtomic,
+       destination_asset AS destinationAsset,
+       recipient,
+       status,
+       created_at AS createdAt,
+       expires_at AS expiresAt
+     FROM checkout_orders
+     WHERE merchant_id = ? AND external_order_id = ?`
+  ).bind(merchant.id, externalOrderId).first<{
+    orderId: string;
+    amountAtomic: string;
+    destinationAsset: string;
+    recipient: string;
+    status: string;
+    createdAt: string;
+    expiresAt: string;
+  }>();
+
+  if (!order) return json({ error: "Order not found" }, 404);
+  return json({ order });
+}
