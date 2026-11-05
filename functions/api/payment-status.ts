@@ -196,11 +196,21 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
     quoteResponse?: unknown;
   };
   try {
-    const response = await intentsRequest(`status?${params.toString()}`, { method: "GET" }, env);
+    const response = await intentsRequest(`status?${params.toString()}`, {
+      method: "GET",
+      signal: AbortSignal.timeout(12_000),
+    }, env);
     if (!response.ok) return json({ error: "NEAR Intents status service rejected the lookup", upstreamStatus: response.status }, 502);
     provider = await response.json() as typeof provider;
-  } catch {
-    return json({ error: "Unable to retrieve payment status from NEAR Intents" }, 502);
+  } catch (error) {
+    if (error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError")) {
+      return json({
+        error: "NEAR Intents status request timed out",
+        code: "PROVIDER_STATUS_TIMEOUT",
+        retryable: true,
+      }, 504);
+    }
+    return json({ error: "Unable to retrieve payment status from NEAR Intents", code: "PROVIDER_STATUS_UNAVAILABLE", retryable: true }, 502);
   }
 
   const validStatuses: ProviderStatus[] = [
