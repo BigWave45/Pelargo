@@ -144,9 +144,22 @@ export async function verifyNearNep141Settlement(
   });
   if (record(networkStatus.result)?.chain_id !== provider.network) return reject("rpc_network_mismatch");
 
-  const indexed = await requestJson(indexerUrl, { method: "GET", headers: indexerHeaders });
-  const signerId = indexedSigner(indexed, transactionHash);
-  if (!signerId) return reject("indexer_did_not_return_matching_signer");
+  // A configured signer avoids depending on a third-party indexer. This is
+  // only a signer hint: canonical RPC must still resolve this exact hash for
+  // that signer and prove successful final execution plus the exact NEP-141
+  // transfer below. A wrong signer therefore fails closed.
+  const configuredSigner = env.NEAR_TX_SIGNER_ID?.trim();
+  let signerId: string | null = null;
+  if (configuredSigner) {
+    if (!/^[a-z0-9._-]{2,64}$/.test(configuredSigner)) {
+      throw new Error("NEAR_TX_SIGNER_ID is not a valid NEAR account ID");
+    }
+    signerId = configuredSigner;
+  } else {
+    const indexed = await requestJson(indexerUrl, { method: "GET", headers: indexerHeaders });
+    signerId = indexedSigner(indexed, transactionHash);
+    if (!signerId) return reject("indexer_did_not_return_matching_signer");
+  }
   const txStatus = await postJson(rpcUrl, {
     jsonrpc: "2.0",
     id: "pelargo-settlement-verifier",
