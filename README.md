@@ -114,6 +114,10 @@ The merchant provisioning secret and merchant API keys must never be put in fron
 
 A merchant server sends an order reference, amount, atomic amount, destination asset and recipient to `POST /api/checkout-session`. The API creates a unique merchant order row and a signed session row. Duplicate external order IDs for the same merchant are rejected.
 
+### Automated security checks
+
+Run `bun run test:security` to exercise session-token signing and verification: valid signature acceptance, tamper rejection, expiry rejection, wrong-secret rejection and missing-secret rejection. The GitHub Actions workflow runs this check alongside TypeScript and both frontend builds.
+
 ### Durable replay protection
 
 - Checkout sessions are stored by unique session ID and SHA-256 token hash.
@@ -123,7 +127,7 @@ A merchant server sends an order reference, amount, atomic amount, destination a
 - A successful upstream commit records `committed` and updates the order to `quote_committed`.
 - An uncertain upstream result leaves the session consumed. This intentionally favors preventing duplicate deposits over automatic retry.
 
-**Current limitations:** merchant credentials are provisioned manually by an operator; there is no self-serve merchant signup, credential rotation UI or rate limiting yet. A commit attempt is single-use, but no automated payment settlement verification is implemented. Keep mainnet commit configuration disabled until separately reviewed and explicitly approved.
+**Current limitations:** merchant credentials are provisioned manually by an operator; there is no self-serve merchant signup, credential rotation UI or rate limiting yet. Automated tests currently cover cryptographic session validation only; D1 concurrency and end-to-end API tests still need a configured preview database. A commit attempt is single-use, but no automated payment settlement verification is implemented. Keep mainnet commit configuration disabled until separately reviewed and explicitly approved.
 
 ## Merchant order sessions (early security boundary)
 
