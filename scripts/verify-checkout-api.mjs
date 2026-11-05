@@ -36,6 +36,7 @@ sqlite.exec(readFileSync(new URL("../migrations/0004_commit_state_sync.sql", imp
 sqlite.exec(readFileSync(new URL("../migrations/0005_verified_settlement.sql", import.meta.url), "utf8"));
 sqlite.exec(readFileSync(new URL("../migrations/0006_order_destination_metadata.sql", import.meta.url), "utf8"));
 sqlite.exec(readFileSync(new URL("../migrations/0007_match_settlement_network.sql", import.meta.url), "utf8"));
+sqlite.exec(readFileSync(new URL("../migrations/0008_settlement_evidence_contract_guard.sql", import.meta.url), "utf8"));
 const db = {
   prepare(sql) { return new Statement(sqlite, sql); },
   batch(statements) {
@@ -168,7 +169,7 @@ try {
   assert.equal(sqlite.query("SELECT provider_status FROM payment_lifecycle WHERE order_id = (SELECT id FROM checkout_orders WHERE external_order_id = ?)").get("order-001").provider_status, "KNOWN_DEPOSIT_TX");
   await transitionPayment(db, { orderId: sqlite.query("SELECT id FROM checkout_orders WHERE external_order_id = ?").get("order-001").id, expectedStatus: "deposit_detected", nextStatus: "processing" });
   const destinationHash = "1111111111111111111111111111111111111111111";
-  const mockNearVerifier = (transferAmount) => async (url, init = {}) => {
+  const mockNearVerifier = (transferAmount, refundAmount = "0") => async (url, init = {}) => {
     const parsed = new URL(String(url));
     if (parsed.hostname === "1click.chaindefuser.com") {
       return Response.json({
@@ -191,10 +192,16 @@ try {
             outcome: {
               executor_id: "usdc.omft.near",
               status: { SuccessValue: "" },
-              logs: [`EVENT_JSON:${JSON.stringify({
-                standard: "nep141", version: "1.0.0", event: "ft_transfer",
-                data: [{ old_owner_id: "sender.near", new_owner_id: "merchant.near", amount: transferAmount }],
-              })}`],
+              logs: [
+                `EVENT_JSON:${JSON.stringify({
+                  standard: "nep141", version: "1.0.0", event: "ft_transfer",
+                  data: [{ old_owner_id: "sender.near", new_owner_id: "merchant.near", amount: transferAmount }],
+                })}`,
+                ...(refundAmount === "0" ? [] : [`EVENT_JSON:${JSON.stringify({
+                  standard: "nep141", version: "1.0.0", event: "ft_transfer",
+                  data: [{ old_owner_id: "merchant.near", new_owner_id: "sender.near", amount: refundAmount }],
+                })}`]),
+              ],
             },
           }],
         }});
@@ -209,7 +216,7 @@ try {
     throw new Error(`Unexpected verifier request: ${url}`);
   };
 
-  globalThis.fetch = mockNearVerifier("1999999");
+  globalThis.fetch = mockNearVerifier("2000000", "1");
   const mismatchedTransfer = await responseJson(await paymentStatus({
     request: new Request("https://pelargo.test/api/payment-status?orderId=order-001", {
       headers: { "x-pelargo-merchant-key": created.body.apiKey },
