@@ -6,6 +6,17 @@ Any merchant or application can add a checkout button to an existing website or 
 
 The widget is the product. The merchant-facing surface exists only to configure checkout and help developers integrate it. Pelargo is not a storefront builder or a full merchant SaaS dashboard.
 
+## Network coverage: routing versus verified settlement
+
+These are separate capabilities:
+
+- Payment routing: source networks and assets shown to a buyer are discovered from live NEAR Intents/1Click availability. A quoted route is not a promise that every route is always available.
+- Merchant settlement: Pelargo must independently verify that the configured destination asset reached the merchant's exact address before marking an order paid.
+- Currently verified destination: NEAR mainnet NEP-141 tokens only. The verifier checks successful execution, exact token contract, recipient and net atomic amount, including resolver refunds, against finalized NEAR RPC data.
+- Planned destination adapters: EVM ERC-20, Solana SPL, then UTXO networks such as Bitcoin. Each requires a chain-specific verifier, finality policy and adversarial tests. These are roadmap targets, not currently supported settlement destinations.
+
+NEAR Intents has broad multi-chain routing coverage, but its coverage does not automatically make Pelargo a verified checkout on every chain. A destination chain is enabled for merchant settlement only after its verifier and live infrastructure tests pass.
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 ## NEAR Hackathon positioning
