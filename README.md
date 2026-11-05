@@ -1,110 +1,97 @@
 # Pelargo
 
-Pelargo is an embeddable crypto checkout and payment gateway built around NEAR Intents / 1Click. Merchants integrate a checkout button into an existing website or application. Buyers select an available source asset and network, review a quote, and pay using a compatible wallet. The merchant receives the configured destination asset when the route and destination are supported.
+Pelargo is an embeddable crypto checkout for merchants. It uses NEAR Intents / 1Click to quote cross-chain payment routes, while the merchant receives a configured destination asset when the route is supported.
 
-The checkout widget is the product. The merchant-facing workspace supports setup and integration; Pelargo is not a storefront builder.
+The checkout widget is the product. The merchant workspace exists to configure and integrate checkout; Pelargo is not a storefront builder.
 
-## Capability boundaries
+## Hackathon scope
 
-**Routing is not settlement verification.** NEAR Intents may route assets across multiple chains, but Pelargo only marks an order paid when its own destination-chain verifier confirms the exact transfer.
+The immediate goal is a credible end-to-end **testnet demonstration**, not a production payment platform.
 
-- Implemented settlement verifier: NEAR mainnet NEP-141 tokens.
-- Verifier checks finalized NEAR transaction/receipt execution, the exact token contract, recipient and net atomic amount, including resolver refunds.
-- EVM ERC-20, Solana SPL, Bitcoin and other destination verifiers are not implemented. Do not infer settlement support from 1Click routing availability.
-- Source assets and networks are discovered from the provider; availability can change and is not guaranteed.
+The demo needs to prove a small number of things:
+
+1. A merchant can create an order and issue a short-lived checkout session.
+2. A buyer can discover available assets, request a quote and see payment instructions.
+3. Pelargo can observe the provider's payment status.
+4. For a supported NEAR NEP-141 destination, Pelargo can independently verify the transaction before marking the order paid.
+5. The merchant can retrieve the resulting order status through an authenticated API.
+
+Keep the implementation focused on this path. Do not add more chains, more indexer providers, a proprietary indexer, self-serve merchant billing, provider redundancy or production operations work just to broaden the architecture. Revisit those only when the demo exposes a concrete need.
 
 ## Checkout flow
 
-1. Merchant server provisions/uses a merchant API key and creates an order session.
-2. Merchant server passes the short-lived signed session token and public order details to the browser widget.
-3. Widget requests a dry quote for buyer review.
-4. A committed quote can create real deposit instructions. It is a separate, potentially irreversible payment action.
-5. Pelargo polls provider status and independently verifies the destination transaction before marking the order paid.
-6. Merchant can query its order and payment status through authenticated server-to-server endpoints.
+1. The merchant backend creates an order through `POST /api/checkout-session`.
+2. Pelargo returns a short-lived signed session token. The merchant passes it to the browser widget; the merchant API key stays server-side.
+3. The widget discovers provider-supported assets and requests a dry quote.
+4. A committed quote requests real deposit instructions. This is a payment action, not a preview.
+5. Pelargo polls 1Click and treats provider `SUCCESS` only as a signal to verify the destination transaction.
+6. The NEAR verifier resolves the transaction signer through NearScanner, then asks canonical NEAR RPC to verify final execution and the exact token transfer.
+7. Only a matching verified transfer can mark the order paid.
 
-The current widget is an integration prototype. It is not a published SDK/CDN package, and it does not yet provide a complete production buyer payment experience. Do not use it to collect real customer funds.
+## What is implemented
 
-## Backend implementation
+- Merchant-authenticated order and checkout-session creation.
+- Short-lived HMAC-signed sessions bound to merchant, order, amount, destination asset and recipient.
+- Session replay protection and merchant-scoped order lookup.
+- Provider asset discovery, dry quote handling and committed-quote persistence.
+- Authenticated provider status polling with stale-response protection.
+- A NEAR NEP-141 settlement verifier with exact token-contract, recipient and net-amount checks.
+- Database guards that prevent an order being marked paid without matching settlement evidence.
+- An operator recovery-case endpoint for ambiguous quote-commit outcomes.
 
-Cloudflare Pages Functions and D1 provide the API and persistence layer.
+## Important limits
 
-| Area | Implemented |
-|---|---|
-| Merchant provisioning | Operator-authenticated merchant creation; API keys stored as hashes |
-| Checkout sessions | Merchant-scoped order creation, short-lived HMAC-signed session tokens, replay protection |
-| Quote orchestration | Session-bound dry quotes; committed quote persistence requires provider correlation ID and deposit details |
-| Order access | Merchant-scoped order lookup |
-| Provider status | Authenticated polling; stale concurrent responses rejected; provider SUCCESS is only a candidate |
-| Settlement | Independent NEAR NEP-141 verification; immutable evidence and database guards; atomic paid-state synchronization |
-| Expiry | Worker code for expiring abandoned, uncommitted pending sessions |
-| Uncertain commits | Idempotent operator recovery cases for ambiguous upstream quote commits |
+- **Routing support is not settlement support.** A route offered by 1Click does not mean Pelargo can verify settlement on that destination.
+- The only implemented settlement verifier is for NEAR NEP-141 tokens. EVM, Solana, Bitcoin, native NEAR and other destinations are not verified by Pelargo.
+- The current NearScanner adapter uses `GET /api/v1/explorer/tx/{hash}` and expects a hash-matched transaction object containing `signer_id`. The endpoint's complete authentication and response contract has not yet been live-verified. Mocked tests are not proof that the live endpoint works.
+- NearScanner is only used to resolve the signer. NEAR RPC remains the authority for transaction execution, receipt success, token transfer details and finality.
+- The current verifier defaults to NEAR **mainnet RPC** unless `NEAR_RPC_URL` is set. A testnet demo must explicitly configure a matching testnet RPC and confirm the selected Intents route and NearScanner lookup support the same network before attempting a payment. Do not assume testnet compatibility from the current code.
+- The browser widget is an integration prototype, not a finished production checkout SDK. Do not use it to collect real customer funds.
+- Live 1Click quote/status compatibility, live NearScanner authentication/response compatibility and a complete live chain-verification run remain outstanding.
 
-The generic lifecycle helper cannot mark an order settled. Settlement requires verified evidence matching the order's network, asset, recipient, amount and stored destination transaction candidate.
+## What is deliberately out of scope for the hackathon
 
-### API surface
+Do not spend hackathon time on:
+- Supporting every chain exposed by the routing provider.
+- Building or operating our own transaction indexer.
+- Integrating multiple indexer vendors before the current one has been tested.
+- Merchant billing, multi-tenant SaaS administration or a full self-serve onboarding system.
+- Production-grade redundancy, monitoring and incident operations.
+- Mainnet payment activation.
 
-- `POST /api/merchant` — operator-only merchant provisioning.
+These are possible later product requirements, not prerequisites for demonstrating the core checkout and verification flow.
+
+## API surface
+
 - `POST /api/checkout-session` — merchant-authenticated order/session creation.
 - `GET /api/checkout-session?token=...` — validate/retrieve public session claims.
 - `GET /api/tokens` — provider-supported asset discovery.
 - `POST /api/quote` — session-bound dry or committed quote request.
 - `GET /api/order?orderId=...` — merchant-scoped order lookup.
 - `GET /api/payment-status?orderId=...` — merchant-scoped provider polling and eligible NEAR settlement verification.
-- `GET /api/operator/recovery-cases` — operator-authenticated, read-only queue of ambiguous committed-quote outcomes.
-- `GET /api/status` — retired; returns HTTP 410. Do not integrate with it.
+- `GET /api/operator/recovery-cases` — operator-authenticated read-only queue for ambiguous quote commits.
+- `GET /api/status` — retired; returns HTTP 410.
 
-See [docs/INTEGRATION.md](docs/INTEGRATION.md) for request contracts and [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) for the engineering and verification ledger.
+See [docs/INTEGRATION.md](docs/INTEGRATION.md) for merchant request contracts and [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) for the current implementation and verification record.
 
-## Database migrations
+## Database
 
-The repository contains migrations `0001` through `0011`.
+Migrations `0001` through `0011` are in the repository. Preview D1 has been migrated through `0011`; production migration state must be checked separately. Do not apply production migrations as part of ordinary hackathon testing.
 
-- `0001`–`0008`: checkout storage, lifecycle, provider status, commit synchronization and settlement evidence constraints.
-- `0009`: prevents stale/mismatched destination transaction evidence from being inserted.
-- `0010`: synchronizes expiry across pending lifecycle, order and active session.
-- `0011`: durable, unique recovery cases for uncertain upstream commits.
+## Safety boundaries
 
-As of 5 November 2026, the isolated preview D1 database records migrations 0001–0011. This is not evidence that production D1 has those migrations. Production migration state must be checked separately before any release.
-
-## Scheduled reconciliation worker
-
-`workers/expiry-sweeper.ts` contains two scheduled jobs:
-
-- Expire only pending orders whose order and active session expiry timestamps have elapsed.
-- Create an operator recovery case for a `commit_attempted` session older than ten minutes when the order/lifecycle remain pending and no provider quote ID or deposit address was persisted.
-
-Ambiguous commits are never automatically retried, reactivated or expired. The provider may have accepted the quote even if Pelargo lost its response. The operator queue uses the provisioning secret and returns no merchant API keys or checkout tokens.
-
-`wrangler.expiry.toml` describes the production Worker and production D1 binding. `wrangler.expiry.preview.toml` is the separate preview configuration bound to `pelargo-preview-db`. Both define a five-minute cron, but neither Worker has been deployed and neither cron is active. Deploying either configuration activates its schedule.
-
-## Verification status and limits
-
-- API/security tests use an in-memory SQLite database and mocked upstream provider, NearScanner and NEAR RPC responses. They validate application logic; they are not live provider or chain tests.
-- Preview D1 has migration history 0001–0011. Migrations 0010 and 0011 were applied to preview on 5 November 2026.
-- Direct synthetic preview-D1 tests passed for migration 0010 expiry synchronization and migration 0011 recovery-case insertion/idempotency. All synthetic records were removed; cleanup returned zero remaining probe records.
-- The Pages preview `DB` binding targets the isolated preview database. Preview deployments have been re-enabled only for `ops/live-d1-readiness`; the next eligible push is intended to create the single refreshed preview needed for runtime verification.
-- NearScanner's documented transaction lookup route is `GET /api/v1/explorer/tx/{hash}`. The adapter sends the configured key in `X-API-Key` and accepts only a response containing a transaction object whose hash exactly matches the requested hash and which supplies `signer_id`.
-- NearScanner's public developer page does not publish the complete authentication/response schema. The adapter contract is covered by mocked tests, but live authentication and response compatibility still require Preview verification.
-- `NEARSCANNER_API_KEY` must be configured as a server-side Cloudflare secret in Preview and Production. Do not expose it to browser code.
-- Live 1Click response compatibility, NearScanner authentication/response compatibility and live NEAR RPC verification remain outstanding.
-- Merchant webhooks, self-serve onboarding, credential rotation, production rate limiting and non-NEAR settlement verifiers are not implemented.
-
-## Safety and release controls
-
-- Keep `ALLOW_MAINNET_DEPOSITS` unset. Mainnet deposits and committed quotes remain disabled.
-- Do not initiate a real payment or transfer funds without explicit approval.
+- Keep `ALLOW_MAINNET_DEPOSITS` unset. Mainnet committed quotes and deposits are not part of the hackathon testnet demo.
+- Use testnet assets only for the demo, after confirming every provider and verifier endpoint is configured for the same network.
 - Never expose merchant API keys, `MERCHANT_PROVISIONING_SECRET`, `ORDER_SESSION_SECRET` or indexer credentials in browser code or public repositories.
-- A quote, deposit address, detected deposit or provider SUCCESS is not proof of merchant settlement.
-- `FAILED`, `REFUNDED` and `INCOMPLETE_DEPOSIT` must never mark an order paid.
+- A quote, deposit address, detected deposit or provider `SUCCESS` is not proof of settlement.
 - Do not merge to `main` or deploy production without explicit release authorization.
 
-## Hosting and development
+## Repository and development
 
-- Cloudflare Pages project: `pelargo`.
-- Public project hostname: https://pelargo.pages.dev
-- Application integration branch: `build/live-intents`.
-- Current operational hardening branch: `ops/live-d1-readiness`.
-- `main` remains separate and must not be changed without authorization.
+- Repository: [BigWave45/Pelargo](https://github.com/BigWave45/Pelargo)
+- Application integration branch: `build/live-intents`
+- Current operational branch: `ops/live-d1-readiness`
+- Cloudflare Pages project: `pelargo`
 
 Stack: React, TypeScript, Vite, Cloudflare Pages Functions, Cloudflare D1 and NEAR Intents / 1Click.
 
@@ -117,8 +104,6 @@ bun run test:security
 bun run test:api
 bun run build
 ```
-
-See [docs/INTEGRATION.md](docs/INTEGRATION.md) before implementing a merchant integration.
 
 ## License
 
