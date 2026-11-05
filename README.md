@@ -158,3 +158,12 @@ For `ORDER-83587591`, Preview D1 currently records the verified Base Sepolia sou
 The deployed Preview build is commit `55a9b62e10456749fb145f22b18d9e6b457a80a2`. Cloudflare's deployment metadata confirms build and upload stages succeeded, but this is not evidence of browser runtime health. The active Preview environment variable list contains only `ALLOW_TESTNET_DEPOSITS`, `INTENTS_API_BASE_URL`, `MERCHANT_PROVISIONING_SECRET` and `ORDER_SESSION_SECRET` (secret values are not recorded here).
 
 The next implementation must preserve strict settlement guards and make candidate selection, evidence insertion and lifecycle settlement a single atomic operation. It must add regression coverage where the first provider candidate is invalid but a later candidate is valid. No manual settlement, new payment, Production change, main merge or mainnet activation is authorized by this audit.
+
+
+## Backend reliability implementation — 5 November 2026
+
+The first reliability change is limited to settlement diagnosis; it does not alter provider execution or settlement authorization. The GET /api/payment-status endpoint now preserves per-candidate verifier exceptions alongside normal rejection stages. When several NEAR transaction candidates are checked, an upstream RPC/indexer error for one candidate is recorded with that exact hash and bounded error detail while later candidates are still checked. If no candidate verifies and at least one verifier call failed exceptionally, the endpoint returns HTTP 503 with the candidate-specific diagnostic set rather than silently retaining only the last exception. A normal chain mismatch remains an awaiting-verification result and cannot create settlement evidence.
+
+Regression coverage asserts that a wrong net NEP-141 transfer amount is reported against the exact transaction candidate. Existing tests continue to enforce the database settlement evidence guard and atomic settlement batch rollback.
+
+This change does not add background reconciliation, retry provider execution, change payment state transitions, relax database guards, modify financial accounting, or deploy anything. CI and runtime verification are pending.
