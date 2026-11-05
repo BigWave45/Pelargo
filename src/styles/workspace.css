@@ -65,3 +65,7 @@
 /* Testnet deposit instructions */
 .pelargo-deposit-address{padding:11px 12px;margin:4px 0 10px;border:1px solid #dce4f7;border-radius:7px;background:#fff;color:#263647;font:10px/1.6 ui-monospace,monospace;overflow-wrap:anywhere;user-select:all}
 .pelargo-quote-result .pelargo-quote-detail button{border:0;background:transparent;color:#315be8;font:700 9px 'DM Sans';cursor:pointer}
+
+.pelargo-payment-status{display:grid;gap:5px;padding:11px 12px;margin-top:12px;border:1px solid #dce4f7;border-radius:7px;background:#fff;color:#69788b;font-size:9px}
+.pelargo-payment-status strong{color:#263647;font-size:12px;text-transform:capitalize}
+.pelargo-payment-status small{color:#7f8b99;line-height:1.4;overflow-wrap:anywhere}
