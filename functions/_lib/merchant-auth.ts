@@ -20,6 +20,12 @@ function fromBase64Url(value: string): Uint8Array {
   return bytes;
 }
 
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const buffer = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(buffer).set(bytes);
+  return buffer;
+}
+
 function randomToken(): string {
   return toBase64Url(crypto.getRandomValues(new Uint8Array(32)));
 }
@@ -28,7 +34,7 @@ export async function hashPassword(password: string): Promise<string> {
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveBits"]);
   const bits = new Uint8Array(await crypto.subtle.deriveBits(
-    { name: "PBKDF2", hash: "SHA-256", salt, iterations: PASSWORD_ITERATIONS },
+    { name: "PBKDF2", hash: "SHA-256", salt: toArrayBuffer(salt), iterations: PASSWORD_ITERATIONS },
     key,
     256,
   ));
@@ -44,7 +50,7 @@ export async function verifyPassword(password: string, encoded: string): Promise
     const expected = fromBase64Url(expectedText);
     const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveBits"]);
     const actual = new Uint8Array(await crypto.subtle.deriveBits(
-      { name: "PBKDF2", hash: "SHA-256", salt, iterations },
+      { name: "PBKDF2", hash: "SHA-256", salt: toArrayBuffer(salt), iterations },
       key,
       expected.length * 8,
     ));
