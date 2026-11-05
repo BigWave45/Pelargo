@@ -255,4 +255,9 @@ MIT
 
 ### Preview environment isolation
 
-The Pages preview environment uses a separate D1 database, `pelargo-preview-db`, with migrations `0001`–`0008` applied. Its `DB` binding and its own encrypted `MERCHANT_PROVISIONING_SECRET` / `ORDER_SESSION_SECRET` are separate from production. Do not copy production secrets into preview. Configuration has been read back from Cloudflare; deployed preview runtime access still requires smoke testing.
+The Pages preview environment uses a separate D1 database, `pelargo-preview-db`, with migrations `0001`–`0008` applied at the time of the last confirmed migration check. Migration `0009_settlement_evidence_insert_guard.sql` is newly added and must be applied to preview before testing the updated settlement code. Its `DB` binding and encrypted `MERCHANT_PROVISIONING_SECRET` / `ORDER_SESSION_SECRET` entries are separate from production. Do not copy production secrets into preview. Deployed preview runtime access still requires smoke testing.
+
+
+### Settlement evidence concurrency guard
+
+Migration `0009_settlement_evidence_insert_guard.sql` adds a database-side precondition for settlement evidence insertion: the lifecycle must still be `processing` and the evidence transaction hash must equal the stored destination candidate. This closes a stale-verifier race at the evidence insert boundary. Apply migration 0009 to the target D1 environment before deploying code that relies on it. The regression suite covers rejection of a stale candidate; live chain and deployed D1 runtime tests remain outstanding.
