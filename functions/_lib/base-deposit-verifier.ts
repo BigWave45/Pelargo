@@ -50,6 +50,8 @@ export async function verifyBaseSepoliaErc20Deposit(
 
   const receipt = asRecord(await rpc(rpcUrl, "eth_getTransactionReceipt", [input.transactionHash]));
   if (!receipt || receipt.status !== "0x1" ||
+      typeof receipt.transactionHash !== "string" ||
+      receipt.transactionHash.toLowerCase() !== input.transactionHash.toLowerCase() ||
       typeof receipt.blockNumber !== "string" || typeof receipt.blockHash !== "string" ||
       !Array.isArray(receipt.logs)) return null;
 
