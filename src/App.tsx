@@ -40,7 +40,13 @@ async function api<T>(url: string, init: RequestInit = {}): Promise<T> {
     headers: { "content-type": "application/json", ...(init.headers ?? {}) },
   });
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || `Request failed (${response.status})`);
+  if (!response.ok) {
+    const diagnostic = data.diagnostic;
+    const detail = diagnostic && typeof diagnostic === "object"
+      ? ` (${String(diagnostic.name || "Error")}: ${String(diagnostic.message || "No diagnostic message")})`
+      : "";
+    throw new Error(`${data.error || `Request failed (${response.status})`}${detail}`);
+  }
   return data as T;
 }
 
