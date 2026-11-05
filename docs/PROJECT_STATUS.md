@@ -872,3 +872,15 @@ A direct read-only inspection of Preview D1 and Cloudflare Pages configuration c
 5. Run CI, inspect the diff, then deploy only to Preview. Reconcile the existing order; do not request another payment.
 
 No database writes or configuration changes were made during the audit. No Production deployment, merge to `main`, manual paid-state update or mainnet activation.
+
+
+## Background reconciliation failure-injection tests — 5 November 2026
+
+- Added deterministic failure-injection coverage to scripts/verify-checkout-api.mjs for provider timeout (HTTP 504 from the existing status path), NEAR RPC 403 (HTTP 503 from the verifier path), orphaned Worker lease recovery, two concurrent reconciliation invocations, and D1 settlement-batch failure after a mocked canonical NEAR verification succeeds.
+- Assertions cover retryable job state, attempt count, lease release, no stealing of an unexpired lease, reclaiming after lease expiry, exactly one provider poll for concurrent invocations, no settlement evidence on RPC/database failure, and lifecycle remaining non-terminal when settlement persistence fails.
+- Added a negative authentication test proving that an incorrect RECONCILIATION_SECRET cannot use the internal payment-status path.
+- GitHub Actions passed on commit abc5defc2ca8ed1ee4f30dafb52db136a56c92ae (run 42099998224): TypeScript type-check, checkout-session security tests, checkout API integration tests and frontend build.
+- Test boundary: provider and NEAR RPC responses are mocked; D1 is represented by in-memory SQLite and a batch-failure adapter. This does not prove production Cloudflare D1 scheduling/lease semantics or live RPC reliability. Those remain Preview operational validation gates.
+- Draft PR #4: https://github.com/BigWave45/Pelargo/pull/4. Branch reliability/background-reconciliation; base reliability/near-verifier-diagnostics. No merge.
+- No Cloudflare Worker deployment, cron activation, Preview D1 migration, secret configuration, Production change, or payment execution occurred.
+- Next engineering step: inspect and harden the job lifecycle for terminal-state races and stale leases, then validate migration 0017 against isolated Preview D1 before requesting explicit authorization to activate the Preview Worker.
