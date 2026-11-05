@@ -59,14 +59,14 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
   const payment = await env.DB.prepare(
     `SELECT o.id, o.external_order_id, o.status AS order_status,
             o.destination_network, o.destination_asset, o.recipient, o.amount_atomic,
-            p.status, p.deposit_address, p.deposit_memo, p.provider_status
+            p.status, p.deposit_address, p.deposit_memo, p.provider_status, p.destination_tx_candidate
        FROM checkout_orders o
        JOIN payment_lifecycle p ON p.order_id = o.id
       WHERE o.merchant_id = ? AND o.external_order_id = ?`
   ).bind(merchant.id, orderId).first<{
     id: string; external_order_id: string; order_status: string;
     destination_network: string; destination_asset: string; recipient: string; amount_atomic: string;
-    status: PaymentStatus; deposit_address: string | null; deposit_memo: string | null; provider_status: string | null;
+    status: PaymentStatus; deposit_address: string | null; deposit_memo: string | null; provider_status: string | null; destination_tx_candidate: string | null;
   }>();
 
   if (!payment) return json({ error: "Order not found" }, 404);
