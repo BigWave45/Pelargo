@@ -5,6 +5,7 @@ import { onRequest as provisionMerchant } from "../functions/api/merchant.ts";
 import { onRequest as checkoutSession } from "../functions/api/checkout-session.ts";
 import { onRequest as quote } from "../functions/api/quote.ts";
 import { onRequest as getOrder } from "../functions/api/order.ts";
+import { onRequest as paymentStatus } from "../functions/api/payment-status.ts";
 import { transitionPayment, PaymentTransitionError } from "../functions/_lib/payment-lifecycle.ts";
 
 class Statement {
@@ -30,6 +31,7 @@ const sqlite = new Database(":memory:");
 sqlite.exec("PRAGMA foreign_keys = ON");
 sqlite.exec(readFileSync(new URL("../migrations/0001_checkout_storage.sql", import.meta.url), "utf8"));
 sqlite.exec(readFileSync(new URL("../migrations/0002_payment_lifecycle.sql", import.meta.url), "utf8"));
+sqlite.exec(readFileSync(new URL("../migrations/0003_provider_status.sql", import.meta.url), "utf8"));
 const db = {
   prepare(sql) { return new Statement(sqlite, sql); },
   batch(statements) {
@@ -132,6 +134,48 @@ await assert.rejects(
 );
 assert.equal(ownOrder.body.order.amountAtomic, "2000000");
 assert.equal("token" in ownOrder.body.order, false, "order lookup must not expose checkout tokens");
+const unauthorizedStatus = await paymentStatus({
+  request: new Request("https://pelargo.test/api/payment-status?orderId=order-001"),
+  env,
+});
+assert.equal(unauthorizedStatus.status, 401, "payment status polling must require merchant authentication");
+
+sqlite.query("UPDATE payment_lifecycle SET deposit_address = ?, deposit_memo = ? WHERE order_id = (SELECT id FROM checkout_orders WHERE external_order_id = ?)").run("deposit-address-test", "memo-test", "order-001");
+const originalFetch = globalThis.fetch;
+globalThis.fetch = async (url) => {
+  assert.match(String(url), /status\\?depositAddress=deposit-address-test&depositMemo=memo-test/);
+  return new Response(JSON.stringify({ status: "KNOWN_DEPOSIT_TX", updatedAt: "2026-11-05T00:00:00Z" }), {
+    status: 200, headers: { "content-type": "application/json" },
+  });
+};
+try {
+  const polled = await responseJson(await paymentStatus({
+    request: new Request("https://pelargo.test/api/payment-status?orderId=order-001", {
+      headers: { "x-pelargo-merchant-key": created.body.apiKey },
+    }),
+    env,
+  }));
+  assert.equal(polled.status, 200);
+  assert.equal(polled.body.paymentStatus, "deposit_detected");
+  assert.equal(sqlite.query("SELECT provider_status FROM payment_lifecycle WHERE order_id = (SELECT id FROM checkout_orders WHERE external_order_id = ?)").get("order-001").provider_status, "KNOWN_DEPOSIT_TX");
+  await transitionPayment(db, { orderId: sqlite.query("SELECT id FROM checkout_orders WHERE external_order_id = ?").get("order-001").id, expectedStatus: "deposit_detected", nextStatus: "processing" });
+  globalThis.fetch = async () => new Response(JSON.stringify({
+    status: "SUCCESS",
+    updatedAt: "2026-11-05T00:01:00Z",
+    swapDetails: { destinationChainTxHashes: [{ hash: "destination-tx-candidate" }] },
+  }), { status: 200, headers: { "content-type": "application/json" } });
+  const providerSuccess = await responseJson(await paymentStatus({
+    request: new Request("https://pelargo.test/api/payment-status?orderId=order-001", {
+      headers: { "x-pelargo-merchant-key": created.body.apiKey },
+    }),
+    env,
+  }));
+  assert.equal(providerSuccess.body.settlement, "awaiting_destination_chain_verification");
+  assert.equal(sqlite.query("SELECT status FROM payment_lifecycle WHERE order_id = (SELECT id FROM checkout_orders WHERE external_order_id = ?)").get("order-001").status, "processing", "provider SUCCESS must not independently settle an order");
+} finally {
+  globalThis.fetch = originalFetch;
+}
+
 
 const foreignOrder = await getOrder({
   request: new Request("https://pelargo.test/api/order?orderId=order-001", {
@@ -217,4 +261,4 @@ try {
   sqlite.close();
 }
 
-console.log("Checkout API integration checks passed: provisioning auth, API-key hashing, merchant auth, session issuance, duplicate-order rejection, session retrieval, merchant-scoped order lookup, payment lifecycle initialization, transition validation, audit events, quote binding, dry quote persistence and mainnet commit guard.");
+console.log("Checkout API integration checks passed: provisioning auth, API-key hashing, merchant auth, session issuance, duplicate-order rejection, session retrieval, merchant-scoped order lookup, authenticated provider status polling, provider status persistence, SUCCESS settlement guard, payment lifecycle initialization, transition validation, audit events, quote binding, dry quote persistence and mainnet commit guard.");
