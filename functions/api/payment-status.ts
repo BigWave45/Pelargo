@@ -339,22 +339,29 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
       if (verificationStatus === "processing" &&
           payment.destination_network.trim().toUpperCase() === "NEAR") {
         let evidence = null;
+        let candidateVerificationError: unknown = null;
         // Provider responses can contain multiple NEAR transactions for one
         // intent. Verify each hash independently; never assume the first is
-        // the destination transfer.
+        // the destination transfer. A bad indexer response for one candidate
+        // must not prevent a later candidate from being checked.
         const hashesToVerify = [...new Set([
           ...candidateHashes,
           ...(effectiveCandidateHash ? [effectiveCandidateHash] : []),
         ])];
         for (const hash of hashesToVerify) {
-          evidence = await verifyNearNep141Settlement(env, {
-            destinationNetwork: payment.destination_network,
-            destinationAsset: payment.destination_asset,
-            recipient: payment.recipient,
-            amountAtomic: payment.amount_atomic,
-          }, hash);
-          if (evidence) break;
+          try {
+            evidence = await verifyNearNep141Settlement(env, {
+              destinationNetwork: payment.destination_network,
+              destinationAsset: payment.destination_asset,
+              recipient: payment.recipient,
+              amountAtomic: payment.amount_atomic,
+            }, hash);
+            if (evidence) break;
+          } catch (error) {
+            candidateVerificationError = error;
+          }
         }
+        if (!evidence && candidateVerificationError) throw candidateVerificationError;
 
         if (evidence) {
           const verifiedAt = new Date().toISOString();
