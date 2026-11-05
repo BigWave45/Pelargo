@@ -111,7 +111,10 @@ export async function verifyNearNep141Settlement(
   if (order.destinationNetwork.trim().toUpperCase() !== "NEAR") return reject("unsupported_destination_network");
   const assetMatch = /^nep141:([a-z0-9._-]+)$/i.exec(order.destinationAsset);
   if (!assetMatch || !order.recipient || !/^\d+$/.test(order.amountAtomic) ||
-      !/^[1-9A-HJ-NP-Za-km-z]{32,64}$/.test(transactionHash)) return reject("invalid_order_or_transaction_hash");
+      !/^[1-9A-HJ-NP-Za-km-z]{32,64}$/.test(transactionHash)) {
+    onDiagnostic?.("invalid_order_or_transaction_hash");
+    return null;
+  }
   const tokenContract = assetMatch[1].toLowerCase();
 
   const provider = intentsProvider(env);
