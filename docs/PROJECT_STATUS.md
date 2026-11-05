@@ -12,7 +12,7 @@ Last updated: 5 November 2026
 
 ## Product definition
 
-Pelargo is a **universal checkout widget powered by NEAR Intents**.
+Pelargo is a **universal checkout widget powered by NEAR Intents**. Category: **Web3 payments infrastructure / cross-chain crypto checkout / payment gateway**.
 
 Any merchant or application should be able to add a checkout button to an existing website or app. The buyer opens Pelargo, selects a supported source token and blockchain, and pays from a compatible wallet they already use. NEAR Intents routes the payment to the merchant's configured destination asset and address.
 
@@ -38,12 +38,12 @@ The widget is the product. Merchant setup and developer documentation are suppor
 ### Frontend
 
 - The merchant workspace remains provisional. Reduce it to the minimum setup/integration surface needed by the widget.
-- **Added:** `src/components/TokenDiscovery.tsx` requests `GET /api/tokens`, validates the basic token record shape, and provides search and network filtering.
-- **Connected:** The Checkout workspace now renders the token-discovery component instead of the static buyer checkout preview.
-- **Not verified:** No Cloudflare deployment has yet been confirmed to contain this commit, and the live token API response has not yet been tested through that deployment.
+- **Added:** `src/components/TokenDiscovery.tsx` provides a reusable live token catalogue with search and network filtering. The buyer checkout component separately loads the same API for its payment selector.
 - **Added:** `src/components/PelargoCheckout.tsx` is a reusable buyer-facing checkout component. It loads live token records, selects a source asset, accepts a source-network refund address, converts destination amount using token decimals, and requests an `EXACT_OUTPUT` dry quote.
 - **Connected:** The Checkout workspace renders the reusable component using the current local merchant destination settings. The order reference is a local preview placeholder, not a persisted merchant order.
 - **Dry-run only:** The component does not request a committed quote, connect a wallet, create deposit instructions, initiate a transfer or mark an order paid.
+- **Hardening:** The quote endpoint now validates required route types and a future ISO 8601 deadline at the server boundary. The deadline validator uses a strict timestamp pattern. No unsupported enum values are assumed.
+- **Hardening:** In-flight quote responses are discarded if the buyer changes amount, source asset, refund address or merchant destination while the request is pending. A stale quote is cleared on relevant configuration changes.
 - **Not verified:** The new component and quote request have not been tested against a current Cloudflare deployment; the corrected upstream schema and response mapping remain unverified.
 - Existing legacy demo components/data still contain mock token choices, quote calculations, deposit addresses, QR artwork, transaction hashes, receipts and settlement history. Do not use them as live payment data.
 - The illustrative embed snippet is not a published or executable SDK.
@@ -107,7 +107,7 @@ A quote is not payment. A deposit address is not payment. Detecting a deposit is
 
 ## Verification record
 
-- Latest implementation: reusable buyer checkout component connected to live token discovery and dry-quote request paths. No live quote result has yet been verified.
+- Latest implementation: reusable buyer checkout component connected to live token discovery and dry-quote request paths; quote validation hardened and stale-response handling added. No live quote result has yet been verified.
 - CI/workflow runs for the latest code commit: none reported by GitHub at time of update.
 - Build/lint: not run in this environment.
 - Deployment: not verified. Do not assume Cloudflare Pages has deployed this branch head.
