@@ -212,12 +212,11 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
           FROM payment_lifecycle p
           JOIN checkout_orders o ON o.id = p.order_id
           JOIN checkout_sessions s ON s.order_id = o.id
-         WHERE p.order_id = ?
-           AND o.merchant_id = ?
+         WHERE o.merchant_id = ?
            AND o.external_order_id = ?
            AND s.jti = ?
          LIMIT 1`
-      ).bind(session.orderId, session.merchantId, session.orderId, session.jti)
+      ).bind(session.merchantId, session.orderId, session.jti)
         .first<{
           payment_status: string;
           quote_id: string | null;
@@ -234,7 +233,7 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
         savedState.deposit_address === depositAddress &&
         savedState.deposit_memo === (depositMemo ?? null);
 
-      if (!persisted.success || !stateMatchesQuote) {
+      if (!stateMatchesQuote) {
         return json({
           error: "Quote committed upstream but local payment state could not be verified. Do not submit another payment; contact support.",
           code: "COMMITTED_QUOTE_LOCAL_STATE_UNVERIFIED",
