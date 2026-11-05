@@ -15,6 +15,7 @@ type ProviderStatus =
   | "FAILED";
 
 type ProviderQuoteResponse = {
+  correlationId?: unknown;
   quoteRequest?: { originAsset?: unknown };
   quote?: Record<string, unknown>;
 };
@@ -222,6 +223,16 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
     ? provider.quoteResponse as Record<string, unknown> : null;
   const quoteCorrelationId = typeof quoteResponse?.correlationId === "string"
     ? quoteResponse.correlationId : null;
+  const providerDepositAddress = typeof (quoteResponse?.quote as Record<string, unknown> | undefined)?.depositAddress === "string"
+    ? (quoteResponse?.quote as Record<string, unknown>).depositAddress as string : null;
+  if ((providerCorrelationId && providerCorrelationId !== payment.quote_id) ||
+      (quoteCorrelationId && quoteCorrelationId !== payment.quote_id) ||
+      (providerDepositAddress && providerDepositAddress !== payment.deposit_address)) {
+    return json({
+      error: "Provider status does not match the committed Pelargo quote",
+      code: "PROVIDER_QUOTE_CORRELATION_MISMATCH",
+    }, 502);
+  }
   const quoteCorrelationMatches = payment.quote_id && (providerCorrelationId || quoteCorrelationId)
     ? providerCorrelationId === payment.quote_id || quoteCorrelationId === payment.quote_id
     : null;
@@ -291,9 +302,9 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
     });
   }
 
-  // SUCCESS is only a provider assertion. Preserve it as evidence for a later
-  // independent destination-chain verification; do not mark the order settled.
-  if (provider.status === "SUCCESS") {
+  // A destination transaction may appear while the provider still says PROCESSING.
+  // Finalized chain evidence can settle the order independently of that lagging status.
+  if (provider.status === "SUCCESS" || Boolean(effectiveCandidateHash)) {
     if (payment.status === "settled") {
       return json({ orderId, paymentStatus: "settled", providerStatus: provider.status, settlement: "verified", depositInstructions });
     }
