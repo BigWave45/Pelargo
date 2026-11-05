@@ -1102,7 +1102,7 @@ try {
       const rpcRequest = JSON.parse(init.body);
       if (rpcRequest.method === "eth_chainId") return Response.json({ result: "0x14a34" });
       if (rpcRequest.method === "eth_getTransactionReceipt") return Response.json({ result: {
-        status: "0x1", blockNumber: "0x10", blockHash: "0x" + "b".repeat(64),
+        status: "0x1", transactionHash: originTxHash, blockNumber: "0x10", blockHash: "0x" + "b".repeat(64),
         logs: [{
           address: originToken,
           topics: [originTransferTopic, "0x" + "0".repeat(64), paddedAddress],
@@ -1169,7 +1169,7 @@ try {
         const rpcRequest = JSON.parse(init.body);
         if (rpcRequest.method === "eth_chainId") return Response.json({ result: "0x14a34" });
         if (rpcRequest.method === "eth_getTransactionReceipt") return Response.json({ result: {
-          status: "0x1", blockNumber: "0x10", blockHash: "0x" + "c".repeat(64),
+          status: "0x1", transactionHash: "0x" + "c".repeat(64), blockNumber: "0x10", blockHash: "0x" + "c".repeat(64),
           logs: [{
             address: originToken, topics: [originTransferTopic, "0x" + "0".repeat(64), paddedAddress],
             data: "0x" + transferAmount.toString(16),
