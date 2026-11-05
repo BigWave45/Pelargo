@@ -1,5 +1,13 @@
 # Live handover — 5 November 2026 (supersedes older status notes below)
 
+## Buyer widget progress — 5 November 2026
+
+- Added an explicit confirmation step after dry quote preview. The buyer must confirm before the widget sends a committed-quote request (`dry:false`).
+- The widget validates that the provider response includes both a correlation ID and deposit address before displaying instructions; it also displays an optional memo and provides copy controls.
+- The UI warns that creating instructions does not send funds and that provider success alone is not proof of payment.
+- Added styling for deposit details. These changes are on `ops/live-d1-readiness` and are awaiting CI/Preview verification.
+- This is not yet a complete checkout: no wallet connection or automatic source transfer, no browser-safe order status polling, no receipt/paid state in the buyer widget, and no live testnet quote/deposit/settlement have been verified.
+
 ## Current branch and deployment state
 
 - Operational branch: `ops/live-d1-readiness`.
