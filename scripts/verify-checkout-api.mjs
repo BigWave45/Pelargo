@@ -122,7 +122,9 @@ const foreignOrder = await getOrder({
 assert.equal(foreignOrder.status, 404, "merchant must not retrieve another merchant's order");
 
 const missingOrderId = await getOrder({
-  request: new Request("https://pelargo.test/api/order"),
+  request: new Request("https://pelargo.test/api/order", {
+    headers: { "x-pelargo-merchant-key": created.body.apiKey },
+  }),
   env,
 });
 assert.equal(missingOrderId.status, 400, "order lookup must require an order ID");
