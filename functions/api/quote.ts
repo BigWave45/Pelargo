@@ -36,7 +36,7 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
     }
   }
 
-  if (!/^\d+$/.test(body.amount as string) || BigInt(body.amount as string) <= 0n) {
+  if (!/^\\d+$/.test(body.amount as string) || BigInt(body.amount as string) <= 0n) {
     return json({ error: "amount must be a positive integer string in the relevant asset's smallest unit" }, 400);
   }
   if (!["EXACT_INPUT", "EXACT_OUTPUT"].includes(body.swapType as string)) {
@@ -113,7 +113,7 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
     }
   }
   if (typeof body.deadline !== "string" ||
-      !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(body.deadline) ||
+      !/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$/.test(body.deadline) ||
       !Number.isFinite(Date.parse(body.deadline)) ||
       Date.parse(body.deadline) <= Date.now()) {
     return json({ error: "deadline must be a future ISO 8601 timestamp" }, 400);
@@ -175,9 +175,6 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
       }
       if (typeof depositAddress !== "string" || !depositAddress.trim() || depositAddress.length > 256 ||
           (depositMemo !== undefined && (typeof depositMemo !== "string" || depositMemo.length > 256))) {
-        // The provider may have committed a quote, but without its deposit
-        // locator Pelargo cannot safely monitor or reconcile it. Keep the
-        // session consumed and do not represent the order as payable.
         return json({
           error: "The payment provider returned an incomplete committed quote. Contact support before retrying.",
           code: "COMMITTED_QUOTE_MISSING_DEPOSIT_DETAILS",
@@ -185,10 +182,11 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
       }
 
       const now = new Date().toISOString();
-      // One compare-and-set is the commit point. Migration 0004's trigger
-      // synchronizes the order and session rows in the same SQLite statement
-      // and aborts the whole write if either dependent row is stale or missing.
-      const persisted = await context.env.DB!.prepare(
+      // Migration 0004 synchronizes the order and session through an AFTER
+      // trigger. D1 may report the lifecycle row plus trigger side effects in
+      // meta.changes, so correctness is determined by reading back all three
+      // records rather than requiring exactly one reported change.
+      const persisted = await context.env.DB.prepare(
         `UPDATE payment_lifecycle
             SET status = 'quote_committed', quote_id = ?, deposit_address = ?, deposit_memo = ?, updated_at = ?
           WHERE order_id = (
@@ -202,8 +200,45 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
                  AND s.status = 'commit_attempted'
             )`
       ).bind(quoteId, depositAddress, depositMemo ?? null, now, session.merchantId, session.orderId, session.jti).run();
-      if (!persisted.success || (persisted.meta?.changes ?? 0) !== 1) {
-        return json({ error: "Quote committed upstream but local payment state could not be saved. Do not submit another payment; contact support." }, 502);
+
+      const savedState = await context.env.DB.prepare(
+        `SELECT
+            p.status AS payment_status,
+            p.quote_id,
+            p.deposit_address,
+            p.deposit_memo,
+            o.status AS order_status,
+            s.status AS session_status
+          FROM payment_lifecycle p
+          JOIN checkout_orders o ON o.id = p.order_id
+          JOIN checkout_sessions s ON s.order_id = o.id
+         WHERE p.order_id = ?
+           AND o.merchant_id = ?
+           AND o.external_order_id = ?
+           AND s.jti = ?
+         LIMIT 1`
+      ).bind(session.orderId, session.merchantId, session.orderId, session.jti)
+        .first<{
+          payment_status: string;
+          quote_id: string | null;
+          deposit_address: string | null;
+          deposit_memo: string | null;
+          order_status: string;
+          session_status: string;
+        }>();
+
+      const stateMatchesQuote = savedState?.payment_status === "quote_committed" &&
+        savedState.order_status === "quote_committed" &&
+        savedState.session_status === "committed" &&
+        savedState.quote_id === quoteId &&
+        savedState.deposit_address === depositAddress &&
+        savedState.deposit_memo === (depositMemo ?? null);
+
+      if (!persisted.success || !stateMatchesQuote) {
+        return json({
+          error: "Quote committed upstream but local payment state could not be verified. Do not submit another payment; contact support.",
+          code: "COMMITTED_QUOTE_LOCAL_STATE_UNVERIFIED",
+        }, 502);
       }
     }
     return await forwardJson(upstream);
