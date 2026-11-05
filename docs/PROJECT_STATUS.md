@@ -66,6 +66,19 @@ The earlier quote request reached the upstream service but failed schema validat
 
 The token UI expects the documented token array fields `assetId`, `decimals`, `blockchain` and `symbol`. It accepts either a raw array or an object with a `tokens` array. It does not construct asset IDs manually.
 
+## Durable merchant identity and checkout storage milestone
+
+- **Added:** `migrations/0001_checkout_storage.sql` creates `merchants`, `checkout_orders` and `checkout_sessions`, with unique merchant order IDs, session IDs and token hashes.
+- **Added:** `functions/api/merchant.ts` provisions merchant records behind a separate operator-only `MERCHANT_PROVISIONING_SECRET`. It generates a high-entropy merchant API key and returns it once; only its SHA-256 hash is stored.
+- **Changed:** `POST /api/checkout-session` authenticates a per-merchant API key against D1. Merchant identity/name are loaded from the database; callers can no longer choose arbitrary merchant IDs.
+- **Changed:** order and session creation are persisted in a D1 batch. Duplicate merchant order references are rejected.
+- **Changed:** `POST /api/quote` requires a valid signature plus an active matching D1 session record.
+- **Replay protection:** a committed quote attempt atomically transitions the session from `active` to `commit_attempted` before the upstream call. Replays are rejected. Successful upstream commits transition to `committed` and update the order status.
+- **Failure policy:** if an upstream commit outcome is uncertain, the session remains consumed. Operator review is required; do not retry blindly.
+- **Required infrastructure:** create a Cloudflare D1 database, bind it as `DB` to the Pages Functions environment, apply `migrations/0001_checkout_storage.sql`, and configure `MERCHANT_PROVISIONING_SECRET` and `ORDER_SESSION_SECRET` as preview secrets.
+- **Not yet implemented:** self-serve merchant signup, merchant key rotation/revocation endpoint, rate limiting, webhook delivery and settlement verification.
+- **Not verified:** no D1 database has been provisioned or bound, no migration has been applied, and no preview tests have been run. Source code alone does not mean durable protection is active in the deployed environment.
+
 ## Signed checkout session milestone
 
 - **Added:** `functions/_lib/checkout-session.ts` signs and verifies bounded-lifetime HMAC-SHA256 session tokens using Cloudflare Web Crypto.
@@ -73,8 +86,8 @@ The token UI expects the documented token array fields `assetId`, `decimals`, `b
 - **Added:** `POST /api/quote` now requires a valid signed session and binds exact-output amount, destination asset and recipient to its signed claims. Buyer-selected source asset and refund address remain variable.
 - **Added:** the React widget and custom element require a signed `sessionToken` / `session-token` before requesting a quote.
 - **Required secrets:** `PELARGO_MERCHANT_API_KEY` and `ORDER_SESSION_SECRET`, set as Cloudflare Pages secrets only. Never expose them in browser code.
-- **Important limitation:** one shared gateway key currently protects session issuance; merchant IDs are not independently authenticated against a merchant registry. This is not complete multi-tenant merchant authentication.
-- **Important limitation:** there is no durable order store, token revocation or single-use/replay protection. Keep committed quotes disabled and do not enable real deposits.
+- **Superseded:** the initial shared gateway key model was replaced by per-merchant API keys verified against D1. The older signed-token-only flow is no longer the intended deployment configuration.
+- **Deployment dependency:** until D1 is bound and migrated, checkout session issuance and quote verification return a storage-not-configured error. Keep committed quotes disabled.
 - **Not verified:** no TypeScript/build run or Cloudflare preview test has been completed for these endpoints.
 
 ## Embeddable element milestone
@@ -136,7 +149,7 @@ A quote is not payment. A deposit address is not payment. Detecting a deposit is
 
 ## Verification record
 
-- Latest implementation: HMAC-signed expiring order sessions added; quote API requires session and binds amount/destination/recipient; custom element requires session token. Shared gateway key only; merchant registry and durable replay protection absent. Build/deployment/preview verification still outstanding.
+- Latest implementation: per-merchant API-key lookup, D1 merchant/order/session schema, persistent session-token hash verification and atomic single-use commit-attempt state added. D1 binding/migration, secrets, build and preview tests are not configured or verified.
 - CI/workflow runs for the latest code commit: none reported by GitHub at time of update.
 - Build/lint: not run in this environment.
 - Deployment: not verified. Do not assume Cloudflare Pages has deployed this branch head.
