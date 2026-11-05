@@ -12,17 +12,28 @@ The buyer committed-quote and polling paths have mocked integration coverage and
 
 ## Security model
 
-The merchant server owns the merchant API key and decides the trusted order amount, destination asset and receiving address. The browser receives only a short-lived signed session token and public order claims.
+The merchant dashboard uses a separate opaque, server-side session stored in an HttpOnly, Secure, SameSite=Lax cookie. Passwords are PBKDF2-hashed; session tokens are random and only their SHA-256 hashes are stored. Registration and login attempts are rate-limited. The browser never receives the merchant API key.
+
+For server integrations, the merchant server owns the merchant API key and decides the trusted order amount, destination asset and receiving address. The browser receives only a short-lived signed checkout-session token and public order claims.
 
 Never expose the merchant API key, `MERCHANT_PROVISIONING_SECRET`, `ORDER_SESSION_SECRET` or `NEAR_INDEXER_API_KEY` to browser code, HTML attributes, public repositories or Vite `VITE_*` variables. Treat the session token as a one-order bearer credential: do not log it unnecessarily or reuse it.
 
 The signed session binds the merchant, order, amount, destination asset and recipient. Do not accept those authorization values from untrusted browser input. The buyer may select a supported source asset and provide a source refund address.
 
-## Merchant provisioning
+## Self-service merchant accounts
 
-An operator provisions a merchant through `POST /api/merchant`, authenticated with `X-Pelargo-Provisioning-Key`. The generated merchant API key is returned once and stored by the merchant in a server-side secret manager. Pelargo stores a hash, not the plaintext API key.
+The dashboard supports open merchant registration and password login. A new account creates a merchant record and an internal API key whose hash is stored server-side; the plaintext key is not returned to the browser. Dashboard requests authenticate with the merchant session cookie. The dashboard can save a NEAR settlement asset ID, symbol, network, token decimals and recipient, create a signed checkout session, and list merchant-scoped orders.
 
-There is no self-serve merchant signup, API-key rotation workflow or merchant credential management UI yet.
+- `POST /api/auth/register` — create an account with `name`, `email`, and a password of 12–128 characters. Returns the merchant profile and sets the session cookie.
+- `POST /api/auth/login` — authenticate with email and password; sets a new session cookie.
+- `GET /api/auth/session` — return the current merchant profile.
+- `POST /api/auth/logout` — revoke the current server-side session and clear the cookie.
+- `GET/PUT /api/merchant-settings` — read or save the merchant's destination configuration.
+- `GET /api/orders` — list up to 100 recent orders belonging to the authenticated merchant.
+
+Sessions last seven days. Registration is limited to five attempts per email/IP per hour; login is limited to ten attempts per email/IP per 15 minutes. Email verification, password recovery, API-key rotation and multi-user merchant accounts are not implemented. The destination asset ID and decimal precision must be confirmed against the active provider token catalogue; the form does not independently prove a token/recipient combination is settleable.
+
+The operator-only `POST /api/merchant` provisioning endpoint remains available for internal setup and existing server integrations. It is not the public signup flow.
 
 ## 1. Create a checkout session from your server
 
@@ -109,7 +120,7 @@ The bundle is built from `src/embed.tsx` using `bun run build:embed`; the comple
 
 ## 3. API reference
 
-Merchant order/session endpoints require `X-Pelargo-Merchant-Key`. The payment-status endpoint supports either that merchant key for server-side polling or a signed committed checkout session for buyer-scoped polling. Asset discovery and quote requests use their documented public/session authentication. Merchant lookups are scoped to the authenticated merchant.
+Merchant order/session endpoints accept either `X-Pelargo-Merchant-Key` for server integrations or the dashboard's HttpOnly merchant session cookie. Payment-status polling accepts the merchant API key, dashboard session cookie, or a signed committed checkout session for buyer-scoped polling. Asset discovery and quote requests use their documented public/session authentication. Merchant lookups are scoped to the authenticated merchant.
 
 ### `POST /api/checkout-session`
 
@@ -125,7 +136,7 @@ Required JSON:
 
 Optional: `expiresInSeconds` (60–1800; default 900).
 
-Returns HTTP 201 with a signed `token` and public `session` claims. Duplicate order references for one merchant return HTTP 409. The API resolves merchant identity from the stored API-key hash, not from browser input.
+Returns HTTP 201 with a signed `token` and public `session` claims. Duplicate order references for one merchant return HTTP 409. The API resolves merchant identity from the stored API-key hash or authenticated dashboard session, never from browser-supplied merchant IDs.
 
 ### `GET /api/checkout-session?token=...`
 
@@ -142,6 +153,14 @@ Accepts a signed checkout session and a quote request. Pelargo validates the ses
 The widget requests a dry quote first. A dry quote is a preview; it does not create deposit instructions or prove payment. After explicit buyer confirmation, the widget can request a committed quote, which can create real deposit instructions and potentially irreversible transfers. Keep committed mainnet quotes disabled.
 
 For committed quote handling, Pelargo consumes the session before contacting 1Click, overwrites the provider `sessionId` with the server-issued session JTI, and requires a provider correlation ID and deposit details before persisting the quote. An ambiguous upstream response leaves the session consumed; never retry automatically.
+
+### `GET /api/orders`
+
+Returns up to 100 recent orders for the authenticated merchant dashboard session.
+
+### `GET/PUT /api/merchant-settings`
+
+Reads or persists the authenticated merchant's business name, destination asset ID, symbol, network, token decimals and recipient.
 
 ### `GET /api/order?orderId=...`
 
