@@ -1091,7 +1091,12 @@ try {
     if (parsed.hostname === "www.usetidepool.tech" && parsed.pathname === "/v0/status") {
       return Response.json({
         correlationId: "origin-quote-test", status: "PROCESSING", quoteResponse,
-        swapDetails: { nearTxHashes: [], originChainTxHashes: [] },
+        swapDetails: {
+          nearTxHashes: [],
+          originChainTxHashes: [],
+          // The provider's documented shape may contain plain hash strings.
+          destinationChainTxHashes: ["vif8EKtCAzHcaihLNuC6XaRMhCzEDxUiHbAJJRQVUVE"],
+        },
       });
     }
     if (parsed.hostname === "www.usetidepool.tech" && parsed.pathname === "/v0/deposit/submit") {
@@ -1103,6 +1108,12 @@ try {
         correlationId: "origin-quote-test", status: "PROCESSING", quoteResponse,
         swapDetails: { nearTxHashes: [], originChainTxHashes: [{ hash: originTxHash }] },
       });
+    }
+    if (parsed.hostname === "near-rpc.test") {
+      return Response.json({ jsonrpc: "2.0", id: "test", result: { chain_id: "testnet" } });
+    }
+    if (parsed.hostname === "api-testnet.nearblocks.io") {
+      return Response.json({ data: [] });
     }
     if (parsed.hostname === "base-rpc.test") {
       const rpcRequest = JSON.parse(init.body);
@@ -1142,6 +1153,22 @@ try {
     assert.equal(
       sqlite.query("SELECT transaction_hash, amount_atomic, provider_submit_status FROM payment_origin_deposit_evidence WHERE order_id = ?").get(originOrderId).transaction_hash,
       originTxHash,
+    );
+
+    // Regression: status polling must retain a provider destination hash when
+    // the API returns the hash as a string rather than { hash: "..." }.
+    env.NEAR_RPC_URL = "https://near-rpc.test";
+    const stringHashStatus = await responseJson(await paymentStatus({
+      request: new Request("https://pelargo.test/api/payment-status?orderId=order-origin-valid", {
+        headers: { "x-pelargo-merchant-key": created.body.apiKey },
+      }),
+      env,
+    }));
+    assert.equal(stringHashStatus.status, 200, JSON.stringify(stringHashStatus.body));
+    assert.equal(
+      sqlite.query("SELECT destination_tx_candidate FROM payment_lifecycle WHERE order_id = ?").get(originOrderId).destination_tx_candidate,
+      "vif8EKtCAzHcaihLNuC6XaRMhCzEDxUiHbAJJRQVUVE",
+      "plain-string provider destination hashes must be persisted as settlement candidates",
     );
 
     // A different amount on the same token/recipient must be rejected before provider notification.
