@@ -77,7 +77,10 @@ The token UI expects the documented token array fields `assetId`, `decimals`, `b
 - **Failure policy:** if an upstream commit outcome is uncertain, the session remains consumed. Operator review is required; do not retry blindly.
 - **Required infrastructure:** create a Cloudflare D1 database, bind it as `DB` to the Pages Functions environment, apply `migrations/0001_checkout_storage.sql`, and configure `MERCHANT_PROVISIONING_SECRET` and `ORDER_SESSION_SECRET` as preview secrets.
 - **Not yet implemented:** self-serve merchant signup, merchant key rotation/revocation endpoint, rate limiting, webhook delivery and settlement verification.
-- **Not verified:** no D1 database has been provisioned or bound, no migration has been applied, and no preview tests have been run. Source code alone does not mean durable protection is active in the deployed environment.
+- **Added tests:** `scripts/verify-checkout-session.ts` checks valid HMAC sessions, token tampering, expiry, wrong signing secrets and missing secrets. CI now runs `bun run test:security` alongside type-check and build.
+- **CORS:** JSON API responses now include cross-origin headers for merchant-hosted embeds; quote preflight explicitly allows the embed origin pattern.
+- **Validation ordering:** committed-quote request fields are validated before the session is atomically consumed, preventing malformed requests from needlessly burning an order session.
+- **Not verified:** no D1 database has been provisioned or bound, no migration has been applied, and CI/build results for this latest code have not yet been confirmed. Cryptographic unit checks do not prove D1 transaction behavior or the complete payment lifecycle.
 
 ## Signed checkout session milestone
 
