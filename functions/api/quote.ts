@@ -1,5 +1,6 @@
 import { Env, forwardJson, intentsRequest, json } from "../_lib/intents";
 import { verifyCheckoutSession } from "../_lib/checkout-session";
+import { sha256Hex } from "../_lib/database";
 
 const MAX_BODY_BYTES = 12_000;
 
@@ -53,6 +54,14 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
   }
   const session = await verifyCheckoutSession(body.sessionToken, context.env);
   if (!session) return json({ error: "Checkout session is invalid or expired" }, 401);
+  if (!context.env.DB) return json({ error: "Durable checkout storage is not configured" }, 503);
+  const sessionHash = await sha256Hex(body.sessionToken);
+  const storedSession = await context.env.DB.prepare(
+    "SELECT status, expires_at FROM checkout_sessions WHERE jti = ? AND token_hash = ?"
+  ).bind(session.jti, sessionHash).first<{status:string;expires_at:string}>();
+  if (!storedSession || storedSession.status !== "active" || Date.parse(storedSession.expires_at) <= Date.now()) {
+    return json({ error: "Checkout session is expired, consumed or revoked" }, 410);
+  }
   if (
     body.swapType !== "EXACT_OUTPUT" ||
     body.amount !== session.amountAtomic ||
@@ -72,6 +81,18 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
       error: "Mainnet deposit quotes are disabled. Only dry-run quotes are currently permitted.",
       code: "MAINNET_DEPOSITS_DISABLED",
     }, 403);
+  }
+
+  // Atomically consume the session before a committed quote is forwarded.
+  // If the upstream outcome is uncertain, the session remains consumed rather
+  // than allowing a second commit attempt that could create duplicate deposits.
+  if (body.dry === false) {
+    const claimed = await context.env.DB.prepare(
+      "UPDATE checkout_sessions SET status = 'commit_attempted', consumed_at = ? WHERE jti = ? AND token_hash = ? AND status = 'active' AND expires_at > ?"
+    ).bind(new Date().toISOString(), session.jti, sessionHash, new Date().toISOString()).run();
+    if (!claimed.success || (claimed.meta?.changes ?? 0) !== 1) {
+      return json({ error: "Checkout session has already been used or expired" }, 409);
+    }
   }
 
   const enumFields: Record<string, string[]> = {
