@@ -75,6 +75,15 @@ The Checkout workspace now renders a reusable `PelargoCheckout` component. It lo
 - Merchant and order persistence is implemented against the D1 interface. A NEAR NEP-141 settlement verifier is now implemented and covered by mocked integration tests; live D1/RPC validation and webhook delivery remain outstanding.
 - No public SDK/CDN package is published.
 
+## Latest infrastructure verification — 5 November 2026
+
+- Production Pages project has a `DB` binding to D1 database `pelargo-db`; all eight migrations are recorded in order.
+- Synthetic D1 lifecycle tests confirmed order/session synchronization and audit events. A settlement attempt without matching evidence was rejected. Temporary test records were removed.
+- The documentation PR preview built successfully at https://1af1cb9f.pelargo.pages.dev. This is a preview only, not a production deployment or proof that the deployed Functions can access D1.
+- Cloudflare configuration currently shows no production or preview secret variables. Production has the D1 binding; preview has no D1 binding. Production merchant provisioning and session issuance are not ready until `MERCHANT_PROVISIONING_SECRET` and `ORDER_SESSION_SECRET` are configured.
+- `PRAGMA integrity_check` remains unverified because the D1 query API returned `SQLITE_AUTH`. Manual foreign-key orphan checks passed.
+- Keep `ALLOW_MAINNET_DEPOSITS` unset. No real payment has been executed.
+
 ## Payment safety
 
 NEAR Intents 1Click is treated as a mainnet service in this implementation. A dry quote is a preview and does not create a deposit address. A committed quote creates real payment instructions and can lead to real, potentially irreversible transfers.
