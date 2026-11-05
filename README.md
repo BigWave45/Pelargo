@@ -79,8 +79,9 @@ The Checkout workspace now renders a reusable `PelargoCheckout` component. It lo
 
 - Production Pages project has a `DB` binding to D1 database `pelargo-db`; all eight migrations are recorded in order.
 - Synthetic D1 lifecycle tests confirmed order/session synchronization and audit events. A settlement attempt without matching evidence was rejected. Temporary test records were removed.
-- The documentation PR preview built successfully at https://1af1cb9f.pelargo.pages.dev. This is a preview only, not a production deployment or proof that the deployed Functions can access D1.
-- Cloudflare configuration currently shows no production or preview secret variables. Production has the D1 binding; preview has no D1 binding. Production merchant provisioning and session issuance are not ready until `MERCHANT_PROVISIONING_SECRET` and `ORDER_SESSION_SECRET` are configured.
+- The latest PR preview built successfully at https://2d869dc1.pelargo.pages.dev for commit `8968cfc`. GitHub Actions `verify` and Cloudflare Pages checks passed.
+- Cloudflare Pages configuration contains separate encrypted-secret entries named `MERCHANT_PROVISIONING_SECRET` and `ORDER_SESSION_SECRET` in both production and preview. Cloudflare redacts secret values on read-back, so this confirms configured names, not the correctness or runtime usability of the values.
+- Production `DB` is bound to `pelargo-db`; preview `DB` is now bound to the isolated `pelargo-preview-db`. The preview binding was added after the latest preview deployment, so a fresh preview deployment and runtime smoke test are still required.
 - `PRAGMA integrity_check` remains unverified because the D1 query API returned `SQLITE_AUTH`. Manual foreign-key orphan checks passed.
 - Keep `ALLOW_MAINNET_DEPOSITS` unset. No real payment has been executed.
 
@@ -120,11 +121,9 @@ The active branch adds a Cloudflare D1-backed merchant/order/session model.
 ### One-time infrastructure setup
 
 1. The Cloudflare Pages project `pelargo` is connected to the D1 database `pelargo-db` (`eae6ecc8-d79d-4d12-8a37-2d38ab84a0b1`).
-2. The production Pages environment has a `DB` binding to that database. Preview has no confirmed binding and is intentionally not treated as production-ready.
+2. Production Pages `DB` is bound to `pelargo-db`; preview Pages `DB` is bound to the isolated `pelargo-preview-db`.
 3. Migrations `0001` through `0008` have been applied directly to D1 and reconciled with the `d1_migrations` history table in numerical order.
-4. Before deploying application changes, configure these as encrypted production Pages secrets:
-   - `MERCHANT_PROVISIONING_SECRET`: high-entropy provisioning secret.
-   - `ORDER_SESSION_SECRET`: random signing secret of at least 32 characters.
+4. Both environments have separate encrypted entries for `MERCHANT_PROVISIONING_SECRET` and `ORDER_SESSION_SECRET`. Cloudflare redacts secret values in API read-back; verify runtime behavior through authenticated tests. Never copy production values into preview.
 5. Call `POST /api/merchant` from a trusted operator environment with `X-Pelargo-Provisioning-Key` to create a merchant. The API key is returned once; store it securely.
 6. The merchant's own server calls `POST /api/checkout-session` with `X-Pelargo-Merchant-Key`. The merchant identity and name are resolved from the stored API-key hash, not accepted from the browser request.
 
