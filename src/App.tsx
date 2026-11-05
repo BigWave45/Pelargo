@@ -146,6 +146,9 @@ export default function App() {
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
+  const [recoveryOrderId, setRecoveryOrderId] = useState("");
+  const [sourceTransactionHash, setSourceTransactionHash] = useState("");
+  const [recoveryBusy, setRecoveryBusy] = useState(false);
 
   async function refreshWorkspace() {
     const [profile, activity] = await Promise.all([
@@ -214,6 +217,26 @@ export default function App() {
     finally { setBusy(false); }
   }
 
+  async function submitSourceDeposit(event: React.FormEvent) {
+    event.preventDefault();
+    if (!recoveryOrderId) return;
+    setRecoveryBusy(true); setError(""); setNotice("");
+    try {
+      const result = await api<{
+        originDeposit: string; providerNotification: string; providerStatus: string;
+        sourceTransactionHash: string; nearTxHashes?: string[];
+      }>("/api/deposit-submit", {
+        method: "POST",
+        body: JSON.stringify({ orderId: recoveryOrderId, transactionHash: sourceTransactionHash.trim() }),
+      });
+      await refreshWorkspace();
+      setNotice(`Source deposit verified and submitted to provider. Provider status: ${result.providerStatus}.`);
+      setSourceTransactionHash("");
+      setRecoveryOrderId("");
+    } catch (e) { setError(e instanceof Error ? e.message : "Unable to reconcile source deposit."); }
+    finally { setRecoveryBusy(false); }
+  }
+
   async function logout() {
     await api("/api/auth/logout", { method: "POST", body: "{}" }).catch(() => undefined);
     setMerchant(null); setAuthChecked(true);
@@ -246,8 +269,14 @@ export default function App() {
           <div className="section-heading"><div><h2>Payment activity</h2><p>Orders belonging to this merchant account.</p></div><button className="quiet-button" onClick={() => refreshWorkspace().catch(e => setError(String(e)))}><RefreshCw size={14} /> Refresh</button></div>
           <section className="workspace-card">
             {orders.length === 0 ? <div className="empty-state"><div className="empty-icon"><Radio size={20} /></div><strong>No checkout orders yet</strong><p>Save a destination and create your first checkout link.</p></div> :
-              <div className="order-list">{orders.map(order => <div className="order-row" key={order.orderId}><div><strong>{order.orderId}</strong><span>{order.destinationSymbol || "Asset"} · {new Date(order.createdAt).toLocaleString()}</span></div><span className="readiness-state state-pending">{order.status.replaceAll("_", " ")}</span></div>)}</div>}
+              <div className="order-list">{orders.map(order => <div className="order-row" key={order.orderId}><div><strong>{order.orderId}</strong><span>{order.destinationSymbol || "Asset"} · {new Date(order.createdAt).toLocaleString()}</span></div><span className="readiness-state state-pending">{order.status.replaceAll("_", " ")}</span>{["quote_committed", "awaiting_deposit", "deposit_detected", "processing"].includes(order.status) && <button className="quiet-button" type="button" onClick={() => { setRecoveryOrderId(order.orderId); setSourceTransactionHash(""); }}>Reconcile deposit</button>}</div>)}</div>}
           </section>
+          {recoveryOrderId && <form className="form-panel" onSubmit={submitSourceDeposit}>
+            <div className="form-panel-heading"><span className="form-icon"><ShieldCheck size={18} /></span><div><h2>Reconcile source deposit</h2><p>Submit the existing source-chain transaction for {recoveryOrderId}. Pelargo verifies the token contract, deposit address and exact quoted amount before notifying the provider. This does not move funds.</p></div></div>
+            <label className="field-label" htmlFor="source-transaction-hash">Base Sepolia transaction hash</label>
+            <input id="source-transaction-hash" className="workspace-input mono-input" value={sourceTransactionHash} onChange={e => setSourceTransactionHash(e.target.value)} placeholder="0x…" required pattern="0x[a-fA-F0-9]{64}" maxLength={66} />
+            <div className="form-footer"><button className="quiet-button" type="button" onClick={() => setRecoveryOrderId("")}>Cancel</button><button className="primary-button" disabled={recoveryBusy}>{recoveryBusy ? "Verifying deposit…" : "Verify and notify provider"} <ArrowUpRight size={15} /></button></div>
+          </form>}
         </>}
         {section === "destination" && <>
           <div className="workspace-heading-row"><div><div className="eyebrow">MERCHANT CONFIGURATION</div><h1>Payment destination</h1><p className="workspace-subtitle">Set the asset and NEAR address your business wants to receive.</p></div></div>
@@ -278,7 +307,7 @@ export default function App() {
         </>}
         {section === "developers" && <>
           <div className="workspace-heading-row"><div><div className="eyebrow">DEVELOPER TOOLS</div><h1>Integration</h1><p className="workspace-subtitle">Use the server-side API to create signed checkout sessions for your own orders.</p></div></div>
-          <section className="workspace-card api-card"><div className="card-heading"><div><h3>Available endpoints</h3><p>Merchant dashboard uses secure cookie sessions. Server integrations use merchant API credentials.</p></div><Code2 size={17} /></div><div className="api-row"><code>POST /api/checkout-session</code><span>Create a signed order session.</span></div><div className="api-row"><code>GET /api/order?orderId=…</code><span>Retrieve an order scoped to the authenticated merchant.</span></div><div className="api-row"><code>GET /api/payment-status?orderId=…</code><span>Poll payment status; paid state requires independent settlement verification.</span></div></section>
+          <section className="workspace-card api-card"><div className="card-heading"><div><h3>Available endpoints</h3><p>Merchant dashboard uses secure cookie sessions. Server integrations use merchant API credentials.</p></div><Code2 size={17} /></div><div className="api-row"><code>POST /api/checkout-session</code><span>Create a signed order session.</span></div><div className="api-row"><code>GET /api/order?orderId=…</code><span>Retrieve an order scoped to the authenticated merchant.</span></div><div className="api-row"><code>GET /api/payment-status?orderId=…</code><span>Poll payment status; paid state requires independent settlement verification.</span></div><div className="api-row"><code>POST /api/deposit-submit</code><span>Verify an origin-chain deposit against the saved quote and notify the provider.</span></div></section>
           <div className="notice-panel"><strong>Testnet readiness is still being verified.</strong><p>Do not use this checkout for mainnet payments. A committed quote creates deposit instructions; the buyer must still send funds, and Pelargo marks an order paid only after independent settlement verification.</p></div>
         </>}
         <footer className="workspace-footer"><span>Pelargo</span><span>Merchant checkout infrastructure</span><span>Testnet · Mainnet deposits disabled</span></footer>
