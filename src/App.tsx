@@ -1,162 +1,276 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { PelargoCheckout } from "./components/PelargoCheckout.tsx";
 import {
-  ArrowUpRight, Check, ChevronDown, Code2, Copy, ExternalLink,
-  FileCode2, LayoutDashboard, Link2, Radio, Settings2, ShieldCheck,
-  Wallet, Webhook, CircleHelp, Menu
+  ArrowUpRight, Check, Copy, LayoutDashboard, LogOut, Menu, Radio,
+  Settings2, ShieldCheck, Wallet, Code2, Link2, RefreshCw
 } from "lucide-react";
 import "./styles/workspace.css";
 
+type Merchant = { id: string; name: string; email: string };
+type Settings = {
+  name: string;
+  destinationAsset: string | null;
+  destinationSymbol: string | null;
+  destinationNetwork: string | null;
+  recipient: string | null;
+  destinationDecimals: number;
+};
+type Order = {
+  orderId: string; amountAtomic: string; destinationSymbol: string | null;
+  destinationNetwork: string | null; status: string; createdAt: string; expiresAt: string;
+};
+type CheckoutSession = {
+  merchantId: string; merchantName: string; orderId: string; amount: string;
+  amountAtomic: string; destinationAsset: string; destinationSymbol: string;
+  destinationNetwork: string; recipient: string; expiresAt: string;
+};
 type Section = "overview" | "destination" | "checkout" | "developers";
 
-const navigation: { id: Section; label: string; icon: React.ElementType }[] = [
+const nav: { id: Section; label: string; icon: React.ElementType }[] = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "destination", label: "Payment destination", icon: Wallet },
-  { id: "checkout", label: "Checkout", icon: Settings2 },
+  { id: "checkout", label: "Create checkout", icon: Settings2 },
   { id: "developers", label: "Developers", icon: Code2 },
 ];
 
+async function api<T>(url: string, init: RequestInit = {}): Promise<T> {
+  const response = await fetch(url, {
+    ...init,
+    credentials: "same-origin",
+    headers: { "content-type": "application/json", ...(init.headers ?? {}) },
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || `Request failed (${response.status})`);
+  return data as T;
+}
+
+function toAtomic(amount: string, decimals: number): string {
+  if (!/^\d+(\.\d+)?$/.test(amount)) throw new Error("Enter a valid positive amount.");
+  const [whole, fraction = ""] = amount.split(".");
+  if (fraction.length > decimals) throw new Error(`This destination supports at most ${decimals} decimal places.`);
+  const value = BigInt(whole) * (10n ** BigInt(decimals)) +
+    BigInt((fraction + "0".repeat(decimals)).slice(0, decimals) || "0");
+  if (value <= 0n) throw new Error("Amount must be greater than zero.");
+  return value.toString();
+}
+
+function AuthScreen({ onAuthenticated }: { onAuthenticated: (merchant: Merchant) => void }) {
+  const [mode, setMode] = useState<"register" | "login">("register");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    setBusy(true); setError("");
+    try {
+      const data = await api<{ merchant: Merchant }>(`/api/auth/${mode}`, {
+        method: "POST",
+        body: JSON.stringify(mode === "register" ? { name, email, password } : { email, password }),
+      });
+      onAuthenticated(data.merchant);
+    } catch (e) { setError(e instanceof Error ? e.message : "Unable to authenticate."); }
+    finally { setBusy(false); }
+  }
+
+  return <div className="auth-shell">
+    <div className="auth-card">
+      <a className="workspace-brand auth-brand" href="/"><span className="workspace-brand-mark">p</span><span>pelargo</span></a>
+      <div className="eyebrow">MERCHANT WORKSPACE</div>
+      <h1>{mode === "register" ? "Create your merchant account" : "Welcome back"}</h1>
+      <p className="workspace-subtitle">{mode === "register" ? "Set up your checkout workspace. Buyers do not need Pelargo accounts." : "Sign in to manage your checkout and payment activity."}</p>
+      <form onSubmit={submit}>
+        {mode === "register" && <><label className="field-label" htmlFor="auth-name">Business name</label><input id="auth-name" className="workspace-input" value={name} onChange={e => setName(e.target.value)} autoComplete="organization" required maxLength={120} /></>}
+        <label className="field-label" htmlFor="auth-email">Email address</label>
+        <input id="auth-email" className="workspace-input" type="email" value={email} onChange={e => setEmail(e.target.value)} autoComplete="email" required maxLength={254} />
+        <label className="field-label" htmlFor="auth-password">Password</label>
+        <input id="auth-password" className="workspace-input" type="password" value={password} onChange={e => setPassword(e.target.value)} autoComplete={mode === "register" ? "new-password" : "current-password"} required minLength={mode === "register" ? 12 : 1} maxLength={128} />
+        {mode === "register" && <p className="field-hint">Use at least 12 characters. This password protects access to your merchant workspace.</p>}
+        {error && <div className="notice-panel auth-error" role="alert">{error}</div>}
+        <button className="primary-button auth-submit" disabled={busy}>{busy ? "Please wait…" : mode === "register" ? "Create account" : "Sign in"} <ArrowUpRight size={15} /></button>
+      </form>
+      <p className="auth-switch">{mode === "register" ? "Already have an account?" : "New to Pelargo?"} <button type="button" onClick={() => { setMode(mode === "register" ? "login" : "register"); setError(""); }}>{mode === "register" ? "Sign in" : "Create an account"}</button></p>
+      <p className="auth-footnote">Merchant accounts are for configuring checkout. Payment execution remains subject to network and settlement controls.</p>
+    </div>
+  </div>;
+}
+
+function BuyerCheckout({ token }: { token: string }) {
+  const [session, setSession] = useState<CheckoutSession | null>(null);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    let live = true;
+    api<{ session: CheckoutSession }>(`/api/checkout-session?token=${encodeURIComponent(token)}`)
+      .then(data => { if (live) setSession(data.session); })
+      .catch(e => { if (live) setError(e instanceof Error ? e.message : "Checkout session unavailable."); });
+    return () => { live = false; };
+  }, [token]);
+  if (error) return <div className="auth-shell"><div className="auth-card"><h1>Checkout unavailable</h1><p>{error}</p></div></div>;
+  if (!session) return <div className="auth-shell"><div className="auth-card">Loading secure checkout…</div></div>;
+  return <main className="buyer-checkout-shell">
+    <div className="buyer-checkout-head"><a className="workspace-brand" href="/"><span className="workspace-brand-mark">p</span><span>pelargo</span></a><span>Secure checkout</span></div>
+    <div className="buyer-checkout-card">
+      <div className="eyebrow">PAYMENT REQUEST</div><h1>Pay {session.merchantName}</h1>
+      <p className="workspace-subtitle">Order {session.orderId} · {session.amount} {session.destinationSymbol}</p>
+      <PelargoCheckout merchantName={session.merchantName} destinationSymbol={session.destinationSymbol}
+        destinationNetwork={session.destinationNetwork} recipient={session.recipient} orderId={session.orderId}
+        amount={session.amount} fixedAmount sessionToken={token} />
+      <p className="auth-footnote">Only send funds to the deposit instructions generated by this checkout. Creating a quote does not send funds.</p>
+    </div>
+  </main>;
+}
+
 export default function App() {
+  const buyerToken = useMemo(() => new URLSearchParams(window.location.search).get("checkout") || "", []);
+  const [merchant, setMerchant] = useState<Merchant | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
   const [section, setSection] = useState<Section>("overview");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const [merchantName, setMerchantName] = useState("Your business");
-  const [asset, setAsset] = useState("USDC");
-  const [network, setNetwork] = useState("Base");
-  const [recipient, setRecipient] = useState("");
+  const [settings, setSettings] = useState<Settings>({
+    name: "", destinationAsset: "", destinationSymbol: "USDC",
+    destinationNetwork: "NEAR", recipient: "", destinationDecimals: 6,
+  });
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [amount, setAmount] = useState("1.00");
+  const [orderId, setOrderId] = useState(`ORDER-${Date.now().toString().slice(-8)}`);
+  const [createdLink, setCreatedLink] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState("");
+  const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
 
-  const copySnippet = async () => {
-    const snippet = `<script type="module" src="https://YOUR_PELARGO_HOST/pelargo.js"></script>
-<pelargo-checkout
-  merchant-name="${merchantName || "Your business"}"
-  amount="25.00"
-  order-id="ORDER-123"
-  destination-symbol="${asset}"
-  destination-network="${network}"
-  recipient="${recipient || "YOUR_RECIPIENT_ADDRESS"}"
-  session-token="SIGNED_SESSION_TOKEN">
-</pelargo-checkout>`;
+  async function refreshWorkspace() {
+    const [profile, activity] = await Promise.all([
+      api<{ settings: Settings }>("/api/merchant-settings"),
+      api<{ orders: Order[] }>("/api/orders"),
+    ]);
+    setSettings(profile.settings);
+    setOrders(activity.orders);
+  }
+
+  useEffect(() => {
+    if (buyerToken) return;
+    api<{ merchant: Merchant }>("/api/auth/session")
+      .then(data => setMerchant(data.merchant))
+      .catch(() => setMerchant(null))
+      .finally(() => setAuthChecked(true));
+  }, [buyerToken]);
+
+  useEffect(() => {
+    if (!merchant) return;
+    refreshWorkspace().catch(e => setError(e instanceof Error ? e.message : "Unable to load workspace."));
+  }, [merchant]);
+
+  if (buyerToken) return <BuyerCheckout token={buyerToken} />;
+  if (!authChecked) return <div className="auth-shell"><div className="auth-card">Loading Pelargo…</div></div>;
+  if (!merchant) return <AuthScreen onAuthenticated={setMerchant} />;
+
+  async function saveSettings(event: React.FormEvent) {
+    event.preventDefault(); setBusy(true); setError(""); setNotice("");
     try {
-      await navigator.clipboard.writeText(snippet);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1800);
-    } catch {
-      setCopied(false);
-    }
-  };
+      await api("/api/merchant-settings", { method: "PUT", body: JSON.stringify(settings) });
+      await refreshWorkspace();
+      setNotice("Payment destination saved.");
+    } catch (e) { setError(e instanceof Error ? e.message : "Unable to save settings."); }
+    finally { setBusy(false); }
+  }
 
-  const title = navigation.find((item) => item.id === section)?.label ?? "Overview";
+  async function createCheckout(event: React.FormEvent) {
+    event.preventDefault(); setBusy(true); setError(""); setNotice(""); setCreatedLink("");
+    try {
+      if (!settings.destinationAsset || !settings.destinationSymbol || !settings.recipient) {
+        throw new Error("Save a payment destination before creating a checkout.");
+      }
+      const atomic = toAtomic(amount, settings.destinationDecimals);
+      const result = await api<{ token: string; session: CheckoutSession }>("/api/checkout-session", {
+        method: "POST",
+        body: JSON.stringify({
+          orderId, amount, amountAtomic: atomic,
+          destinationAsset: settings.destinationAsset,
+          destinationSymbol: settings.destinationSymbol,
+          destinationNetwork: settings.destinationNetwork || "NEAR",
+          recipient: settings.recipient,
+          expiresInSeconds: 900,
+        }),
+      });
+      const link = `${window.location.origin}/?checkout=${encodeURIComponent(result.token)}`;
+      setCreatedLink(link);
+      await refreshWorkspace();
+      setNotice("Checkout link created. Share it with your buyer.");
+    } catch (e) { setError(e instanceof Error ? e.message : "Unable to create checkout."); }
+    finally { setBusy(false); }
+  }
 
-  return (
-    <div className="workspace">
-      <aside className={`workspace-sidebar ${mobileNavOpen ? "workspace-sidebar--open" : ""}`}>
-        <a className="workspace-brand" href="#" onClick={(event) => { event.preventDefault(); setSection("overview"); }}>
-          <span className="workspace-brand-mark">p</span>
-          <span>pelargo</span>
-        </a>
-        <div className="workspace-side-label">WORKSPACE</div>
-        <nav className="workspace-nav" aria-label="Main navigation">
-          {navigation.map(({ id, label, icon: Icon }) => (
-            <button key={id} className={`workspace-nav-item ${section === id ? "is-active" : ""}`}
-              onClick={() => { setSection(id); setMobileNavOpen(false); }}>
-              <Icon size={17} strokeWidth={1.8} /><span>{label}</span>
-            </button>
-          ))}
-        </nav>
-        <div className="workspace-sidebar-bottom">
-          <div className="workspace-help"><CircleHelp size={16} /><span>Documentation</span><ArrowUpRight size={13} /></div>
-          <div className="workspace-profile">
-            <div className="workspace-avatar">YB</div>
-            <div className="workspace-profile-copy"><strong>Workspace owner</strong><span>Merchant account</span></div>
-            <ChevronDown size={15} />
-          </div>
-        </div>
-      </aside>
+  async function logout() {
+    await api("/api/auth/logout", { method: "POST", body: "{}" }).catch(() => undefined);
+    setMerchant(null); setAuthChecked(true);
+  }
 
-      <main className="workspace-main">
-        <header className="workspace-topbar">
-          <button className="workspace-mobile-menu" onClick={() => setMobileNavOpen(!mobileNavOpen)} aria-label="Toggle navigation"><Menu size={20} /></button>
-          <div className="workspace-breadcrumb"><span>Workspace</span><span className="breadcrumb-slash">/</span><strong>{title}</strong></div>
-          <div className="workspace-topbar-right"><span className="environment-pill"><i /> Prototype environment</span><button className="workspace-help-icon" aria-label="Help"><CircleHelp size={18} /></button></div>
-        </header>
-
-        <div className="workspace-content">
-          {section === "overview" && (
-            <>
-              <div className="workspace-heading-row">
-                <div><div className="eyebrow">MERCHANT WORKSPACE</div><h1>Overview</h1><p className="workspace-subtitle">Configure how your customers pay and how your business receives settlement.</p></div>
-                <button className="quiet-button" onClick={() => setSection("destination")}><Settings2 size={15} /> Configure payments</button>
-              </div>
-
-              <section className="welcome-panel">
-                <div className="welcome-copy"><div className="eyebrow light">GETTING STARTED</div><h2>One checkout. Multiple payment networks.</h2><p>Accept payment in supported assets while defining the asset and address your business wants to receive.</p><button className="welcome-link" onClick={() => setSection("destination")}>Set up your destination <ArrowUpRight size={15} /></button></div>
-                <div className="welcome-art" aria-hidden="true"><div className="orbit orbit-one" /><div className="orbit orbit-two" /><div className="orbit-core">p</div><span className="orbit-node node-one">◎</span><span className="orbit-node node-two">Ξ</span><span className="orbit-node node-three">◈</span></div>
-              </section>
-
-              <div className="section-heading"><div><h2>Workspace readiness</h2><p>Current prototype state. These indicators do not represent live payment readiness.</p></div><span className="status-outline">Prototype</span></div>
-              <div className="setup-grid">
-                <button className="setup-card" onClick={() => setSection("destination")}><span className="setup-icon"><Wallet size={18} /></span><span className="setup-card-copy"><strong>Payment destination</strong><small>Choose the asset and wallet address to receive.</small><em>Configure destination <ArrowUpRight size={13} /></em></span><span className="setup-number">01</span></button>
-                <button className="setup-card" onClick={() => setSection("checkout")}><span className="setup-icon"><Settings2 size={18} /></span><span className="setup-card-copy"><strong>Checkout preferences</strong><small>Review the buyer payment experience.</small><em>Review checkout <ArrowUpRight size={13} /></em></span><span className="setup-number">02</span></button>
-                <button className="setup-card" onClick={() => setSection("developers")}><span className="setup-icon"><FileCode2 size={18} /></span><span className="setup-card-copy"><strong>Integration</strong><small>Prepare your website integration.</small><em>View integration <ArrowUpRight size={13} /></em></span><span className="setup-number">03</span></button>
-              </div>
-
-              <div className="workspace-bottom-grid">
-                <section className="workspace-card"><div className="card-heading"><div><h3>Payment activity</h3><p>Verified settlement events will appear here.</p></div><span className="muted-tag">No live data</span></div><div className="empty-state"><div className="empty-icon"><Radio size={20} /></div><strong>No payment activity yet</strong><p>Transactions will appear after checkout is connected and a settlement is verified.</p></div></section>
-                <section className="workspace-card readiness-card"><div className="card-heading"><div><h3>Service readiness</h3><p>Current integration state</p></div><ShieldCheck size={18} /></div><div className="readiness-row"><span>Token discovery API</span><span className="readiness-state state-unverified">Needs verification</span></div><div className="readiness-row"><span>Quote generation</span><span className="readiness-state state-unverified">Needs verification</span></div><div className="readiness-row"><span>Settlement tracking</span><span className="readiness-state state-pending">Not connected</span></div><p className="readiness-note">No live payment processing is enabled. This workspace does not report simulated transactions as real activity.</p></section>
-              </div>
-            </>
-          )}
-
-          {section === "destination" && (
-            <>
-              <div className="workspace-heading-row"><div><div className="eyebrow">CONFIGURATION PREVIEW</div><h1>Payment destination</h1><p className="workspace-subtitle">Enter destination details for the local checkout preview. These values are not saved to a merchant account.</p></div><span className="draft-pill">Unsaved draft</span></div>
-              <section className="form-panel">
-                <div className="form-panel-heading"><span className="form-icon"><Wallet size={18} /></span><div><h2>Preview destination</h2><p>These fields currently configure only the local checkout preview.</p></div></div>
-                <label className="field-label" htmlFor="merchant-name">Business name</label><input id="merchant-name" className="workspace-input" value={merchantName} onChange={(e) => setMerchantName(e.target.value)} placeholder="Your business name" />
-                <div className="field-grid"><div><label className="field-label" htmlFor="asset">Settlement asset</label><select id="asset" className="workspace-input" value={asset} onChange={(e) => setAsset(e.target.value)}><option>USDC</option><option>USDT</option><option>ETH</option><option>NEAR</option></select></div><div><label className="field-label" htmlFor="network">Network</label><select id="network" className="workspace-input" value={network} onChange={(e) => setNetwork(e.target.value)}><option value="NEAR">NEAR (NEP-141 verifier only)</option></select></div></div>
-                <label className="field-label" htmlFor="recipient">Recipient wallet address</label><input id="recipient" className="workspace-input mono-input" value={recipient} onChange={(e) => setRecipient(e.target.value)} placeholder="Enter a public wallet address" />
-                <div className="field-hint"><ShieldCheck size={14} /> Use a public recipient address only. The current settlement verifier covers NEAR NEP-141 on mainnet; testnet compatibility is not yet confirmed. Never enter a seed phrase or private key.</div>
-                <div className="form-footer"><span>Merchant settings persistence is not implemented.</span><button className="primary-button" type="button" disabled>Saving unavailable <ArrowUpRight size={15} /></button></div>
-              </section>
-              <div className="notice-panel"><strong>Configuration is not connected to the merchant backend.</strong><p>Changing these values updates the local preview only. Do not treat this form as a saved merchant destination or use it to authorize a real payment.</p></div>
-            </>
-          )}
-
-          {section === "checkout" && (
-            <>
-              <div className="workspace-heading-row"><div><div className="eyebrow">INTENTS ROUTE DISCOVERY</div><h1>Checkout assets</h1><p className="workspace-subtitle">Pelargo reads the currently supported source assets from NEAR Intents. The embeddable buyer flow will use this catalogue dynamically.</p></div><span className="draft-pill">Live API · read only</span></div>
-              <PelargoCheckout
-                merchantName={merchantName}
-                destinationSymbol={asset}
-                destinationNetwork={network}
-                recipient={recipient}
-                orderId="LOCAL-PREVIEW"
-              />
-              <div className="notice-panel"><strong>Quote preview only.</strong><p>This component uses live token discovery and requests a dry exact-output quote. It does not connect a wallet, create a deposit address, initiate a transfer or mark an order paid. Configure a compatible destination and recipient address first.</p></div>
-            </>
-          )}
-
-          {section === "developers" && (
-            <>
-              <div className="workspace-heading-row"><div><div className="eyebrow">BUILD WITH PELARGO</div><h1>Developer integration</h1><p className="workspace-subtitle">Connect Pelargo to your existing checkout rather than sending customers to a separate storefront.</p></div><span className="draft-pill">SDK in development</span></div>
-              <section className="integration-panel"><div className="integration-panel-copy"><span className="integration-icon"><Code2 size={19} /></span><h2>Embed checkout</h2><p>The intended integration is a lightweight checkout component configured with an order amount and your verified settlement destination.</p><div className="integration-facts"><div><Check size={15} /><span>Merchant-defined settlement asset</span></div><div><Check size={15} /><span>Buyer-selected supported payment asset</span></div><div><Check size={15} /><span>Settlement verification before paid status</span></div></div></div><div className="code-panel"><div className="code-panel-head"><span>HTML · PROPOSED API</span><button onClick={copySnippet}><Copy size={14} />{copied ? "Copied" : "Copy"}</button></div><pre>{`<script type="module" src="https://YOUR_PELARGO_HOST/pelargo.js"></script>
-<pelargo-checkout
-  merchant-name="${merchantName || "Your business"}"
-  amount="25.00"
-  order-id="ORDER-123"
-  destination-symbol="${asset}"
-  destination-network="${network}"
-  recipient="${recipient || "YOUR_RECIPIENT_ADDRESS"}"
-  session-token="SHORT_LIVED_SIGNED_SESSION_TOKEN"
-  button-label="Pay with crypto">
-</pelargo-checkout>`}</pre><div className="code-panel-foot">Embed contract preview. Replace the host and order values; do not use client-supplied attributes as trusted payment authority.</div></div></section>
-              <div className="notice-panel"><strong>Integration is not ready for production.</strong><p>The public SDK, authenticated order creation, webhook delivery and persistent order records have not been implemented. Do not paste this illustrative snippet into a live store.</p></div>
-              <section className="workspace-card api-card"><div className="card-heading"><div><h3>API surface</h3><p>Server-side routes currently present in this branch.</p></div><Link2 size={17} /></div><div className="api-row"><code>GET /api/tokens</code><span>Provider asset discovery · live compatibility not yet verified</span></div><div className="api-row"><code>POST /api/quote</code><span>Session-bound dry quote path · committed flow unverified</span></div><div className="api-row"><code>GET /api/payment-status</code><span>Merchant-authenticated polling · settlement requires independent NEAR verification</span></div></section>
-            </>
-          )}
-          <footer className="workspace-footer"><span>Pelargo</span><span>Merchant checkout infrastructure</span><span>Prototype · Mainnet deposits disabled</span></footer>
-        </div>
-      </main>
-    </div>
-  );
+  const title = nav.find(item => item.id === section)?.label ?? "Overview";
+  return <div className="workspace">
+    <aside className={`workspace-sidebar ${mobileNavOpen ? "workspace-sidebar--open" : ""}`}>
+      <a className="workspace-brand" href="#" onClick={e => { e.preventDefault(); setSection("overview"); }}><span className="workspace-brand-mark">p</span><span>pelargo</span></a>
+      <div className="workspace-side-label">WORKSPACE</div>
+      <nav className="workspace-nav" aria-label="Main navigation">
+        {nav.map(({ id, label, icon: Icon }) => <button key={id} className={`workspace-nav-item ${section === id ? "is-active" : ""}`} onClick={() => { setSection(id); setMobileNavOpen(false); }}><Icon size={17} /><span>{label}</span></button>)}
+      </nav>
+      <div className="workspace-sidebar-bottom">
+        <div className="workspace-profile"><div className="workspace-avatar">{merchant.name.slice(0, 2).toUpperCase()}</div><div className="workspace-profile-copy"><strong>{merchant.name}</strong><span>{merchant.email}</span></div><button className="icon-action" onClick={logout} aria-label="Sign out"><LogOut size={15} /></button></div>
+      </div>
+    </aside>
+    <main className="workspace-main">
+      <header className="workspace-topbar">
+        <button className="workspace-mobile-menu" onClick={() => setMobileNavOpen(!mobileNavOpen)} aria-label="Toggle navigation"><Menu size={20} /></button>
+        <div className="workspace-breadcrumb"><span>Workspace</span><span className="breadcrumb-slash">/</span><strong>{title}</strong></div>
+        <div className="workspace-topbar-right"><span className="environment-pill"><i /> Testnet checkout</span></div>
+      </header>
+      <div className="workspace-content">
+        {error && <div className="notice-panel auth-error" role="alert">{error}</div>}
+        {notice && <div className="notice-panel auth-success" role="status">{notice}</div>}
+        {section === "overview" && <>
+          <div className="workspace-heading-row"><div><div className="eyebrow">MERCHANT WORKSPACE</div><h1>Overview</h1><p className="workspace-subtitle">Manage your settlement destination and create buyer checkout links.</p></div><button className="quiet-button" onClick={() => setSection("destination")}><Settings2 size={15} /> Configure payments</button></div>
+          <section className="welcome-panel"><div className="welcome-copy"><div className="eyebrow light">PE LARGO CHECKOUT</div><h2>One checkout. Multiple payment networks.</h2><p>Buyers choose a supported source asset. Your business defines its settlement destination.</p><button className="welcome-link" onClick={() => setSection("checkout")}>Create a checkout <ArrowUpRight size={15} /></button></div><div className="welcome-art" aria-hidden="true"><div className="orbit orbit-one" /><div className="orbit orbit-two" /><div className="orbit-core">p</div></div></section>
+          <div className="section-heading"><div><h2>Payment activity</h2><p>Orders belonging to this merchant account.</p></div><button className="quiet-button" onClick={() => refreshWorkspace().catch(e => setError(String(e)))}><RefreshCw size={14} /> Refresh</button></div>
+          <section className="workspace-card">
+            {orders.length === 0 ? <div className="empty-state"><div className="empty-icon"><Radio size={20} /></div><strong>No checkout orders yet</strong><p>Save a destination and create your first checkout link.</p></div> :
+              <div className="order-list">{orders.map(order => <div className="order-row" key={order.orderId}><div><strong>{order.orderId}</strong><span>{order.destinationSymbol || "Asset"} · {new Date(order.createdAt).toLocaleString()}</span></div><span className="readiness-state state-pending">{order.status.replaceAll("_", " ")}</span></div>)}</div>}
+          </section>
+        </>}
+        {section === "destination" && <>
+          <div className="workspace-heading-row"><div><div className="eyebrow">MERCHANT CONFIGURATION</div><h1>Payment destination</h1><p className="workspace-subtitle">Set the asset and NEAR address your business wants to receive.</p></div></div>
+          <form className="form-panel" onSubmit={saveSettings}>
+            <div className="form-panel-heading"><span className="form-icon"><Wallet size={18} /></span><div><h2>Settlement details</h2><p>These values are saved to your merchant account and used when issuing checkout sessions.</p></div></div>
+            <label className="field-label" htmlFor="merchant-name">Business name</label><input id="merchant-name" className="workspace-input" value={settings.name || ""} onChange={e => setSettings({ ...settings, name: e.target.value })} required maxLength={120} />
+            <label className="field-label" htmlFor="destination-asset">NEAR Intents destination asset ID</label><input id="destination-asset" className="workspace-input mono-input" value={settings.destinationAsset || ""} onChange={e => setSettings({ ...settings, destinationAsset: e.target.value })} placeholder="e.g. nep141:usdc.omft.near" required maxLength={256} />
+            <div className="field-grid">
+              <div><label className="field-label" htmlFor="destination-symbol">Asset symbol</label><input id="destination-symbol" className="workspace-input" value={settings.destinationSymbol || ""} onChange={e => setSettings({ ...settings, destinationSymbol: e.target.value })} placeholder="USDC" required maxLength={32} /></div>
+              <div><label className="field-label" htmlFor="destination-decimals">Token decimals</label><input id="destination-decimals" className="workspace-input" type="number" min="0" max="30" value={settings.destinationDecimals} onChange={e => setSettings({ ...settings, destinationDecimals: Number(e.target.value) })} required /></div>
+            </div>
+            <label className="field-label" htmlFor="recipient">NEAR recipient address</label><input id="recipient" className="workspace-input mono-input" value={settings.recipient || ""} onChange={e => setSettings({ ...settings, recipient: e.target.value })} placeholder="account.near or supported token receiver" required maxLength={256} />
+            <div className="field-hint"><ShieldCheck size={14} /> Use a public recipient address only. Never enter a seed phrase or private key. Confirm the token ID and decimal precision against the provider catalogue before accepting payments.</div>
+            <div className="form-footer"><span>Changes are saved to your account.</span><button className="primary-button" disabled={busy}>{busy ? "Saving…" : "Save destination"} <ArrowUpRight size={15} /></button></div>
+          </form>
+        </>}
+        {section === "checkout" && <>
+          <div className="workspace-heading-row"><div><div className="eyebrow">BUYER PAYMENT LINK</div><h1>Create checkout</h1><p className="workspace-subtitle">Generate a short-lived, signed checkout session for a specific order.</p></div></div>
+          <form className="form-panel" onSubmit={createCheckout}>
+            <div className="form-panel-heading"><span className="form-icon"><Link2 size={18} /></span><div><h2>New checkout</h2><p>Checkout sessions expire after 15 minutes. Creating a link does not move funds.</p></div></div>
+            <label className="field-label" htmlFor="order-id">Order reference</label><input id="order-id" className="workspace-input" value={orderId} onChange={e => setOrderId(e.target.value)} required maxLength={256} />
+            <label className="field-label" htmlFor="order-amount">Amount ({settings.destinationSymbol || "destination asset"})</label><input id="order-amount" className="workspace-input" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} required />
+            <div className="field-hint">Destination: {settings.destinationSymbol || "Not configured"} · {settings.destinationNetwork || "NEAR"}. Configure and save your destination before creating a link.</div>
+            <div className="form-footer"><span>Buyer does not need a Pelargo account.</span><button className="primary-button" disabled={busy}>{busy ? "Creating…" : "Create checkout link"} <ArrowUpRight size={15} /></button></div>
+          </form>
+          {createdLink && <section className="workspace-card generated-link"><div className="card-heading"><div><h3>Checkout link created</h3><p>Share this URL with the buyer. It is a bearer link and should be treated as private to this order.</p></div><Check size={18} /></div><div className="generated-link-value">{createdLink}</div><button className="quiet-button" onClick={async () => { await navigator.clipboard.writeText(createdLink); setCopied(true); }}><Copy size={14} /> {copied ? "Copied" : "Copy checkout link"}</button></section>}
+        </>}
+        {section === "developers" && <>
+          <div className="workspace-heading-row"><div><div className="eyebrow">DEVELOPER TOOLS</div><h1>Integration</h1><p className="workspace-subtitle">Use the server-side API to create signed checkout sessions for your own orders.</p></div></div>
+          <section className="workspace-card api-card"><div className="card-heading"><div><h3>Available endpoints</h3><p>Merchant dashboard uses secure cookie sessions. Server integrations use merchant API credentials.</p></div><Code2 size={17} /></div><div className="api-row"><code>POST /api/checkout-session</code><span>Create a signed order session.</span></div><div className="api-row"><code>GET /api/order?orderId=…</code><span>Retrieve an order scoped to the authenticated merchant.</span></div><div className="api-row"><code>GET /api/payment-status?orderId=…</code><span>Poll payment status; paid state requires independent settlement verification.</span></div></section>
+          <div className="notice-panel"><strong>Testnet readiness is still being verified.</strong><p>Do not use this checkout for mainnet payments. A committed quote creates deposit instructions; the buyer must still send funds, and Pelargo marks an order paid only after independent settlement verification.</p></div>
+        </>}
+        <footer className="workspace-footer"><span>Pelargo</span><span>Merchant checkout infrastructure</span><span>Testnet · Mainnet deposits disabled</span></footer>
+      </div>
+    </main>
+  </div>;
 }
