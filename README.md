@@ -28,6 +28,17 @@ Keep the implementation focused on this path. Do not add more chains, more index
 6. The NEAR verifier resolves the transaction signer through a network-matched indexer, then asks canonical NEAR RPC to verify final execution and the exact token transfer.
 7. Only a matching verified transfer can mark the order paid.
 
+## Current verification state (5 November 2026)
+
+- Operational branch: `ops/live-d1-readiness`; application integration branch: `build/live-intents`. `main` is untouched.
+- Preview deployment `https://ae9cf247.pelargo.pages.dev` succeeded from commit `024133d6800e436dbac2abdce7f0a53ea3e91016`; CI and deployment checks passed.
+- Preview is configured with isolated D1 and Tidepool testnet provider settings. `ALLOW_TESTNET_DEPOSITS=true` is enabled in Preview configuration; mainnet commits remain disabled.
+- Deployment success does not prove live Tidepool connectivity. Live token discovery, quote, committed quote, deposit instructions and settlement have not yet been exercised through Pelargo Preview.
+- The checkout widget remains a dry-quote prototype; the backend committed-quote path is not yet a complete buyer-facing payment flow.
+- No committed quote, deposit or real testnet transfer has been executed. Production is unchanged and `main` has not been merged.
+
+See [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) for the exact verification record and next sequence.
+
 ## What is implemented
 
 - Merchant-authenticated order and checkout-session creation.
@@ -44,10 +55,10 @@ Keep the implementation focused on this path. Do not add more chains, more index
 - **Routing support is not settlement support.** A route offered by 1Click does not mean Pelargo can verify settlement on that destination.
 - The only implemented settlement verifier is for NEAR NEP-141 tokens. EVM, Solana, Bitcoin, native NEAR and other destinations are not verified by Pelargo.
 - Provider selection is server-side and allowlisted: unset `INTENTS_API_BASE_URL` selects official 1Click mainnet; `https://www.usetidepool.tech` selects the community Tidepool testnet sandbox. Mainnet partner JWTs are never forwarded to Tidepool.
-- Testnet signer lookup uses NearBlocks v3 `GET /v3/txns/{hash}` and hash-bound `transaction_hash` / `signer_account_id` fields. Mainnet continues to use NearScanner's `hash` / `signer_id` fields. The indexer only resolves the signer; NEAR RPC verifies execution, token transfer details and finality.
+- Testnet signer lookup is configured to use NearBlocks v3 `GET /v3/txns/{hash}` and hash-bound `transaction_hash` / `signer_account_id` fields. Mainnet uses NearScanner's `hash` / `signer_id` fields. These response shapes are covered by mocks, not yet confirmed against a live transaction. The indexer only resolves the signer; NEAR RPC verifies execution, token transfer details and finality.
 - RPC defaults follow the provider network and the verifier checks RPC `chain_id` before transaction verification.
 - Committed quotes remain disabled by default. `ALLOW_TESTNET_DEPOSITS=true` enables only Tidepool testnet commits; `ALLOW_MAINNET_DEPOSITS=true` remains a separate mainnet-only switch.
-- NearBlocks response parsing and testnet verification are mocked in CI; live Pelargo settlement remains outstanding.
+- NearBlocks response parsing and testnet verification are mocked in CI; live Pelargo settlement remains outstanding. Preview deployment and CI passed, but live Tidepool token discovery and quote calls through Preview have not yet been confirmed.
 - The browser widget is an integration prototype, not a finished production checkout SDK. Do not use it to collect real customer funds.
 - Tidepool publishes a 31/31 conformance report against official 1Click OpenAPI and real NEAR testnet transaction examples. Pelargo has not yet completed its own live committed quote, deposit, status and independent settlement-verification run.
 - NearBlocks testnet API access and live response behavior in Pelargo Preview remain to be confirmed.
