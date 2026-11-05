@@ -25,6 +25,17 @@
 - The status handler now advances the internal lifecycle through the allowed intermediate states (`awaiting_deposit`, `deposit_detected`, `processing`) before attempting destination verification. Each transition is compare-and-set and audited.
 - The API integration test no longer manually sets the order to `processing`; it proves that a `SUCCESS` poll can fill the missing progression and still requires exact chain evidence before settlement.
 
+## Multi-chain settlement expansion plan
+
+Routing and settlement support are separate. NEAR Intents may quote source/destination assets on many chains, but Pelargo must not mark a merchant order paid until the configured destination chain has its own independent verifier.
+
+- Current verified destination: NEAR mainnet NEP-141 only.
+- Next: EVM ERC-20, using canonical RPC receipt/log verification, exact token contract, recipient and net amount, with chain-specific finality.
+- Then: Solana SPL, using finalized transaction/meta and token balance/transfer evidence tied to the exact mint and recipient token account.
+- Later: Bitcoin/UTXO networks, using transaction output/script matching, exact satoshi amount and a defined confirmation-depth policy. This is materially different from account-based token verification.
+- Native coin transfers on NEAR/EVM/Solana require explicit separate handling; they must not be treated as token events.
+- Every adapter requires mocked adversarial tests plus live read-only RPC/indexer validation before it can be enabled for checkout. A 1Click supported route alone is not sufficient evidence.
+
 ## Operational configuration and unverified scope
 
 - Defaults: NEAR mainnet RPC `https://rpc.mainnet.near.org`; FastNear mainnet transaction indexer `https://tx.main.fastnear.com/v0/transactions`.
