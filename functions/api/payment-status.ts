@@ -142,11 +142,12 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
       });
     }
 
+    let verificationStatus = payment.status;
     try {
       // Polling can skip intermediate provider states. SUCCESS confirms the
       // provider completed its swap; record the missing internal progression
       // before independently verifying the destination transfer.
-      const verificationStatus = await advanceToProcessing(env.DB, payment.id, payment.status);
+      verificationStatus = await advanceToProcessing(env.DB, payment.id, payment.status);
 
       if (verificationStatus === "processing" &&
           payment.destination_network.trim().toUpperCase() === "NEAR") {
@@ -202,7 +203,7 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
         orderId, message: error instanceof Error ? error.message : "unknown",
       });
       return json({
-        orderId, paymentStatus: payment.status, providerStatus: provider.status,
+        orderId, paymentStatus: verificationStatus, providerStatus: provider.status,
         settlement: "verification_unavailable_or_mismatched",
       }, 503);
     }
