@@ -82,11 +82,11 @@ The token UI expects the documented token array fields `assetId`, `decimals`, `b
 ## Signed checkout session milestone
 
 - **Added:** `functions/_lib/checkout-session.ts` signs and verifies bounded-lifetime HMAC-SHA256 session tokens using Cloudflare Web Crypto.
-- **Added:** `POST /api/checkout-session` issues a signed order token behind the server-side `PELARGO_MERCHANT_API_KEY`; `GET` verifies and returns public claims.
-- **Added:** `POST /api/quote` now requires a valid signed session and binds exact-output amount, destination asset and recipient to its signed claims. Buyer-selected source asset and refund address remain variable.
+- **Added:** `POST /api/checkout-session` issues a signed order token after verifying a per-merchant API key against D1; `GET` verifies the token and its active stored record.
+- **Added:** `POST /api/quote` requires a valid signed session plus matching D1 record and binds exact-output amount, destination asset and recipient. Buyer-selected source asset and refund address remain variable.
 - **Added:** the React widget and custom element require a signed `sessionToken` / `session-token` before requesting a quote.
-- **Required secrets:** `PELARGO_MERCHANT_API_KEY` and `ORDER_SESSION_SECRET`, set as Cloudflare Pages secrets only. Never expose them in browser code.
-- **Superseded:** the initial shared gateway key model was replaced by per-merchant API keys verified against D1. The older signed-token-only flow is no longer the intended deployment configuration.
+- **Required secrets:** `MERCHANT_PROVISIONING_SECRET` and `ORDER_SESSION_SECRET`, configured as Cloudflare Pages secrets only. Per-merchant API keys are returned once by provisioning and stored only as SHA-256 hashes.
+- **Superseded:** the initial shared gateway key model and signed-token-only verification have been replaced by D1-backed per-merchant credentials and active-session checks.
 - **Deployment dependency:** until D1 is bound and migrated, checkout session issuance and quote verification return a storage-not-configured error. Keep committed quotes disabled.
 - **Not verified:** no TypeScript/build run or Cloudflare preview test has been completed for these endpoints.
 
@@ -98,7 +98,7 @@ The token UI expects the documented token array fields `assetId`, `decimals`, `b
 - **Added:** public API responses include CORS headers and `POST /api/quote` handles OPTIONS preflight, allowing cross-origin browser requests from merchant sites.
 - **Updated:** Developers view shows the proposed custom-element integration contract.
 - **Not verified:** no build has been run and no Cloudflare preview has been confirmed to contain the embed assets. The element is not yet proven to load on a third-party merchant domain.
-- **Critical security gap:** embed attributes are currently untrusted client inputs. No merchant-authenticated, signed, expiring server-side order session exists; no single-use/replay storage exists. Never enable committed quotes or treat an order ID/recipient supplied by markup as authoritative.
+- **Security boundary:** embed attributes are public and untrusted. Quote authority comes from a signed session and matching D1 record created by the merchant server. Settlement verification and merchant callbacks are still absent. Never treat a browser success state as proof of payment.
 
 ## Payment lifecycle
 
