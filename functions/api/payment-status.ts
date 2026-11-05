@@ -98,8 +98,21 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
     return json({ error: "NEAR Intents returned an unrecognized payment status" }, 502);
   }
 
+  if (provider.updatedAt !== undefined &&
+      (typeof provider.updatedAt !== "string" || !Number.isFinite(Date.parse(provider.updatedAt)))) {
+    return json({ error: "NEAR Intents returned an invalid provider update timestamp" }, 502);
+  }
+
   const now = new Date().toISOString();
-  const candidateHash = provider.swapDetails?.destinationChainTxHashes?.find((tx) => typeof tx.hash === "string" && tx.hash.length <= 256)?.hash ?? null;
+  // Provider JSON is untrusted. A malformed/null array entry must not crash
+  // the status endpoint or prevent a valid later transaction candidate being read.
+  const destinationHashes = Array.isArray(provider.swapDetails?.destinationChainTxHashes)
+    ? provider.swapDetails.destinationChainTxHashes
+    : [];
+  const candidateHash = destinationHashes.find((tx) =>
+    tx !== null && typeof tx === "object" &&
+    typeof tx.hash === "string" && tx.hash.trim().length > 0 && tx.hash.length <= 256
+  )?.hash ?? null;
   await env.DB.prepare(
     `UPDATE payment_lifecycle
         SET provider_status = ?, provider_updated_at = ?, destination_tx_candidate = COALESCE(?, destination_tx_candidate),
