@@ -101,7 +101,7 @@ The active branch adds a Cloudflare D1-backed merchant/order/session model.
 
 1. Create a Cloudflare D1 database named `pelargo-checkout` in the same Cloudflare account as the Pages project.
 2. Add a Pages Function binding named `DB` pointing to that database (preview and production bindings are separate; configure preview first).
-3. Apply `migrations/0001_checkout_storage.sql` to the database.
+3. Apply `migrations/0001_checkout_storage.sql` through `migrations/0004_commit_state_sync.sql` in numerical order.
 4. Add the following as Cloudflare Pages secrets for the preview environment:
    - `MERCHANT_PROVISIONING_SECRET`: high-entropy provisioning secret.
    - `ORDER_SESSION_SECRET`: random signing secret of at least 32 characters.
@@ -132,7 +132,7 @@ Run `bun run test:security` for session-token signing and verification. Run `bun
 - Quote requests verify the signature and require a matching active D1 record.
 - Dry quotes leave the session active so the buyer can review and refresh a quote.
 - A committed quote attempt atomically changes the session from `active` to `commit_attempted` before contacting 1Click. A second attempt cannot pass that state transition.
-- A successful upstream commit records `committed` and updates the order to `quote_committed`.
+- A successful upstream commit updates the lifecycle row with a compare-and-set operation. Migration 0004 uses a SQLite trigger to synchronize the order and session rows in that same atomic write; it aborts the lifecycle update if either dependent row is missing or stale.
 - An uncertain upstream result leaves the session consumed. This intentionally favors preventing duplicate deposits over automatic retry.
 
 **Current limitations:** merchant credentials are provisioned manually by an operator; there is no self-serve merchant signup, credential rotation UI or rate limiting yet. Automated tests cover cryptographic session validation and merchant/session/quote/order API handlers against an in-memory SQLite adapter using the actual migration. Live Cloudflare D1 preview testing, D1 concurrency testing and real upstream payment lifecycle testing remain outstanding. A commit attempt is single-use, but no automated payment settlement verification is implemented. Keep mainnet commit configuration disabled until separately reviewed and explicitly approved.
