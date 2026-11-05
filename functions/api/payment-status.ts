@@ -12,6 +12,24 @@ type ProviderStatus =
   | "REFUNDED"
   | "FAILED";
 
+async function advanceToProcessing(
+  db: NonNullable<Env["DB"]>,
+  orderId: string,
+  currentStatus: PaymentStatus,
+): Promise<PaymentStatus> {
+  const remaining: Partial<Record<PaymentStatus, PaymentStatus[]>> = {
+    quote_committed: ["awaiting_deposit", "deposit_detected", "processing"],
+    awaiting_deposit: ["deposit_detected", "processing"],
+    deposit_detected: ["processing"],
+  };
+  let status = currentStatus;
+  for (const nextStatus of remaining[status] ?? []) {
+    await transitionPayment(db, { orderId, expectedStatus: status, nextStatus });
+    status = nextStatus;
+  }
+  return status;
+}
+
 const transitions: Partial<Record<ProviderStatus, { from: PaymentStatus[]; to: PaymentStatus }>> = {
   PENDING_DEPOSIT: { from: ["quote_committed"], to: "awaiting_deposit" },
   KNOWN_DEPOSIT_TX: { from: ["awaiting_deposit"], to: "deposit_detected" },
@@ -102,8 +120,14 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
       });
     }
 
-    if (payment.status === "processing" && payment.destination_network.trim().toUpperCase() === "NEAR") {
-      try {
+    try {
+      // Polling can skip intermediate provider states. SUCCESS confirms the
+      // provider completed its swap; record the missing internal progression
+      // before independently verifying the destination transfer.
+      const verificationStatus = await advanceToProcessing(env.DB, payment.id, payment.status);
+
+      if (verificationStatus === "processing" &&
+          payment.destination_network.trim().toUpperCase() === "NEAR") {
         const evidence = await verifyNearNep141Settlement(env, {
           destinationNetwork: payment.destination_network,
           destinationAsset: payment.destination_asset,
@@ -139,25 +163,27 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
             verifiedBlockHeight: evidence.blockNumber,
           });
         }
-      } catch (error) {
-        console.error("[pelargo] near_settlement_verification_failed", {
-          orderId, message: error instanceof Error ? error.message : "unknown",
-        });
-        return json({
-          orderId, paymentStatus: payment.status, providerStatus: provider.status,
-          settlement: "verification_unavailable_or_mismatched",
-        }, 503);
       }
+      return json({
+        orderId,
+        paymentStatus: verificationStatus,
+        providerStatus: provider.status,
+        settlement: payment.destination_network.trim().toUpperCase() === "NEAR"
+          ? "awaiting_destination_chain_verification"
+          : "destination_network_verifier_not_supported",
+      });
+    } catch (error) {
+      if (error instanceof PaymentTransitionError && error.code === "conflict") {
+        return json({ error: "Payment changed during settlement verification; retry the lookup" }, 409);
+      }
+      console.error("[pelargo] near_settlement_verification_failed", {
+        orderId, message: error instanceof Error ? error.message : "unknown",
+      });
+      return json({
+        orderId, paymentStatus: payment.status, providerStatus: provider.status,
+        settlement: "verification_unavailable_or_mismatched",
+      }, 503);
     }
-
-    return json({
-      orderId,
-      paymentStatus: payment.status,
-      providerStatus: provider.status,
-      settlement: payment.destination_network.trim().toUpperCase() === "NEAR"
-        ? "awaiting_destination_chain_verification"
-        : "destination_network_verifier_not_supported",
-    });
   }
 
   const transition = transitions[provider.status];
