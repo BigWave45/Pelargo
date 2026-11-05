@@ -165,7 +165,7 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
 
       const quoteId = typeof payload.correlationId === "string" ? payload.correlationId : null;
       const now = new Date().toISOString();
-      const updated = await context.env.DB!.batch([
+      const updated = await context.env.DB!.batch<{ success: boolean; meta?: { changes?: number } }>([
         context.env.DB!.prepare(
           "UPDATE payment_lifecycle SET status = 'quote_committed', quote_id = ?, deposit_address = ?, deposit_memo = ?, updated_at = ? WHERE order_id = (SELECT id FROM checkout_orders WHERE merchant_id = ? AND external_order_id = ?) AND status = 'pending'"
         ).bind(quoteId, depositAddress, depositMemo ?? null, now, session.merchantId, session.orderId),
