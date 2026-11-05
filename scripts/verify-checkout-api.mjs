@@ -2,6 +2,12 @@ import { Database } from "bun:sqlite";
 import { readFileSync } from "node:fs";
 import { strict as assert } from "node:assert";
 import { onRequest as provisionMerchant } from "../functions/api/merchant.ts";
+import { onRequest as registerMerchant } from "../functions/api/auth/register.ts";
+import { onRequest as loginMerchant } from "../functions/api/auth/login.ts";
+import { onRequest as merchantSession } from "../functions/api/auth/session.ts";
+import { onRequest as logoutMerchant } from "../functions/api/auth/logout.ts";
+import { onRequest as merchantSettings } from "../functions/api/merchant-settings.ts";
+import { onRequest as merchantOrders } from "../functions/api/orders.ts";
 import { onRequest as checkoutSession } from "../functions/api/checkout-session.ts";
 import { onRequest as quote } from "../functions/api/quote.ts";
 import { onRequest as getOrder } from "../functions/api/order.ts";
@@ -36,6 +42,9 @@ sqlite.exec(readFileSync(new URL("../migrations/0008_settlement_evidence_contrac
 sqlite.exec(readFileSync(new URL("../migrations/0009_settlement_evidence_insert_guard.sql", import.meta.url), "utf8"));
 sqlite.exec(readFileSync(new URL("../migrations/0010_pending_expiry_sync.sql", import.meta.url), "utf8"));
 sqlite.exec(readFileSync(new URL("../migrations/0011_payment_recovery_cases.sql", import.meta.url), "utf8"));
+sqlite.exec(readFileSync(new URL("../migrations/0012_merchant_accounts.sql", import.meta.url), "utf8"));
+sqlite.exec(readFileSync(new URL("../migrations/0013_merchant_destination_settings.sql", import.meta.url), "utf8"));
+sqlite.exec(readFileSync(new URL("../migrations/0014_destination_decimals.sql", import.meta.url), "utf8"));
 const db = {
   prepare(sql) { return new Statement(sqlite, sql); },
   batch(statements) {
@@ -51,6 +60,98 @@ const env = {
   NEARSCANNER_API_KEY: "test-nearscanner-api-key",
 };
 const responseJson = async (response) => ({ status: response.status, body: await response.json() });
+
+const selfServeRegistration = await registerMerchant({
+  request: request("https://pelargo.test/api/auth/register", "POST", {
+    name: "Self Serve Shop", email: "owner@example.test", password: "a-long-test-password-123",
+  }),
+  env,
+});
+assert.equal(selfServeRegistration.status, 201, "public merchant registration should create an account");
+assert.equal(selfServeRegistration.headers.get("set-cookie")?.includes("HttpOnly"), true, "registration must issue an HttpOnly session cookie");
+const selfServeCookie = selfServeRegistration.headers.get("set-cookie").split(";")[0];
+const selfServeBody = await selfServeRegistration.json();
+assert.equal(selfServeBody.merchant.email, "owner@example.test");
+assert.equal("apiKey" in selfServeBody, false, "browser registration must not expose the internal merchant API key");
+
+const accountSession = await responseJson(await merchantSession({
+  request: new Request("https://pelargo.test/api/auth/session", { headers: { cookie: selfServeCookie } }),
+  env,
+}));
+assert.equal(accountSession.status, 200, "registration session should authenticate the dashboard");
+assert.equal(accountSession.body.merchant.name, "Self Serve Shop");
+
+const duplicateRegistration = await registerMerchant({
+  request: request("https://pelargo.test/api/auth/register", "POST", {
+    name: "Duplicate", email: "OWNER@example.test", password: "a-long-test-password-456",
+  }),
+  env,
+});
+assert.equal(duplicateRegistration.status, 409, "email uniqueness must be case-insensitive");
+
+const badLogin = await loginMerchant({
+  request: request("https://pelargo.test/api/auth/login", "POST", {
+    email: "owner@example.test", password: "wrong-password",
+  }),
+  env,
+});
+assert.equal(badLogin.status, 401, "login must reject an incorrect password");
+
+const goodLogin = await loginMerchant({
+  request: request("https://pelargo.test/api/auth/login", "POST", {
+    email: "OWNER@example.test", password: "a-long-test-password-123",
+  }),
+  env,
+});
+assert.equal(goodLogin.status, 200, "login should accept a valid account");
+const loginCookie = goodLogin.headers.get("set-cookie").split(";")[0];
+
+const savedSettings = await responseJson(await merchantSettings({
+  request: request("https://pelargo.test/api/merchant-settings", "PUT", {
+    name: "Self Serve Shop", destinationAsset: "nep141:usdc.omft.near",
+    destinationSymbol: "USDC", destinationNetwork: "NEAR",
+    recipient: "shop.near", destinationDecimals: 6,
+  }, { cookie: loginCookie }),
+  env,
+}));
+assert.equal(savedSettings.status, 200, "authenticated merchant should save destination settings");
+
+const selfServeOrder = {
+  orderId: "self-serve-order-1", amount: "1.25", amountAtomic: "1250000",
+  destinationAsset: "nep141:usdc.omft.near", destinationSymbol: "USDC",
+  destinationNetwork: "NEAR", recipient: "shop.near",
+};
+const selfServeIssued = await responseJson(await checkoutSession({
+  request: request("https://pelargo.test/api/checkout-session", "POST", selfServeOrder, { cookie: loginCookie }),
+  env,
+}));
+assert.equal(selfServeIssued.status, 201, "dashboard session should create a merchant checkout session");
+
+const selfServeOrderLookup = await getOrder({
+  request: new Request("https://pelargo.test/api/order?orderId=self-serve-order-1", { headers: { cookie: loginCookie } }),
+  env,
+});
+assert.equal(selfServeOrderLookup.status, 200, "dashboard session should read its own order");
+
+const selfServeOrderList = await responseJson(await merchantOrders({
+  request: new Request("https://pelargo.test/api/orders", { headers: { cookie: loginCookie } }),
+  env,
+}));
+assert.equal(selfServeOrderList.status, 200);
+assert.equal(selfServeOrderList.body.orders[0].orderId, "self-serve-order-1");
+
+const loggedOut = await logoutMerchant({
+  request: new Request("https://pelargo.test/api/auth/logout", { method: "POST", headers: { cookie: loginCookie, origin: "https://pelargo.test" } }),
+  env,
+});
+assert.equal(loggedOut.status, 204);
+const afterLogout = await merchantSession({
+  request: new Request("https://pelargo.test/api/auth/session", { headers: { cookie: loginCookie } }),
+  env,
+});
+assert.equal(afterLogout.status, 401, "logout must revoke the server-side session");
+
+
 const request = (url, method, body, headers = {}) => new Request(url, {
   method,
   headers: { "content-type": "application/json", ...headers },
