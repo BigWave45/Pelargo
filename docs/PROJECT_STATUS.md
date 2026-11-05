@@ -755,3 +755,13 @@ This section is the current source of truth and supersedes older dated notes bel
 - Added an integration regression proving recovery of the original source asset, exact amount, destination amount and deadline from a mocked provider status response. Type-check, checkout-session security tests, API integration tests and frontend build passed on commit `7a6e857`.
 - This is a mocked contract test. The existing Tidepool order's real `quoteResponse` has not yet been retrieved through Pelargo Preview, so its source asset, exact amount and deadline are still unverified. The saved deposit address alone is not sufficient to authorize a transfer.
 - No new quote was requested, no deposit was made, no Production deployment or merge to `main` occurred.
+
+## 2026-11-05 — Concurrent polling and committed quote recovery
+
+- Added a regression test that simulates a competing provider poll updating the persisted status and timestamp while another request is awaiting the provider. The losing request returns HTTP 200 with the winning persisted state, marks `concurrentPoll: true`, and preserves the winning timestamp.
+- The lifecycle-transition conflict path now also reloads current state instead of returning a misleading HTTP 409.
+- CI passed on `5b28b22bd17618e77859320f5bc6fc701cb1903f`: TypeScript check, checkout-session security tests, checkout API integration tests, and frontend build. The earlier quote-recovery test run failed because the amount validation regex was over-escaped; the regex was corrected and the subsequent CI run passed.
+- Added parsing of the provider's embedded committed `quoteResponse` in status results. When the provider supplies the original quote, the authenticated status response can now return the source asset ID, exact input/output amounts, deadline, saved deposit address, and memo. Missing or malformed quote details are omitted rather than fabricated.
+- Quote instruction recovery is still dependent on Tidepool returning `quoteResponse` from its status endpoint. The CI test uses a mocked provider response; it does not prove Tidepool includes these fields for the existing order.
+- Preview deployment `d9ba8e02-2562-4dce-ba0f-62952acc714f` is building from `ops/live-d1-readiness` commit `7a6e85704bd5a0c3204b59c9c1f611f8941c246b`. Deployment completion and live endpoint verification remain pending.
+- No quote was reissued, no deposit was made, and no Production deployment, merge to `main`, or mainnet activation occurred.
