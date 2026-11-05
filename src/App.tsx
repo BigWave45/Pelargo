@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { TokenDiscovery } from "./components/TokenDiscovery.tsx";
 import {
   ArrowUpRight, Check, ChevronDown, Code2, Copy, ExternalLink,
   FileCode2, LayoutDashboard, Link2, Radio, Settings2, ShieldCheck,
@@ -119,8 +120,9 @@ export default function App() {
 
           {section === "checkout" && (
             <>
-              <div className="workspace-heading-row"><div><div className="eyebrow">BUYER EXPERIENCE</div><h1>Checkout</h1><p className="workspace-subtitle">The checkout is designed to be embedded in your existing storefront.</p></div><span className="draft-pill">Design preview</span></div>
-              <div className="checkout-layout"><section className="workspace-card checkout-explainer"><div className="eyebrow">HOW IT WORKS</div><h2>A focused payment flow for your customers.</h2><p>Your customer chooses a supported token and network. Pelargo requests a quote, explains the amount and payment conditions, then tracks the transfer through verified settlement.</p><div className="checkout-step"><b>01</b><span><strong>Choose payment asset</strong><small>Buyer selects from supported networks and tokens.</small></span></div><div className="checkout-step"><b>02</b><span><strong>Review quote</strong><small>Show the exact amount, fees, destination and expiry.</small></span></div><div className="checkout-step"><b>03</b><span><strong>Pay and verify</strong><small>Track the deposit and confirm destination settlement.</small></span></div></section><section className="checkout-preview"><div className="preview-topline"><span>CHECKOUT PREVIEW</span><span>NOT CONNECTED</span></div><div className="preview-brand">pelargo<span> · </span>{merchantName || "Your business"}</div><div className="preview-amount"><small>Amount due</small><strong>$25.00 <i>USD</i></strong></div><div className="preview-option"><span className="preview-token">◎</span><span><b>Choose a payment token</b><small>Available assets load from the live token API</small></span><ChevronDown size={16} /></div><button className="preview-pay" disabled>Continue to payment</button><p className="preview-disclaimer">Preview only. No quote or payment request is created.</p></section></div>
+              <div className="workspace-heading-row"><div><div className="eyebrow">INTENTS ROUTE DISCOVERY</div><h1>Checkout assets</h1><p className="workspace-subtitle">Pelargo reads the currently supported source assets from NEAR Intents. The embeddable buyer flow will use this catalogue dynamically.</p></div><span className="draft-pill">Live API · read only</span></div>
+              <TokenDiscovery />
+              <div className="notice-panel"><strong>Asset discovery is the first connected checkout capability.</strong><p>Showing an asset here does not mean a wallet is connected or that a payment route has been quoted. Live dry quotes require a merchant destination and a buyer refund address. Committed quotes and deposits remain disabled.</p></div>
             </>
           )}
 
