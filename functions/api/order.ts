@@ -30,8 +30,8 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
        destination_asset AS destinationAsset,
        recipient,
        COALESCE(payment_lifecycle.status, checkout_orders.status) AS status,
-       created_at AS createdAt,
-       expires_at AS expiresAt
+       checkout_orders.created_at AS createdAt,
+       checkout_orders.expires_at AS expiresAt
      FROM checkout_orders
      LEFT JOIN payment_lifecycle ON payment_lifecycle.order_id = checkout_orders.id
      WHERE merchant_id = ? AND external_order_id = ?`
