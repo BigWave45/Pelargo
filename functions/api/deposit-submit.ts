@@ -98,7 +98,7 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
   const quote = providerBefore.quoteResponse;
   const correlationMatches = providerBefore.correlationId === payment.quote_id &&
     quote?.correlationId === payment.quote_id;
-  if (!correlationMatches) {
+  if (providerBefore.correlationId !== payment.quote_id) {
     return json({
       error: "Provider status does not match the committed Pelargo quote",
       code: "PROVIDER_QUOTE_CORRELATION_MISMATCH",
@@ -189,13 +189,29 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
     }
   }
 
-  if (submitted.correlationId !== payment.quote_id ||
-      submitted.quoteResponse?.correlationId !== payment.quote_id ||
-      typeof submitted.status !== "string" || !statuses.includes(submitted.status as ProviderStatus)) {
-    return json({
-      error: "Provider accepted a response that could not be correlated to this quote; origin evidence requires operator reconciliation",
-      code: "PROVIDER_SUBMISSION_CORRELATION_MISMATCH",
-    }, 502);
+  // The deposit/submit endpoint is documented as a notification endpoint;
+  // its response body is not specified. Confirm the provider's persisted state
+  // with the documented status endpoint rather than assuming a response schema.
+  let confirmedStatus: ProviderStatus | "SUBMITTED_UNCONFIRMED" = "SUBMITTED_UNCONFIRMED";
+  if (alreadyKnown) {
+    confirmedStatus = providerBefore.status as ProviderStatus;
+  } else {
+    try {
+      const statusResponse = await intentsRequest(
+        `status?depositAddress=${encodeURIComponent(payment.deposit_address)}`,
+        { method: "GET" }, env,
+      );
+      if (statusResponse.ok) {
+        const refreshed = await statusResponse.json() as ProviderStatusResponse;
+        if (refreshed.correlationId === payment.quote_id &&
+            typeof refreshed.status === "string" && statuses.includes(refreshed.status as ProviderStatus)) {
+          confirmedStatus = refreshed.status as ProviderStatus;
+          submitted = refreshed;
+        }
+      }
+    } catch {
+      // The provider notification was accepted; a later status poll can confirm it.
+    }
   }
 
   const verifiedAt = new Date().toISOString();
@@ -207,7 +223,7 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
      VALUES (?, 'BASE_SEPOLIA', ?, ?, ?, ?, ?, ?, 'chain_rpc', ?, ?, ?)`
   ).bind(
     payment.id, evidence.tokenContract, evidence.transactionHash, evidence.depositAddress,
-    evidence.amountAtomic, evidence.blockNumber, evidence.blockHash, submitted.status,
+    evidence.amountAtomic, evidence.blockNumber, evidence.blockHash, confirmedStatus,
     verifiedAt, verifiedAt,
   ).run();
   const stored = await env.DB.prepare(
@@ -228,7 +244,7 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
     orderId,
     originDeposit: "verified",
     providerNotification: alreadyKnown ? "already_known" : "accepted",
-    providerStatus: submitted.status,
+    providerStatus: confirmedStatus,
     sourceTransactionHash: transactionHash,
     nearTxHashes: submitted.swapDetails?.nearTxHashes ?? [],
     destinationChainTxHashes: submitted.swapDetails?.destinationChainTxHashes ?? [],
