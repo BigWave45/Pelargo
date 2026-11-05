@@ -175,9 +175,9 @@ Committed payments with a persisted deposit address are now scheduled for backgr
 
 The scheduled Worker reuses the existing GET /api/payment-status implementation in-process through a private, secret-authenticated internal path. This preserves the existing provider polling, candidate verification, immutable settlement evidence and database settlement guards. It does not create quotes, submit deposits, retry provider execution or mark payments paid from provider status alone. Retryable outcomes release the lease and schedule an exponential retry capped at one hour.
 
-The Preview Worker configuration explicitly selects Tidepool testnet and the isolated Preview D1 database. RECONCILIATION_SECRET must be configured as an encrypted secret on both the Pages Preview project and the Worker, using the same random value. The Worker is not deployed, the migration has not yet been applied to Cloudflare Preview D1, and the cron is not active. Production Worker configuration and Production D1 are unchanged.
+The Preview Worker configuration explicitly selects Tidepool testnet and the isolated Preview D1 database. RECONCILIATION_SECRET must be configured as an encrypted secret on both the Pages Preview project and the Worker, using the same random value. Migration 0017 has now been applied to isolated Cloudflare Preview D1. The existing processing order was backfilled as one durable job. The Worker is not deployed, its secret is not configured, and the cron is not active. Production Worker configuration and Production D1 are unchanged.
 
-Automated integration coverage has been added for trigger enqueueing, internal worker polling, lease release, retry scheduling and the invariant that a provider PROCESSING response cannot settle an order. GitHub Actions CI passed on commit bcc8b982061cb034e59bb2a2fb5087b3cfdbc6aa (run 42099838987): type-check, checkout-session security tests, checkout API integration tests and frontend build. A subsequent lease-tuning commit is undergoing CI.
+Automated integration coverage has been added for trigger enqueueing, internal worker polling, lease release, retry scheduling and the invariant that a provider PROCESSING response cannot settle an order. GitHub Actions CI passed on commit bcc8b982061cb034e59bb2a2fb5087b3cfdbc6aa (run 42099838987): type-check, checkout-session security tests, checkout API integration tests and frontend build. Failure-injection coverage subsequently passed on commit abc5defc2ca8ed1ee4f30dafb52db136a56c92ae (run 42099998224).
 
 
 ### Background reconciliation failure-injection coverage — 5 November 2026
@@ -190,3 +190,6 @@ The Worker remains un-deployed and its cron inactive. Migration 0017 remains una
 
 
 The Preview Worker config also carries the non-secret, order-scoped NEAR recovery tuple for the existing testnet payment (`ORDER-83587591`): transaction hash `vif8EKtCAzHcaihLNuC6XaRMhCzEDxUiHbAJJRQVUVE`, signer hint `maker.tidepool-sandbox.testnet`, and matching external order ID. This is necessary because Worker bindings are separate from Pages Preview bindings. The signer hint is not trusted as settlement evidence; canonical NEAR RPC must still verify the exact transaction and NEP-141 transfer. The tuple is not included in the Production Worker config.
+
+
+Preview migration 0017 was applied on 5 November 2026 to D1 database 0335acdc-f0e0-42f6-ba87-e3448fb91728. Read-back confirmed the migration ledger entry, all three reconciliation triggers, and one queued job for the existing processing payment ORDER-83587591. The three old awaiting-deposit test checkouts were intentionally excluded from the one-time backfill. The scheduled Worker remains inactive.
