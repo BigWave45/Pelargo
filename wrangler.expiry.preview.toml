@@ -1,0 +1,16 @@
+# Preview-only expiry/recovery Worker configuration.
+# This binds exclusively to pelargo-preview-db.
+# Deploying this Worker activates the five-minute cron; do not deploy until
+# preview runtime checks and operational review are complete.
+name = "pelargo-expiry-sweeper-preview"
+main = "workers/expiry-sweeper.ts"
+compatibility_date = "2026-11-04"
+workers_dev = false
+
+[triggers]
+crons = ["*/5 * * * *"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "pelargo-preview-db"
+database_id = "0335acdc-f0e0-42f6-ba87-e3448fb91728"

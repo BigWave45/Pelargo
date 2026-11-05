@@ -6,9 +6,11 @@ pages_build_output_dir = "./dist"
 # Production Pages binding DB points to pelargo-db.
 # Preview Pages binding DB points to the isolated pelargo-preview-db.
 # Apply numbered migrations in order to each environment before deploying code
-# that depends on a new schema change. Current code includes migration 0009.
+# that depends on a new schema change. Current code includes migrations 0001–0011.
 # Configure separate encrypted MERCHANT_PROVISIONING_SECRET and
 # ORDER_SESSION_SECRET values for production and preview.
 # Add ONECLICK_JWT only if the provider account requires partner JWT auth.
+# The separate expiry Worker configs are wrangler.expiry.toml (production)
+# and wrangler.expiry.preview.toml (preview). Neither is deployed yet.
 # ALLOW_MAINNET_DEPOSITS must remain unset until a separately approved
 # mainnet payment test is planned.

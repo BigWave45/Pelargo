@@ -75,14 +75,14 @@ As of 5 November 2026, the isolated preview D1 database records migrations 0001â
 
 Ambiguous commits are never automatically retried, reactivated or expired. The provider may have accepted the quote even if Pelargo lost its response. The operator queue uses the provisioning secret and returns no merchant API keys or checkout tokens.
 
-`wrangler.expiry.toml` currently describes a five-minute cron Worker bound to the production D1 database. The Worker has **not** been deployed and the cron is **not** active. Do not deploy that configuration to preview; create a separate preview configuration bound to `pelargo-preview-db` first.
+`wrangler.expiry.toml` describes the production Worker and production D1 binding. `wrangler.expiry.preview.toml` is the separate preview configuration bound to `pelargo-preview-db`. Both define a five-minute cron, but neither Worker has been deployed and neither cron is active. Deploying either configuration activates its schedule.
 
 ## Verification status and limits
 
 - API/security tests use an in-memory SQLite database and mocked upstream provider, FastNear and NEAR RPC responses. They validate application logic; they are not live provider or chain tests.
 - Preview D1 has migration history 0001â€“0011. Migrations 0010 and 0011 were applied to preview on 5 November 2026.
-- The latest attempted synthetic preview-D1 write probe was blocked by the available Cloudflare tool. Do not claim direct D1 expiry-trigger or recovery-insertion tests passed on this latest schema.
-- Deployed Pages HTTP runtime testing against the preview D1 binding remains outstanding.
+- Direct synthetic preview-D1 tests passed for migration 0010 expiry synchronization and migration 0011 recovery-case insertion/idempotency. All synthetic records were removed; cleanup returned zero remaining probe records.
+- Deployed Pages HTTP runtime testing against the preview D1 binding remains outstanding. The Pages preview `DB` binding now targets the isolated preview database; an existing deployment must be refreshed before runtime verification.
 - Live 1Click response compatibility, FastNear authentication/response compatibility and live NEAR RPC verification remain outstanding.
 - `NEAR_INDEXER_API_KEY` is required by the verifier. It has not been configured in Cloudflare because no key has been supplied.
 - Merchant webhooks, self-serve onboarding, credential rotation, production rate limiting and non-NEAR settlement verifiers are not implemented.

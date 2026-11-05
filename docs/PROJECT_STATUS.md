@@ -520,7 +520,7 @@ This section is the current source of truth and supersedes older dated notes bel
 ### Repository and release boundaries
 - Repository: `BigWave45/Pelargo`.
 - Application integration branch: `build/live-intents`.
-- Operational hardening branch: `ops/live-d1-readiness`, 45 commits ahead of `build/live-intents` at the latest comparison.
+- Operational hardening branch: `ops/live-d1-readiness`, 48 commits ahead of `build/live-intents` at the latest comparison.
 - PR #1 targets `build/live-intents`; it is not a PR to `main`. Do not merge to `main`.
 - Cloudflare Pages project: `pelargo`; production branch setting: `build/live-intents`.
 - No production deployment, real payment execution or mainnet deposit was performed as part of the current work. Keep `ALLOW_MAINNET_DEPOSITS` unset.
@@ -542,15 +542,16 @@ This section is the current source of truth and supersedes older dated notes bel
 - `workers/expiry-sweeper.ts` contains two scheduled tasks: expire abandoned uncommitted pending checkouts; and create an operator recovery case for `commit_attempted` sessions older than ten minutes when the order/lifecycle remain pending and no quote ID or deposit address was persisted.
 - `GET /api/operator/recovery-cases` is read-only and requires `X-Pelargo-Provisioning-Key`. It uses the existing provisioning secret and does not return merchant API keys or session tokens.
 - The Worker never retries, reactivates or expires ambiguous commits. The provider may have accepted a quote despite Pelargo losing the response.
-- `wrangler.expiry.toml` currently targets production D1 and proposes a five-minute cron. The Worker is not deployed and the cron is not active. Do not use that production-bound config for preview. A separate preview config must bind to `pelargo-preview-db`.
+- `wrangler.expiry.toml` targets production D1. New `wrangler.expiry.preview.toml` targets only `pelargo-preview-db`. Both define a five-minute cron; neither Worker is deployed and neither cron is active. Deploying either config activates its schedule.
 
 ### D1 and Cloudflare state
+- The Pages preview `DB` binding is configured to the isolated preview D1 database; production remains bound to production D1. The existing preview deployment predates this binding update and must be refreshed before runtime testing.
 - Production D1: `pelargo-db` (ID `eae6ecc8-d79d-4d12-8a37-2d38ab84a0b1`).
 - Isolated preview D1: `pelargo-preview-db` (ID `0335acdc-f0e0-42f6-ba87-e3448fb91728`).
 - Preview Pages `DB` binding targets the isolated preview database; production Pages `DB` binding targets production D1.
 - Preview D1 migration history records `0001` through `0011`, including migrations 0010 and 0011 applied on 5 November 2026.
 - Production D1 migration state is not established by the preview migration history and must be checked independently before a release.
-- Preview D1 migration history was read back after applying 0010/0011. The latest attempt to run synthetic expiry-trigger and recovery-case insertion tests through the Cloudflare connector was blocked by tool safety checks. Do not claim those two direct remote-D1 behaviours passed. Their application logic has mocked/in-memory integration coverage.
+- Direct synthetic preview-D1 tests passed for migration 0010 expiry synchronization and migration 0011 recovery-case insertion/idempotency. The tests used temporary synthetic merchant/order/session records, and cleanup confirmed zero remaining probe records.
 - Pages preview HTTP runtime testing against D1 remains outstanding.
 
 ### Secrets and external dependencies
@@ -563,7 +564,7 @@ This section is the current source of truth and supersedes older dated notes bel
 - `bun run test:security` and `bun run test:api` cover session signing/validation, merchant authentication, quote binding, replay protection, lifecycle transitions, stale poll rejection, provider status handling, recovery-case creation and settlement evidence rules using in-memory SQLite and mocked upstream responses.
 - These tests do not prove deployed Pages Function behavior, live 1Click contract compatibility, FastNear credentials/response compatibility, NEAR RPC availability or real-chain settlement.
 - Preview D1 has previously had direct synthetic tests for lifecycle synchronization and migration 0009's stale-candidate evidence guard. Those do not establish all 0010/0011 trigger/worker behaviours.
-- Remaining release gates: obtain/configure a valid FastNear API key; verify provider/indexer/RPC contracts; run authenticated preview HTTP tests against isolated D1; directly test 0010 expiry synchronization and 0011 recovery idempotency on preview; deploy and observe the Worker only after a separate preview-safe config and tests exist; review the full buyer checkout flow.
+- Remaining release gates: obtain/configure a valid FastNear API key; verify provider/indexer/RPC contracts; refresh preview Pages deployment and run authenticated HTTP tests against isolated D1; validate both Wrangler Worker configs with the Wrangler CLI; deploy the preview Worker only after explicit operational readiness review, then observe its cron execution; review the full buyer checkout flow.
 - Mainnet committed quotes, deposits and actual transfers remain disabled pending explicit release authorization.
 
 ### Documentation refresh
