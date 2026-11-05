@@ -140,6 +140,10 @@ Optional: `expiresInSeconds` (60–1800; default 900).
 
 Returns HTTP 201 with `token` and public `session` claims. Duplicate order IDs for the same merchant return HTTP 409.
 
+### `GET /api/order?orderId=...`
+
+Merchant-authenticated lookup of one order belonging to the authenticated merchant. Requires `X-Pelargo-Merchant-Key`. Returns the stored order ID, atomic amount, destination asset, recipient, current database status, creation time and expiry time. An order belonging to another merchant returns 404. The endpoint does not prove that an order has settled; treat its status as an internal lifecycle record until settlement reconciliation is implemented.
+
 ### `POST /api/quote`
 
 The widget sends the signed `sessionToken` with a dry `EXACT_OUTPUT` quote. Pelargo checks the token signature, active D1 session record, exact destination asset, recipient and amount. The session must be backed by configured D1 storage.
@@ -157,4 +161,4 @@ Before testing this flow, the target Cloudflare Pages environment must have:
 
 The embed bundle and API must be deployed from the same Pelargo build because the embed derives its API origin from the loaded script URL.
 
-This does not yet provide self-serve merchant signup, API-key rotation, production rate limiting, committed payment initiation, settlement verification, merchant webhooks, or an operational paid status. Keep mainnet deposits disabled. Do not use this prototype to collect real customer funds.
+This does not yet provide self-serve merchant signup, API-key rotation, production rate limiting, verified settlement, merchant webhooks, or an operational paid status. The merchant order lookup reports the stored order record only; it is not a settlement proof. Keep mainnet deposits disabled. Do not use this prototype to collect real customer funds.
