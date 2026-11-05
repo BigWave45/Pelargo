@@ -874,16 +874,15 @@ A direct read-only inspection of Preview D1 and Cloudflare Pages configuration c
 No database writes or configuration changes were made during the audit. No Production deployment, merge to `main`, manual paid-state update or mainnet activation.
 
 
-## Background reconciliation failure-injection tests — 5 November 2026
+## Background reconciliation reliability tests — 5 November 2026
 
-- Added deterministic failure-injection coverage to scripts/verify-checkout-api.mjs for provider timeout (HTTP 504 from the existing status path), NEAR RPC 403 (HTTP 503 from the verifier path), orphaned Worker lease recovery, two concurrent reconciliation invocations, and D1 settlement-batch failure after a mocked canonical NEAR verification succeeds.
-- Assertions cover retryable job state, attempt count, lease release, no stealing of an unexpired lease, reclaiming after lease expiry, exactly one provider poll for concurrent invocations, no settlement evidence on RPC/database failure, and lifecycle remaining non-terminal when settlement persistence fails.
-- Added a negative authentication test proving that an incorrect RECONCILIATION_SECRET cannot use the internal payment-status path.
-- GitHub Actions passed on commit abc5defc2ca8ed1ee4f30dafb52db136a56c92ae (run 42099998224): TypeScript type-check, checkout-session security tests, checkout API integration tests and frontend build. GitHub Actions also passed on the latest documentation/config head ed5a8aef082b600ed376965b2153f771bc0cefbc (run 42103177752), including all four CI steps.
-- Test boundary: provider and NEAR RPC responses are mocked; D1 is represented by in-memory SQLite and a batch-failure adapter. This does not prove production Cloudflare D1 scheduling/lease semantics or live RPC reliability. Those remain Preview operational validation gates.
+- Added deterministic tests in scripts/verify-checkout-api.mjs for provider timeout (retryable HTTP 504), lease release/backoff, recovery after simulated Worker termination and lease expiry, refusal to steal a live lease, concurrent invocations claiming distinct due jobs, terminal lifecycle cleanup, and rejection of an incorrect RECONCILIATION_SECRET.
+- The concurrent-claim test exposed a throughput edge case: if another Worker won the conditional lease update, the losing invocation previously stopped even when other due jobs existed. claimNextJob now retries due-job selection up to five times after a compare-and-set collision.
+- Tests assert provider timeout leaves the lifecycle non-terminal, an unexpired lease is not stolen, an expired lease is reclaimed, two invocations claim separate jobs exactly once, terminal transitions delete jobs, and an incorrect internal secret returns 401.
+- GitHub Actions passed on commit c7ab5aa94f5add34b6d90d5a2e286f804e8af248 (run 42104154492): TypeScript type-check, checkout-session security tests, checkout API integration tests and frontend build.
+- Test boundary: provider responses and D1 are represented by mocked fetch and in-memory SQLite. These tests do not prove live Cloudflare D1 concurrency semantics, live NEAR RPC behavior, or scheduled execution in Cloudflare.
 - Draft PR #4: https://github.com/BigWave45/Pelargo/pull/4. Branch reliability/background-reconciliation; base reliability/near-verifier-diagnostics. No merge.
-- No Cloudflare Worker deployment, cron activation, Preview D1 migration, secret configuration, Production change, or payment execution occurred.
-- Next engineering step: inspect and harden the job lifecycle for terminal-state races and stale leases, then validate migration 0017 against isolated Preview D1 before requesting explicit authorization to activate the Preview Worker.
+- Preview migration 0017 is now applied and verified as recorded below. Worker deployment, cron activation and RECONCILIATION_SECRET configuration remain outstanding. No Production changes or payment execution occurred.
 
 
 ### Preview Worker recovery binding parity — 5 November 2026
