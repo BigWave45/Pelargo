@@ -402,6 +402,33 @@ try {
     "rejected stale evidence must not be stored",
   );
 
+  // If chain verification is temporarily unavailable after the
+  // lifecycle has advanced, the API must report the persisted processing state.
+  globalThis.fetch = async (url) => {
+    const parsed = new URL(String(url));
+    if (parsed.hostname === "1click.chaindefuser.com") {
+      return Response.json({
+        status: "SUCCESS", updatedAt: "2026-11-05T00:00:59Z",
+        swapDetails: { destinationChainTxHashes: [{ hash: destinationHash }] },
+      });
+    }
+    if (parsed.hostname === "tx.main.fastnear.com") throw new Error("synthetic indexer outage");
+    throw new Error("unexpected verifier request");
+  };
+  const unavailableVerifier = await responseJson(await paymentStatus({
+    request: new Request("https://pelargo.test/api/payment-status?orderId=order-001", {
+      headers: { "x-pelargo-merchant-key": created.body.apiKey },
+    }),
+    env,
+  }));
+  assert.equal(unavailableVerifier.status, 503);
+  assert.equal(unavailableVerifier.body.paymentStatus, "processing",
+    "verification failure response must report the persisted lifecycle state, not the stale pre-transition state");
+  assert.equal(
+    sqlite.query("SELECT status FROM payment_lifecycle WHERE order_id = (SELECT id FROM checkout_orders WHERE external_order_id = ?)").get("order-001").status,
+    "processing",
+  );
+
   globalThis.fetch = mockNearVerifier("2000000");
 
   // Force the lifecycle half of the settlement batch to fail after the
