@@ -33,7 +33,7 @@ function readQuoteInstructions(value: unknown): {
   const originAssetId = response.quoteRequest?.originAsset;
   const amountIn = quote?.amountIn;
   if (typeof originAssetId !== "string" || !originAssetId.trim() || originAssetId.length > 256 ||
-      typeof amountIn !== "string" || !/^\\d+$/.test(amountIn) || BigInt(amountIn) <= 0n) return null;
+      typeof amountIn !== "string" || !/^\d+$/.test(amountIn) || BigInt(amountIn) <= 0n) return null;
 
   const result: {
     originAssetId: string;
@@ -47,7 +47,7 @@ function readQuoteInstructions(value: unknown): {
   if (typeof quote?.amountInFormatted === "string" && quote.amountInFormatted.length <= 80) {
     result.amountInFormatted = quote.amountInFormatted;
   }
-  if (typeof quote?.amountOut === "string" && /^\\d+$/.test(quote.amountOut)) {
+  if (typeof quote?.amountOut === "string" && /^\d+$/.test(quote.amountOut)) {
     result.amountOutAtomic = quote.amountOut;
   }
   if (typeof quote?.amountOutFormatted === "string" && quote.amountOutFormatted.length <= 80) {
