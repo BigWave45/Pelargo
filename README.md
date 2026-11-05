@@ -36,7 +36,9 @@ The embedded widget currently discovers source assets and requests a dry exact-o
 - Preview deployment `https://ae9cf247.pelargo.pages.dev` succeeded from commit `024133d6800e436dbac2abdce7f0a53ea3e91016`; CI and deployment checks passed.
 - Preview is configured with isolated D1 and Tidepool testnet provider settings. `ALLOW_TESTNET_DEPOSITS=true` is enabled in Preview configuration; mainnet commits remain disabled.
 - Deployment success does not prove live Tidepool connectivity. Live token discovery, quote, committed quote, deposit instructions and settlement have not yet been exercised through Pelargo Preview.
-- The checkout widget remains a dry-quote prototype; the backend committed-quote path is not yet a complete buyer-facing payment flow.
+- The embedded widget supports dry quote preview, explicit buyer confirmation for a committed quote, display of the returned deposit address/memo and exact committed source amount, and buyer-scoped payment-status polling using the signed checkout session. It does not connect a wallet or send funds.
+- Buyer polling is authorized against the signed session's own committed order; merchant polling remains API-key authenticated.
+- CI and Cloudflare Preview deployment passed for commit `ad33d5f` at [`https://eeea7253.pelargo.pages.dev`](https://eeea7253.pelargo.pages.dev). These checks use mocked external provider/indexer/RPC responses and do not prove live Tidepool compatibility or a real settlement.
 - No committed quote, deposit or real testnet transfer has been executed. Production is unchanged and `main` has not been merged.
 
 See [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) for the exact verification record and next sequence.
