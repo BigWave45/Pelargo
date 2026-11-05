@@ -8,6 +8,14 @@ The widget is the product. The merchant-facing surface exists only to configure 
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
+## NEAR Hackathon positioning
+
+- **Primary track: 08 / Real-World Money (RWM).** Pelargo is merchant checkout and stablecoin payment infrastructure using NEAR Intents.
+- **Secondary track: 13 / Open Innovation (NEW).** The reusable checkout primitive may also qualify as a general-purpose cross-chain payment interface for existing applications.
+- **Not currently claimed:** AI Security & Defense, AI Swarms or Agent Economy. These require product capabilities not present in the current scope. Agent Economy may become relevant if autonomous agents become first-class payers or merchants.
+
+Track selection should reflect the working prototype at submission time, not aspirations.
+
 ## Product experience
 
 ### Merchant integration
