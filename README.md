@@ -61,7 +61,7 @@ The Checkout workspace now renders a reusable `PelargoCheckout` component. It lo
 - Existing token choices, quote calculations, deposit addresses, QR artwork, transaction hashes, receipts and settlement history in demo components/data are mock values unless explicitly replaced by live API responses.
 - A decorative QR pattern is not a valid payment QR code.
 - A quote, deposit address or detected deposit is not proof of merchant payment.
-- Merchant and order persistence is being implemented through Cloudflare D1; payment settlement verification and webhook delivery are not yet established.
+- Merchant and order persistence is implemented against the D1 interface. A NEAR NEP-141 settlement verifier is now implemented and covered by mocked integration tests; live D1/RPC validation and webhook delivery remain outstanding.
 - No public SDK/CDN package is published.
 
 ## Payment safety
@@ -116,23 +116,29 @@ A merchant server sends an order reference, amount, atomic amount, destination a
 
 ### Automated security checks
 
-Run `bun run test:security` for session-token signing and verification. Run `bun run test:api` for merchant provisioning, API-key hashing, merchant authentication, checkout-session issuance/retrieval, duplicate-order rejection, quote binding, dry-quote behavior, mainnet commit protection, merchant-scoped order lookup and authenticated provider-status polling. The status tests verify deposit-memo forwarding, provider-status persistence and that provider `SUCCESS` cannot independently settle an order. These route-handler tests use an in-memory SQLite adapter and mocked upstream responses; they do not replace a live Cloudflare D1 or live 1Click test. GitHub Actions run `41972481094` passed TypeScript, session-security tests, API integration tests and the frontend build on commit `20996a9`. The API suite also exercises mocked committed-quote persistence, including rollback when the order/session rows cannot be synchronized atomically.
+Run `bun run test:security` for session-token signing and verification. Run `bun run test:api` for merchant provisioning, API-key hashing, merchant authentication, checkout-session issuance/retrieval, duplicate-order rejection, quote binding, dry-quote behavior, mainnet commit protection, merchant-scoped order lookup and authenticated provider-status polling. The status tests verify deposit-memo forwarding, provider-status persistence and that provider `SUCCESS` cannot independently settle an order. These route-handler tests use an in-memory SQLite adapter and mocked upstream responses; they do not replace a live Cloudflare D1 or live 1Click test. GitHub Actions run `41973082530` passed TypeScript, session-security tests, API integration tests and frontend build on commit `d60c4fd`. The API suite also exercises mocked committed-quote persistence, including rollback when the order/session rows cannot be synchronized atomically.
 
 
-### Settlement evidence gate (verification not yet implemented)
+### Destination-chain settlement verification
 
-- Migrations `0005`–`0007` add immutable settlement-evidence storage and a database guard for the `settled` transition.
-- Evidence must match the order's destination network, exact Intents asset ID, recipient, atomic amount and provider-reported candidate transaction hash. It also records block number/hash, confirmations and verification source.
-- A successful settlement transition synchronizes the order status to `paid` in the same SQLite write.
-- The generic lifecycle transition helper cannot set `settled`; only a future dedicated verifier path should write evidence and perform the settlement transition.
-- This is a fail-closed database control, not a chain verifier. No RPC receipt/log verification is implemented yet, and evidence must not be inserted from provider status alone.
+- Migrations `0005`–`0007` add immutable settlement evidence and a database guard for the `settled` transition.
+- `functions/_lib/near-settlement-verifier.ts` supports NEAR mainnet NEP-141 destinations only. It resolves the signer for the provider candidate hash through the FastNear transaction indexer, then asks canonical NEAR RPC for `EXPERIMENTAL_tx_status` at `FINAL`.
+- The verifier requires a successful transaction and receipt, a NEP-141 `ft_transfer` event emitted by the exact destination token contract, and exact recipient and atomic amount matches. It checks the receipt block and latest finalized block before producing evidence.
+- `GET /api/payment-status?orderId=...` invokes this verifier only after 1Click reports `SUCCESS`, the payment lifecycle is already `processing`, and a destination hash is present.
+- Verified evidence and the lifecycle transition to `settled` are committed in one D1 batch. Database triggers require evidence to match the order's network, exact asset ID, recipient, amount and candidate hash, then synchronize the order status to `paid`.
+- The generic lifecycle transition helper cannot set `settled`. Unsupported destination networks and token standards remain unverified and fail closed.
 
-### Payment status polling (not settlement verification)
+### Verification configuration and limits
+
+- Defaults target NEAR mainnet RPC (`https://rpc.mainnet.near.org`) and FastNear's mainnet transaction indexer (`https://tx.main.fastnear.com/v0/transactions`).
+- Optional Cloudflare secrets/variables: `NEAR_RPC_URL`, `NEAR_TX_INDEXER_URL`, and `NEAR_INDEXER_API_KEY`. The indexer is used only to resolve the transaction signer; NEAR RPC verifies execution and finality.
+- API tests use mocked indexer and RPC responses. They cover mismatched transfer amounts, matching NEP-141 transfer evidence, finalized block checks, atomic settlement evidence persistence and order status synchronization.
+- This is not live-chain validation. Live 1Click response compatibility, FastNear/RPC availability and response-shape compatibility, D1 batch/trigger behavior, RPC rate limits and production confirmation policy still require preview/testnet or controlled mainnet validation. No real payment has been tested.
+
+### Payment status polling
 
 - `GET /api/payment-status?orderId=...` requires the merchant's server-side API key and scopes the order lookup to that merchant.
-- The handler polls NEAR Intents using the persisted deposit address and optional memo, then records the provider status and any destination transaction hash candidate.
-- Provider `SUCCESS` is not treated as Pelargo `settled`. Independent destination-chain verification is still required.
-- This endpoint is covered by mocked route-handler tests only. Its live 1Click response schema, live D1 behavior and destination-chain verifier are not yet verified or implemented.
+- It polls 1Click using the persisted deposit address and optional memo, stores provider status and the candidate destination transaction hash, and never treats provider `SUCCESS` alone as settlement.
 
 ### Durable replay protection
 
@@ -143,7 +149,7 @@ Run `bun run test:security` for session-token signing and verification. Run `bun
 - A successful upstream commit updates the lifecycle row with a compare-and-set operation. Migration 0004 uses a SQLite trigger to synchronize the order and session rows in that same atomic write; it aborts the lifecycle update if either dependent row is missing or stale.
 - An uncertain upstream result leaves the session consumed. This intentionally favors preventing duplicate deposits over automatic retry.
 
-**Current limitations:** merchant credentials are provisioned manually by an operator; there is no self-serve merchant signup, credential rotation UI or rate limiting yet. Automated tests cover cryptographic session validation and merchant/session/quote/order API handlers against an in-memory SQLite adapter using the actual migration. Live Cloudflare D1 preview testing, D1 concurrency testing and real upstream payment lifecycle testing remain outstanding. A commit attempt is single-use, but no automated payment settlement verification is implemented. Keep mainnet commit configuration disabled until separately reviewed and explicitly approved.
+**Current limitations:** merchant credentials are provisioned manually by an operator; there is no self-serve merchant signup, credential rotation UI or rate limiting yet. Automated tests cover cryptographic session validation and merchant/session/quote/order/payment-status handlers against an in-memory SQLite adapter using the actual migrations. The NEAR NEP-141 settlement verifier is exercised with mocked FastNear and RPC responses. Live Cloudflare D1 preview testing, D1 concurrency testing and real upstream payment lifecycle testing remain outstanding. Keep mainnet commit configuration disabled until separately reviewed and explicitly approved.
 
 ## Merchant order sessions (early security boundary)
 
