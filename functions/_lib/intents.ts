@@ -1,6 +1,5 @@
 export interface Env {
   ONECLICK_JWT?: string;
-  PELARGO_MERCHANT_API_KEY?: string;
   ORDER_SESSION_SECRET?: string;
   DB?: import('./database').D1Database;
   MERCHANT_PROVISIONING_SECRET?: string;
