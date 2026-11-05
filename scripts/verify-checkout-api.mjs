@@ -1044,9 +1044,17 @@ try {
 
 
   // Origin-chain recovery requires a quote-bound, exact Base Sepolia ERC-20 transfer.
+  const originValidOrder = { ...order, orderId: "order-origin-valid" };
+  const originValidIssued = await responseJson(await checkoutSession({
+    request: request("https://pelargo.test/api/checkout-session", "POST", originValidOrder, {
+      "x-pelargo-merchant-key": created.body.apiKey,
+    }),
+    env,
+  }));
+  assert.equal(originValidIssued.status, 201);
   const originOrderId = sqlite.query(
     "SELECT id FROM checkout_orders WHERE external_order_id = ?"
-  ).get("order-001").id;
+  ).get("order-origin-valid").id;
   const originToken = "0x38d81431b9f76d9699af7517040d5221d9dea252";
   const originDepositAddress = "0x93084718ae40758F22F489D288DFdE0556d39dc9";
   const originTxHash = "0x" + "a".repeat(64);
@@ -1107,7 +1115,7 @@ try {
   try {
     const unauthenticatedOriginSubmit = await submitDeposit({
       request: request("https://pelargo.test/api/deposit-submit", "POST", {
-        orderId: "order-001", transactionHash: originTxHash,
+        orderId: "order-origin-valid", transactionHash: originTxHash,
       }),
       env,
     });
@@ -1116,7 +1124,7 @@ try {
 
     const invalidOriginAmount = await responseJson(await submitDeposit({
       request: request("https://pelargo.test/api/deposit-submit", "POST", {
-        orderId: "order-001", transactionHash: originTxHash,
+        orderId: "order-origin-valid", transactionHash: originTxHash,
       }, { "x-pelargo-merchant-key": created.body.apiKey }),
       env,
     }));
