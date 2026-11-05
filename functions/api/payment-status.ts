@@ -371,7 +371,17 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
 
         if (evidence) {
           const verifiedAt = new Date().toISOString();
+          // The candidate that passed canonical verification may not be the
+          // first hash returned by the provider. Persist that exact hash before
+          // inserting immutable evidence so the database guard validates the
+          // verified transaction, not a stale candidate. D1 batch is atomic:
+          // any failed guard or state transition rolls back all three writes.
           const results = await env.DB.batch([
+            env.DB.prepare(
+              `UPDATE payment_lifecycle
+                  SET destination_tx_candidate = ?, updated_at = ?
+                WHERE order_id = ? AND status = 'processing'`
+            ).bind(evidence.transactionHash, verifiedAt, payment.id),
             env.DB.prepare(
               `INSERT INTO payment_settlement_evidence
                 (order_id, destination_chain, destination_asset, token_contract, transaction_hash,
@@ -386,14 +396,15 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
               `UPDATE payment_lifecycle
                   SET status = 'settled', updated_at = ?
                 WHERE order_id = ? AND status = 'processing' AND destination_tx_candidate = ?`
-            ).bind(verifiedAt, payment.id, effectiveCandidateHash),
+            ).bind(verifiedAt, payment.id, evidence.transactionHash),
           ]) as Array<{ success: boolean; meta?: { changes?: number } }>;
-          if (!results[0]?.success || !results[1]?.success || (results[1]?.meta?.changes ?? 0) !== 1) {
+          if (results.length !== 3 || results.some((result) => !result?.success) ||
+              (results[0]?.meta?.changes ?? 0) !== 1 || (results[2]?.meta?.changes ?? 0) !== 1) {
             return json({ error: "Verified transfer could not be committed to the payment ledger; reconciliation is required" }, 502);
           }
           return json({
             orderId, paymentStatus: "settled", providerStatus: provider.status,
-            settlement: "verified", destinationTransactionHash: effectiveCandidateHash,
+            settlement: "verified", destinationTransactionHash: evidence.transactionHash,
             verifiedBlockHeight: evidence.blockNumber, depositInstructions,
           });
         }
