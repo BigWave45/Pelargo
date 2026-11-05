@@ -281,7 +281,17 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
       });
     } catch (error) {
       if (!(error instanceof PaymentTransitionError) || error.code !== "conflict") throw error;
-      return json({ error: "Payment changed during status polling; retry the lookup" }, 409);
+      const latest = await env.DB.prepare(
+        `SELECT status, provider_status FROM payment_lifecycle WHERE order_id = ?`
+      ).bind(payment.id).first<{ status: PaymentStatus; provider_status: ProviderStatus | null }>();
+      if (!latest) return json({ error: "Payment state could not be reloaded after a concurrent transition" }, 503);
+      return json({
+        orderId,
+        paymentStatus: latest.status,
+        providerStatus: latest.provider_status,
+        settlement: latest.status === "settled" ? "verified" : "not_settled",
+        concurrentPoll: true,
+      });
     }
   }
 
