@@ -24,3 +24,40 @@
 .token-spin{animation:token-spin 1s linear infinite}
 @keyframes token-spin{to{transform:rotate(360deg)}}
 @media(max-width:650px){.token-toolbar{flex-direction:column}.token-toolbar select{width:100%}.token-list{grid-template-columns:1fr}.token-live{font-size:8px}}
+
+
+/* Reusable buyer checkout widget */
+.pelargo-checkout{width:100%;max-width:470px;margin:0 auto;padding:25px;background:#fff;border:1px solid #e5e2da;border-radius:14px;box-shadow:0 16px 48px rgba(27,39,52,.07);color:#263647}
+.pelargo-checkout-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;padding-bottom:20px;border-bottom:1px solid #eeece6}
+.pelargo-kicker{font-size:8px;font-weight:800;letter-spacing:1.1px;color:#315be8}
+.pelargo-checkout-head h2{font:700 22px Manrope,sans-serif;letter-spacing:-.6px;margin:8px 0 5px}
+.pelargo-checkout-head p{font-size:10px;line-height:1.5;color:#87919b;margin:0}
+.pelargo-order{padding:6px 8px;background:#f4f3ef;border-radius:5px;color:#77828c;font:9px ui-monospace,monospace;white-space:nowrap}
+.pelargo-amount-field{padding:19px 0 15px}
+.pelargo-amount-field label,.pelargo-field-label{display:block;font-size:10px;font-weight:700;color:#536170;margin-bottom:7px}
+.pelargo-amount-field>div{display:flex;align-items:center;gap:10px;border-bottom:1px solid #e7e5df;padding:0 0 9px}
+.pelargo-amount-field input{min-width:0;width:100%;border:0;outline:0;font:700 28px Manrope;color:#253648;background:transparent}
+.pelargo-amount-field>div span{font-size:11px;font-weight:700;color:#315be8}
+.pelargo-amount-field small{display:block;margin-top:7px;font-size:9px;color:#929ba3}
+.pelargo-select,.pelargo-text-input{width:100%;height:43px;margin:0 0 16px;border:1px solid #e2dfd7;border-radius:7px;padding:0 11px;background:#fff;color:#2b3a49;font:11px 'DM Sans';outline:none}
+.pelargo-select:focus,.pelargo-text-input:focus{border-color:#7892eb;box-shadow:0 0 0 3px rgba(49,91,232,.08)}
+.pelargo-quote-button{display:flex;align-items:center;justify-content:center;gap:9px;width:100%;height:45px;margin-top:4px;border:0;border-radius:7px;background:#315be8;color:#fff;font:700 11px 'DM Sans';cursor:pointer}
+.pelargo-quote-button:disabled{opacity:.5;cursor:not-allowed}
+.pelargo-muted{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:12px;color:#89939d;font-size:10px}
+.pelargo-error,.pelargo-warning{display:flex;align-items:flex-start;gap:8px;padding:10px 11px;margin:12px 0;border-radius:7px;background:#fbf0ed;border:1px solid #efd5ce;color:#9b5142;font-size:10px;line-height:1.5}
+.pelargo-warning{background:#fbf5e9;border-color:#eadcc2;color:#8c6b39}
+.pelargo-error svg,.pelargo-warning svg{flex:0 0 auto}
+.pelargo-quote-result{margin-top:17px;padding:15px;border:1px solid #dce4f7;border-radius:9px;background:#f8faff}
+.pelargo-quote-label{display:flex;justify-content:space-between;align-items:center;font-size:8px;letter-spacing:.8px;font-weight:800;color:#61718a}
+.pelargo-quote-label span{padding:4px 6px;border-radius:4px;background:#e8eefc;color:#315be8}
+.pelargo-quote-amount{display:flex;align-items:baseline;gap:7px;margin-top:14px}
+.pelargo-quote-amount strong{font:700 25px Manrope;color:#223348}
+.pelargo-quote-amount span{font-size:11px;font-weight:700;color:#315be8}
+.pelargo-route-line{display:flex;align-items:center;gap:9px;margin:9px 0 14px;color:#87919b;font-size:9px;text-transform:capitalize}
+.pelargo-quote-detail{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-top:1px solid #e9edf5;color:#778493;font-size:9px}
+.pelargo-quote-detail strong{display:flex;align-items:center;gap:5px;text-align:right;color:#344457;font-size:9px}
+.pelargo-quote-result>p{font-size:9px;line-height:1.5;color:#8a7653;margin:12px 0 0}
+.pelargo-quote-result>small{display:block;margin-top:6px;color:#9aa3ad;font-size:8px}
+.pelargo-checkout-foot{padding-top:13px;margin-top:15px;border-top:1px solid #eeece6;color:#99a1a8;font-size:8px;line-height:1.5;overflow-wrap:anywhere}
+.pelargo-spin{animation:token-spin 1s linear infinite}
+@media(max-width:480px){.pelargo-checkout{padding:18px;border-radius:10px}.pelargo-checkout-head{flex-direction:column}.pelargo-order{align-self:flex-start}}
