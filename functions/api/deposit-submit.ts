@@ -160,10 +160,8 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
     providerBefore.swapDetails.originChainTxHashes.some((entry) =>
       entry !== null && typeof entry === "object" && entry.hash === transactionHash
     );
-  let submitted: ProviderStatusResponse;
-  if (alreadyKnown) {
-    submitted = providerBefore;
-  } else {
+  let submitted: ProviderStatusResponse = providerBefore;
+  if (!alreadyKnown) {
     try {
       const response = await intentsRequest("deposit/submit", {
         method: "POST",
@@ -172,15 +170,13 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
           depositAddress: payment.deposit_address,
         }),
       }, env);
-      const payload = await response.json().catch(() => null) as ProviderStatusResponse | null;
-      if (!response.ok || !payload) {
+      if (!response.ok) {
         return json({
           error: "The source deposit was verified on Base, but the provider did not accept its transaction notification",
           code: "PROVIDER_DEPOSIT_SUBMISSION_FAILED",
           upstreamStatus: response.status,
         }, 502);
       }
-      submitted = payload;
     } catch {
       return json({
         error: "The source deposit was verified on Base, but the provider notification could not be completed",
