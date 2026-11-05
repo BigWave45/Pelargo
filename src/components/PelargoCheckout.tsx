@@ -281,7 +281,7 @@ export function PelargoCheckout({
     }
     if (paymentInstructions) return;
     const confirmed = window.confirm(
-      "Create a real Tidepool testnet deposit quote? This creates payment instructions. It does not send funds. Only send testnet tokens to the address shown."
+      `Create a real Tidepool testnet deposit quote?\n\nSource asset: ${selectedSource.assetId}\nNetwork: ${selectedSource.blockchain}\n\nAfter instructions are created, transfer only this exact asset on this exact network. A token with the same symbol but a different contract is not interchangeable. This does not send funds.`
     );
     if (!confirmed) return;
 
@@ -421,6 +421,13 @@ export function PelargoCheckout({
           <option value={token.assetId} key={token.assetId}>{token.symbol} · {token.blockchain}</option>
         ))}
       </select>
+      {selectedSource && (
+        <div className="pelargo-muted" role="note">
+          <strong>Exact provider asset ID</strong>
+          <code style={{ display: "block", overflowWrap: "anywhere", marginTop: 5 }}>{selectedSource.assetId}</code>
+          <small>Before transferring, verify the network and token contract in your wallet against this asset ID. Matching the symbol alone is insufficient.</small>
+        </div>
+      )}
 
       <label className="pelargo-field-label" htmlFor="pelargo-refund">Your refund address on {selectedSource?.blockchain ?? "the source network"}</label>
       <input id="pelargo-refund" className="pelargo-text-input" value={refundTo} onChange={(event) => { setRefundTo(event.target.value); clearQuote(); }} placeholder="Wallet address for refunds" autoComplete="off" />
@@ -437,6 +444,7 @@ export function PelargoCheckout({
           <div className="pelargo-quote-label">LIVE QUOTE PREVIEW <span>DRY RUN</span></div>
           <div className="pelargo-quote-amount"><strong>{quote.amountInFormatted ?? quote.amountIn}</strong><span>{selectedSource?.symbol}</span></div>
           <div className="pelargo-route-line"><span>{selectedSource?.blockchain}</span><ArrowRight size={14} /><span>{destinationToken?.blockchain}</span></div>
+          {selectedSource && <div className="pelargo-quote-detail"><span>Exact source asset</span><code style={{ overflowWrap: "anywhere", textAlign: "right" }}>{selectedSource.assetId}</code></div>}
           <div className="pelargo-quote-detail"><span>Merchant receives</span><strong>{quote.amountOutFormatted ?? quote.amountOut} {destinationToken?.symbol}</strong></div>
           {quote.amountInUsd && <div className="pelargo-quote-detail"><span>Estimated source value</span><strong>${quote.amountInUsd}</strong></div>}
           {quote.timeEstimate !== undefined && <div className="pelargo-quote-detail"><span>Estimated execution</span><strong>{Math.ceil(quote.timeEstimate / 60)} min</strong></div>}
@@ -453,7 +461,8 @@ export function PelargoCheckout({
         <div className="pelargo-quote-result" aria-live="polite">
           <div className="pelargo-quote-label">TESTNET DEPOSIT INSTRUCTIONS <span>REAL TESTNET QUOTE</span></div>
           <strong>Send {paymentInstructions.amountInFormatted ?? paymentInstructions.amountIn} {selectedSource?.symbol} on {selectedSource?.blockchain}</strong>
-          <p>Send only the exact source asset and amount shown, using the selected source network. Do not send funds on a different network.</p>
+          <p>Send only the exact source asset and amount shown, using the selected source network. Do not send funds on a different network. Tokens with the same symbol but different contract addresses are different assets.</p>
+          <div className="pelargo-quote-detail"><span>Exact source asset ID</span><code style={{ overflowWrap: "anywhere", textAlign: "right" }}>{selectedSource?.assetId}</code></div>
           <div className="pelargo-quote-detail"><span>Deposit address</span><button type="button" onClick={() => copyValue(paymentInstructions.address)}>Copy address</button></div>
           <div className="pelargo-deposit-address">{paymentInstructions.address}</div>
           {paymentInstructions.memo && (
