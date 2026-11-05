@@ -35,7 +35,7 @@ Keep the implementation focused on this path. Do not add more chains, more index
 - The widget supports dry quote preview, buyer-confirmed committed-quote creation, display of the provider's deposit address/memo, exact committed source amount and deadline, and buyer-scoped payment-status polling using the signed checkout session. It does not connect a wallet or submit a transfer.
 - Buyer polling is restricted to the session's own committed order. Merchant server integrations use the merchant API key; the dashboard uses an HttpOnly merchant session cookie.
 - Self-service merchant registration/login, persisted destination settings, dashboard order creation and merchant-scoped activity APIs have now been added. CI passed type-check, checkout-session security tests, checkout API integration tests and frontend build for commit `7a5c0a2` (dashboard-authenticated payment polling).
-- The new merchant account and dashboard changes have not yet been deployed to Preview or tested against a live D1 database. Preview migrations currently need to be advanced from `0011` through `0015` before these routes can work there.
+- Preview migrations `0012` through `0016` have been applied to the isolated Preview D1 database. The source-deposit recovery endpoint and dashboard action are deployed to Preview, but their runtime behavior against the live Tidepool quote and the existing payment has not yet been exercised.
 - These checks use mocked external provider/indexer/RPC responses. Live Tidepool token discovery, dry quote, committed quote, real testnet deposit and independent end-to-end settlement remain unverified. No transfer has been made.
 - Production is unchanged and `main` has not been merged.
 
@@ -102,7 +102,7 @@ See [docs/INTEGRATION.md](docs/INTEGRATION.md) for merchant request contracts an
 
 ## Database
 
-Migrations `0001` through `0016` are in the repository. Preview D1 was previously verified through `0011`; migrations `0012`–`0015` are required for self-service accounts, merchant settings and authentication throttling. They have not yet been applied to Preview. Production migration state must be checked separately. Do not apply production migrations as part of ordinary hackathon testing.
+Migrations `0001` through `0016` are in the repository. Preview D1 has been advanced through `0016`, including merchant account, settings, authentication throttle and immutable origin-deposit evidence tables. Production migration state has not been checked or changed. Do not apply production migrations as part of ordinary hackathon testing.
 
 ## Safety boundaries
 
