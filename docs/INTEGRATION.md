@@ -2,20 +2,13 @@
 
 ## Buyer checkout capabilities
 
-The embedded widget can request a dry quote, then ask the buyer to explicitly confirm creation of a committed quote. It displays the provider's deposit address, optional memo, exact committed source amount and deadline only after validating the provider response. It does not connect a wallet or submit a transfer; the buyer must send the exact testnet asset and amount using a wallet on the selected source network.
+The embedded widget supports source-asset selection, dry quote preview and an explicit buyer confirmation before requesting a committed quote. A committed quote creates provider deposit instructions; it does not send funds. Before showing instructions, the widget validates the provider correlation ID, deposit address and exact positive atomic source amount. It displays the committed amount, address, optional memo and deadline, with copy controls. The buyer must manually send the exact testnet asset and amount using a wallet on the selected source network.
 
-After deposit instructions are created, the widget polls `GET /api/payment-status?orderId=...` with the signed checkout session in the `Authorization: Bearer` header. The API verifies the session signature, stored token hash, committed session state and order binding. A buyer session cannot query a different order. Merchant server-side polling continues to use `x-pelargo-merchant-key`.
+After instructions are created, the widget polls `GET /api/payment-status?orderId=...` every five seconds with the signed checkout session in the `Authorization: Bearer` header. The API verifies the signature, stored token hash, committed session state and order binding. A buyer session cannot query another order. Merchant server-side polling continues to use `x-pelargo-merchant-key`.
 
-Payment state is not considered paid until independent destination-chain verification succeeds and matching settlement evidence is persisted. Provider `SUCCESS` alone is insufficient.
+Provider `SUCCESS` alone is insufficient. The order becomes paid only after independent destination-chain verification succeeds and matching settlement evidence is persisted. The buyer widget displays the internal payment state and stops polling on terminal states or an invalid/unauthorized session.
 
-The buyer committed-quote and polling paths have mocked integration coverage and passed CI. They have not yet been exercised end-to-end against live Tidepool or a real testnet deposit.
-
-
-> **Current testnet status — 5 November 2026:** Pelargo Preview is configured to use the community-operated Tidepool NEAR testnet sandbox. The backend has a gated committed-quote path, but live token discovery, quote creation, deposit instructions and settlement have not yet been validated through Pelargo Preview. The embedded widget still supports dry-quote preview only; it is not yet a complete buyer payment flow. Do not use this integration to collect funds. See [PROJECT_STATUS.md](PROJECT_STATUS.md) for the live verification record.
-
-The embedded widget currently supports source-asset selection, dry quote preview, and an explicit buyer-confirmed request for committed deposit instructions. The committed step calls `POST /api/quote` with `dry:false`; Preview must be configured with Tidepool and `ALLOW_TESTNET_DEPOSITS=true`. When the provider returns a valid correlation ID and deposit address, the widget displays the address and optional memo. This does not initiate a transfer, connect a wallet, provide browser-side payment-status polling, or mark the order paid. The live testnet path remains unverified.
-
-This describes the current Pelargo API and integration prototype. It is not a production payment integration. The widget currently supports dry quote preview; the full committed-quote, buyer payment and settlement flow has not been validated end to end. Do not use it to collect real customer funds.
+The buyer committed-quote and polling paths have mocked integration coverage and passed CI. They have not yet been exercised end-to-end against live Tidepool or a real testnet deposit. No real transfer has been executed. Do not use this integration to collect real customer funds.
 
 ## Security model
 
@@ -116,7 +109,7 @@ The bundle is built from `src/embed.tsx` using `bun run build:embed`; the comple
 
 ## 3. API reference
 
-All merchant endpoints require `X-Pelargo-Merchant-Key`, except the public asset-discovery and quote routes described below. Merchant lookups are scoped to the authenticated merchant.
+Merchant order/session endpoints require `X-Pelargo-Merchant-Key`. The payment-status endpoint supports either that merchant key for server-side polling or a signed committed checkout session for buyer-scoped polling. Asset discovery and quote requests use their documented public/session authentication. Merchant lookups are scoped to the authenticated merchant.
 
 ### `POST /api/checkout-session`
 
@@ -146,7 +139,7 @@ Proxies supported-token discovery from NEAR Intents / 1Click. Provider availabil
 
 Accepts a signed checkout session and a quote request. Pelargo validates the session signature and persisted active session, then binds the destination asset, recipient and exact output amount to the merchant-created order. The buyer can select a supported source asset and provide a refund address.
 
-The widget currently requests dry quotes only. A dry quote is a preview; it does not create deposit instructions or prove payment. A committed quote can create real deposit instructions and potentially irreversible transfers. Keep committed mainnet quotes disabled.
+The widget requests a dry quote first. A dry quote is a preview; it does not create deposit instructions or prove payment. After explicit buyer confirmation, the widget can request a committed quote, which can create real deposit instructions and potentially irreversible transfers. Keep committed mainnet quotes disabled.
 
 For committed quote handling, Pelargo consumes the session before contacting 1Click, overwrites the provider `sessionId` with the server-issued session JTI, and requires a provider correlation ID and deposit details before persisting the quote. An ambiguous upstream response leaves the session consumed; never retry automatically.
 
@@ -156,7 +149,7 @@ Returns the authenticated merchant's stored order and current database status. A
 
 ### `GET /api/payment-status?orderId=...`
 
-Polls the configured Intents provider using the persisted deposit address and optional memo. Provider status and destination transaction candidate are stored with concurrency guards. Provider `SUCCESS` is not sufficient to mark an order paid.
+Polls the configured Intents provider using the persisted deposit address and optional memo. Merchant requests authenticate with `x-pelargo-merchant-key`; buyer requests authenticate with the signed checkout session in `Authorization: Bearer`. Buyer sessions are restricted to their own committed order. Provider status and destination transaction candidate are stored with concurrency guards. Provider `SUCCESS` is not sufficient to mark an order paid.
 
 For NEAR NEP-141 destinations, Pelargo selects the signer lookup and canonical NEAR RPC for the configured provider network. Mainnet signer lookup uses NearScanner; testnet lookup is configured for NearBlocks v3 `GET /v3/txns/{hash}`. These external response contracts are currently mocked in CI and have not been validated against a live Pelargo transaction. Canonical NEAR RPC must independently verify finalized transaction/receipt execution and the exact token contract, recipient and net amount. Verified evidence must match the order and stored transaction candidate before the database marks it paid. Other destination networks/token standards fail closed.
 
