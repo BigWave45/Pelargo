@@ -40,7 +40,7 @@ export function json(data: unknown, status = 200): Response {
       "cache-control": "no-store",
       "access-control-allow-origin": "*",
       "access-control-allow-methods": "GET, POST, OPTIONS",
-      "access-control-allow-headers": "Content-Type, Accept",
+      "access-control-allow-headers": "Content-Type, Accept, Authorization",
     },
   });
 }
