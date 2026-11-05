@@ -370,7 +370,8 @@ try {
     env,
   }));
   assert.equal(malformedHashes.status, 200, "malformed hash entries must not crash provider status parsing");
-  assert.equal(malformedHashes.body.settlement, "awaiting_destination_chain_verification");
+  assert.equal(malformedHashes.body.settlement, "provider_success_missing_destination_tx",
+    "SUCCESS without a valid transaction hash must remain unsettled and report the missing evidence");
   assert.deepEqual(malformedHashes.body.depositInstructions, {
     originAssetId: "eip155:8453/erc20:0xUSDC",
     amountInAtomic: "1012633",
