@@ -34,6 +34,10 @@ export type PelargoCheckoutProps = {
   destinationNetwork: string;
   recipient: string;
   orderId: string;
+  destinationAssetId?: string;
+  amount?: string;
+  apiBaseUrl?: string;
+  fixedAmount?: boolean;
 };
 
 const NETWORK_ALIASES: Record<string, string[]> = {
@@ -73,11 +77,15 @@ export function PelargoCheckout({
   destinationNetwork,
   recipient,
   orderId,
+  destinationAssetId,
+  amount: initialAmount = "25.00",
+  apiBaseUrl = "",
+  fixedAmount = false,
 }: PelargoCheckoutProps) {
   const [tokens, setTokens] = useState<Token[]>([]);
   const [sourceAssetId, setSourceAssetId] = useState("");
   const [refundTo, setRefundTo] = useState("");
-  const [amount, setAmount] = useState("25.00");
+  const [amount, setAmount] = useState(initialAmount);
   const [loadingTokens, setLoadingTokens] = useState(true);
   const [quoting, setQuoting] = useState(false);
   const [error, setError] = useState("");
@@ -104,7 +112,7 @@ export function PelargoCheckout({
       setLoadingTokens(true);
       setError("");
       try {
-        const response = await fetch("/api/tokens", {
+        const response = await fetch(apiUrl("/api/tokens"), {
           headers: { accept: "application/json" },
           cache: "no-store",
           signal: controller.signal,
@@ -135,12 +143,17 @@ export function PelargoCheckout({
 
   const networkAliases = NETWORK_ALIASES[destinationNetwork.toLowerCase()] ?? [destinationNetwork.toLowerCase()];
   const destinationToken = useMemo(
-    () => tokens.find((token) =>
-      token.symbol.toLowerCase() === destinationSymbol.toLowerCase() &&
-      networkAliases.includes(token.blockchain.toLowerCase())
+    () => tokens.find((token) => destinationAssetId
+      ? token.assetId === destinationAssetId
+      : token.symbol.toLowerCase() === destinationSymbol.toLowerCase() &&
+        networkAliases.includes(token.blockchain.toLowerCase())
     ),
-    [tokens, destinationSymbol, networkAliases.join("|")]
+    [tokens, destinationAssetId, destinationSymbol, networkAliases.join("|")]
   );
+
+  const apiUrl = (path: string) => apiBaseUrl
+    ? new URL(path, apiBaseUrl.endsWith("/") ? apiBaseUrl : apiBaseUrl + "/").toString()
+    : path;
 
   const sourceTokens = useMemo(
     () => tokens.filter((token) => token.assetId !== destinationToken?.assetId)
@@ -189,7 +202,7 @@ export function PelargoCheckout({
     const requestId = ++quoteRequestRef.current;
     try {
       const deadline = new Date(Date.now() + 10 * 60 * 1000).toISOString();
-      const response = await fetch("/api/quote", {
+      const response = await fetch(apiUrl("/api/quote"), {
         method: "POST",
         headers: { "content-type": "application/json", accept: "application/json" },
         body: JSON.stringify({
@@ -245,7 +258,7 @@ export function PelargoCheckout({
       <div className="pelargo-amount-field">
         <label htmlFor="pelargo-amount">Amount to receive</label>
         <div>
-          <input id="pelargo-amount" inputMode="decimal" value={amount} onChange={(event) => { setAmount(event.target.value); clearQuote(); }} />
+          <input id="pelargo-amount" inputMode="decimal" value={amount} readOnly={fixedAmount} onChange={(event) => { setAmount(event.target.value); clearQuote(); }} />
           <span>{destinationToken?.symbol ?? destinationSymbol}</span>
         </div>
         <small>{destinationToken ? `Settlement on ${destinationToken.blockchain}` : `Settlement network: ${destinationNetwork}`}</small>
