@@ -38,6 +38,7 @@ export type PelargoCheckoutProps = {
   amount?: string;
   apiBaseUrl?: string;
   fixedAmount?: boolean;
+  sessionToken?: string;
 };
 
 const NETWORK_ALIASES: Record<string, string[]> = {
@@ -81,6 +82,7 @@ export function PelargoCheckout({
   amount: initialAmount = "25.00",
   apiBaseUrl = "",
   fixedAmount = false,
+  sessionToken = "",
 }: PelargoCheckoutProps) {
   const [tokens, setTokens] = useState<Token[]>([]);
   const [sourceAssetId, setSourceAssetId] = useState("");
@@ -178,6 +180,10 @@ export function PelargoCheckout({
   async function requestDryQuote() {
     setError("");
     clearQuote();
+    if (!sessionToken) {
+      setError("This checkout has no signed merchant order session. Ask the merchant to initialize the checkout session.");
+      return;
+    }
     if (!destinationToken) {
       setError(`The selected settlement asset ${destinationSymbol} on ${destinationNetwork} is not in the current NEAR Intents token list.`);
       return;
@@ -212,6 +218,7 @@ export function PelargoCheckout({
         headers: { "content-type": "application/json", accept: "application/json" },
         body: JSON.stringify({
           dry: true,
+          sessionToken,
           swapType: "EXACT_OUTPUT",
           originAsset: selectedSource.assetId,
           destinationAsset: destinationToken.assetId,
