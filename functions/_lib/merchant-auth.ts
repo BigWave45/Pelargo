@@ -9,7 +9,7 @@ const PASSWORD_SCHEME = "pbkdf2-sha256-hmac";
 function toBase64Url(bytes: Uint8Array): string {
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary).replace(/\\+/g, "-").replace(/\\//g, "_").replace(/=+$/g, "");
+  return btoa(binary).split("+").join("-").split("/").join("_").replace(/=+$/g, "");
 }
 
 function fromBase64Url(value: string): Uint8Array {
