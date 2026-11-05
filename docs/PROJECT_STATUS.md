@@ -1,4 +1,14 @@
-# Live handover — 5 November 2026 (supersedes older status notes below)
+# Live handover — 5 November 2026
+
+## Buyer checkout expiry handling — 5 November 2026
+
+- The buyer route already receives the signed session expiry from `GET /api/checkout-session`. It now passes that timestamp into the checkout widget, displays the expiry time, and disables dry-quote/commit actions once the signed session expires.
+- If the link expires while open, the buyer sees that no new instructions can be created and must request a fresh link from the merchant.
+- After issuing a checkout link, the merchant form advances to a fresh order reference. This avoids reusing the same external order ID when creating a replacement checkout.
+- Root-cause distinction: `Checkout session is invalid or expired` is emitted by HMAC session verification when the signed token is invalid or its 15-minute expiry has passed. A D1 session already consumed by a committed attempt returns a different error. The observed message alone does not prove an upstream quote was committed or lost.
+- This change is code-only until CI and the refreshed Preview deployment are verified. It does not reissue an existing order, query Tidepool, create a committed quote, or send funds. No testnet transfer, Production deployment, merge to `main`, or mainnet activation.
+
+---
 
 ## Merchant password-hashing runtime fix — 5 November 2026
 
