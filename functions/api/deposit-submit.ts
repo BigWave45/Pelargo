@@ -96,8 +96,6 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
   }
 
   const quote = providerBefore.quoteResponse;
-  const correlationMatches = providerBefore.correlationId === payment.quote_id &&
-    quote?.correlationId === payment.quote_id;
   if (providerBefore.correlationId !== payment.quote_id) {
     return json({
       error: "Provider status does not match the committed Pelargo quote",
@@ -214,12 +212,12 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
   const saved = await env.DB.prepare(
     `INSERT OR IGNORE INTO payment_origin_deposit_evidence
       (order_id, origin_chain, token_contract, transaction_hash, deposit_address,
-       amount_atomic, block_number, block_hash, verification_source,
+       amount_atomic, block_number, block_hash, confirmations, verification_source,
        provider_submit_status, verified_at, submitted_at)
-     VALUES (?, 'BASE_SEPOLIA', ?, ?, ?, ?, ?, ?, 'chain_rpc', ?, ?, ?)`
+     VALUES (?, 'BASE_SEPOLIA', ?, ?, ?, ?, ?, ?, ?, 'chain_rpc', ?, ?, ?)`
   ).bind(
     payment.id, evidence.tokenContract, evidence.transactionHash, evidence.depositAddress,
-    evidence.amountAtomic, evidence.blockNumber, evidence.blockHash, confirmedStatus,
+    evidence.amountAtomic, evidence.blockNumber, evidence.blockHash, evidence.confirmations, confirmedStatus,
     verifiedAt, verifiedAt,
   ).run();
   const stored = await env.DB.prepare(
