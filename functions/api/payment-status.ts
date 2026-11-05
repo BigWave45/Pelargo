@@ -269,10 +269,11 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
     : [];
   // The 1Click API represents transaction hashes as either strings or
   // { hash } objects. Normalize both forms before selecting a candidate.
-  const candidateHash =
-    readProviderHashes(destinationHashes)[0] ??
-    readProviderHashes(provider.swapDetails?.nearTxHashes)[0] ??
-    null;
+  const candidateHashes = [
+    ...readProviderHashes(destinationHashes),
+    ...readProviderHashes(provider.swapDetails?.nearTxHashes),
+  ];
+  const candidateHash = candidateHashes[0] ?? null;
   // A later provider response may omit hashes already observed on an earlier
   // poll. Preserve and reuse the persisted candidate for SUCCESS verification.
   const effectiveCandidateHash = candidateHash ?? payment.destination_tx_candidate;
@@ -337,12 +338,23 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
 
       if (verificationStatus === "processing" &&
           payment.destination_network.trim().toUpperCase() === "NEAR") {
-        const evidence = await verifyNearNep141Settlement(env, {
-          destinationNetwork: payment.destination_network,
-          destinationAsset: payment.destination_asset,
-          recipient: payment.recipient,
-          amountAtomic: payment.amount_atomic,
-        }, effectiveCandidateHash);
+        let evidence = null;
+        // Provider responses can contain multiple NEAR transactions for one
+        // intent. Verify each hash independently; never assume the first is
+        // the destination transfer.
+        const hashesToVerify = [...new Set([
+          ...candidateHashes,
+          ...(effectiveCandidateHash ? [effectiveCandidateHash] : []),
+        ])];
+        for (const hash of hashesToVerify) {
+          evidence = await verifyNearNep141Settlement(env, {
+            destinationNetwork: payment.destination_network,
+            destinationAsset: payment.destination_asset,
+            recipient: payment.recipient,
+            amountAtomic: payment.amount_atomic,
+          }, hash);
+          if (evidence) break;
+        }
 
         if (evidence) {
           const verifiedAt = new Date().toISOString();
