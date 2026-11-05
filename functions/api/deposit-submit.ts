@@ -12,7 +12,7 @@ type ProviderStatusResponse = {
   status?: unknown;
   quoteResponse?: {
     correlationId?: unknown;
-    quoteRequest?: { originAsset?: unknown };
+    quoteRequest?: { originAsset?: unknown; destinationAsset?: unknown; recipient?: unknown };
     quote?: {
       amountIn?: unknown;
       amountOut?: unknown;
@@ -110,7 +110,10 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
     ? /^nep141:base-(0x[a-fA-F0-9]{40})\.tp-omft\.testnet$/i.exec(originAsset)
     : null;
   if (!sourceAssetMatch || typeof amountIn !== "string" || !/^[1-9]\d*$/.test(amountIn) ||
-      amountOut !== payment.amount_atomic || providerDepositAddress !== payment.deposit_address) {
+      amountOut !== payment.amount_atomic ||
+      quote?.quoteRequest?.destinationAsset !== payment.destination_asset ||
+      quote?.quoteRequest?.recipient !== payment.recipient ||
+      providerDepositAddress !== payment.deposit_address) {
     return json({
       error: "Provider quote does not match the expected Base Sepolia source asset, amount, destination amount and deposit address",
       code: "PROVIDER_QUOTE_DETAILS_MISMATCH",
