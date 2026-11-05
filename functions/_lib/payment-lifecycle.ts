@@ -5,7 +5,8 @@ export const PAYMENT_TRANSITIONS: Readonly<Record<string, readonly string[]>> = 
   quote_committed: ["awaiting_deposit", "expired", "failed"],
   awaiting_deposit: ["deposit_detected", "expired", "failed", "incomplete_deposit"],
   deposit_detected: ["processing", "failed", "incomplete_deposit"],
-  processing: ["settled", "failed", "incomplete_deposit", "refunded"],
+  // Settlement is intentionally excluded: only the dedicated verifier may settle.
+  processing: ["failed", "incomplete_deposit", "refunded"],
   settled: ["refunded"],
   failed: [],
   expired: [],
