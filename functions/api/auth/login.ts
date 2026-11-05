@@ -15,6 +15,7 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
   if (email.length > 254 || password.length > 128 || !email || !password) {
     return json({ error: "Email or password is incorrect" }, 401);
   }
+  if (!(await consumeAuthAttempt(request, env, "login", email, 10, 900))) return json({ error: "Too many sign-in attempts. Try again in 15 minutes." }, 429);
 
   const account = await env.DB.prepare(
     `SELECT a.merchant_id, a.password_hash
