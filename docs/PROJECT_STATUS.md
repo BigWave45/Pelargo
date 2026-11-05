@@ -373,3 +373,13 @@ This section supersedes earlier infrastructure statements in this file where the
 - Generated separate preview-only `MERCHANT_PROVISIONING_SECRET` and `ORDER_SESSION_SECRET` encrypted secrets. They are not shared with production; values were not exposed.
 - Production continues to bind `DB` to `pelargo-db` and retains its own two encrypted secrets.
 - This is configuration and schema setup only. It does not itself publish a new preview deployment or prove deployed preview Functions can access D1. Runtime smoke tests remain next.
+
+## Preview D1 lifecycle probe — 5 November 2026
+
+- Latest preview deployment `02c2eb29` (commit `8cdf8d3`) completed successfully; GitHub Actions `verify` and Cloudflare Pages checks both passed for that commit.
+- Direct synthetic SQL tests against `pelargo-preview-db` inserted a temporary merchant, order, session and lifecycle record.
+- Updating the lifecycle to `quote_committed` synchronized the order to `quote_committed` and session to `committed`; the audit log recorded the initial and transition events.
+- An attempted premature settlement from `quote_committed` was rejected by the database trigger. This probe verifies the state precondition, not the missing-evidence guard (the latter was separately verified against production D1 in the earlier probe).
+- All synthetic rows were removed. Final preview table counts: merchants 0, orders 0, sessions 0, lifecycles 0, events 0, settlement evidence 0.
+- Important limitation: these were direct D1 tests, not HTTP requests through deployed Pages Functions. Merchant provisioning, session signing/validation, order lookup and API-level D1 binding access remain unverified at runtime.
+
