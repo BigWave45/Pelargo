@@ -1,6 +1,7 @@
 import { Env, json } from "../../_lib/intents";
 import { createMerchantSession, hashPassword, sameOriginMutation } from "../../_lib/merchant-auth";
 import { sha256Hex } from "../../_lib/database";
+import { consumeAuthAttempt } from "../../_lib/auth-rate-limit";
 
 function randomHex(bytes = 32): string {
   return Array.from(crypto.getRandomValues(new Uint8Array(bytes)), (byte) => byte.toString(16).padStart(2, "0")).join("");
@@ -24,6 +25,7 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
   if (!name || name.length > 120) return json({ error: "Business name must be between 1 and 120 characters" }, 400);
   if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json({ error: "Enter a valid email address" }, 400);
   if (password.length < 12 || password.length > 128) return json({ error: "Password must be between 12 and 128 characters" }, 400);
+  if (!(await consumeAuthAttempt(request, env, "register", email, 5, 3600))) return json({ error: "Too many registration attempts. Try again later." }, 429);
 
   const merchantId = crypto.randomUUID();
   const internalApiKey = `plg_live_${randomHex()}`;
