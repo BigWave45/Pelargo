@@ -83,18 +83,6 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
     }, 403);
   }
 
-  // Atomically consume the session before a committed quote is forwarded.
-  // If the upstream outcome is uncertain, the session remains consumed rather
-  // than allowing a second commit attempt that could create duplicate deposits.
-  if (body.dry === false) {
-    const claimed = await context.env.DB.prepare(
-      "UPDATE checkout_sessions SET status = 'commit_attempted', consumed_at = ? WHERE jti = ? AND token_hash = ? AND status = 'active' AND expires_at > ?"
-    ).bind(new Date().toISOString(), session.jti, sessionHash, new Date().toISOString()).run();
-    if (!claimed.success || (claimed.meta?.changes ?? 0) !== 1) {
-      return json({ error: "Checkout session has already been used or expired" }, 409);
-    }
-  }
-
   const enumFields: Record<string, string[]> = {
     depositType: ["ORIGIN_CHAIN", "INTENTS", "CONFIDENTIAL_INTENTS"],
     refundType: ["ORIGIN_CHAIN", "INTENTS", "CONFIDENTIAL_INTENTS"],
@@ -136,6 +124,18 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
   const unknownKeys = Object.keys(body).filter((key) => !allowedKeys.has(key));
   if (unknownKeys.length) {
     return json({ error: "Unsupported quote fields", fields: unknownKeys }, 400);
+  }
+
+  // Atomically consume the session before a committed quote is forwarded.
+  // If the upstream outcome is uncertain, the session remains consumed rather
+  // than allowing a second commit attempt that could create duplicate deposits.
+  if (body.dry === false) {
+    const claimed = await context.env.DB.prepare(
+      "UPDATE checkout_sessions SET status = 'commit_attempted', consumed_at = ? WHERE jti = ? AND token_hash = ? AND status = 'active' AND expires_at > ?"
+    ).bind(new Date().toISOString(), session.jti, sessionHash, new Date().toISOString()).run();
+    if (!claimed.success || (claimed.meta?.changes ?? 0) !== 1) {
+      return json({ error: "Checkout session has already been used or expired" }, 409);
+    }
   }
 
   try {
