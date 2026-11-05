@@ -116,7 +116,7 @@ A merchant server sends an order reference, amount, atomic amount, destination a
 
 ### Automated security checks
 
-Run `bun run test:security` for session-token signing and verification. Run `bun run test:api` for merchant provisioning, API-key hashing, merchant authentication, checkout-session issuance/retrieval, duplicate-order rejection, quote binding, dry-quote behavior, mainnet commit protection, merchant-scoped order lookup and authenticated provider-status polling. The status tests verify deposit-memo forwarding, provider-status persistence and that provider `SUCCESS` cannot independently settle an order. These route-handler tests use an in-memory SQLite adapter and mocked upstream responses; they do not replace a live Cloudflare D1 or live 1Click test. GitHub Actions run `41973263474` passed TypeScript, session-security tests, API integration tests and frontend build on commit `2952265`. The API suite also exercises mocked committed-quote persistence, including rollback when the order/session rows cannot be synchronized atomically.
+Run `bun run test:security` for session-token signing and verification. Run `bun run test:api` for merchant provisioning, API-key hashing, merchant authentication, checkout-session issuance/retrieval, duplicate-order rejection, quote binding, dry-quote behavior, mainnet commit protection, merchant-scoped order lookup and authenticated provider-status polling. The status tests verify deposit-memo forwarding, provider-status persistence and that provider `SUCCESS` cannot independently settle an order. These route-handler tests use an in-memory SQLite adapter and mocked upstream responses; they do not replace a live Cloudflare D1 or live 1Click test. GitHub Actions run `41973414325` passed TypeScript, session-security tests, API integration tests and frontend build on commit `36348bf`. The API suite also exercises mocked committed-quote persistence, including rollback when the order/session rows cannot be synchronized atomically.
 
 
 ### Destination-chain settlement verification
@@ -132,7 +132,7 @@ Run `bun run test:security` for session-token signing and verification. Run `bun
 
 - Defaults target NEAR mainnet RPC (`https://rpc.mainnet.near.org`) and FastNear's mainnet transaction indexer (`https://tx.main.fastnear.com/v0/transactions`).
 - Optional Cloudflare secrets/variables: `NEAR_RPC_URL`, `NEAR_TX_INDEXER_URL`, and `NEAR_INDEXER_API_KEY`. The indexer is used only to resolve the transaction signer; NEAR RPC verifies execution and finality.
-- API tests use mocked indexer and RPC responses. They cover mismatched/refunded transfer amounts, matching NEP-141 transfer evidence, finalized block checks, atomic settlement evidence persistence and order status synchronization.
+- API tests use mocked indexer and RPC responses. They cover mismatched/refunded transfer amounts, matching NEP-141 transfer evidence, skipped provider intermediate states, finalized block checks, atomic settlement evidence persistence and order status synchronization.
 - This is not live-chain validation. Live 1Click response compatibility, FastNear/RPC availability and response-shape compatibility, D1 batch/trigger behavior, RPC rate limits and production confirmation policy still require preview/testnet or controlled mainnet validation. No real payment has been tested.
 
 ### Payment status polling
