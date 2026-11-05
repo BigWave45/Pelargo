@@ -447,3 +447,12 @@ This section supersedes earlier infrastructure statements in this file where the
 - The preview D1 database has migration 0009 applied and the trigger's stale-candidate rejection was verified directly. The latest Pages preview is built from commit `cffaca9`; it predates the provider-poll compare-and-set change.
 - Next: verify CI, deploy a fresh preview, and use a real HTTP client path to test unauthenticated rejection and D1-backed endpoint execution. Do not expose merchant keys or session tokens.
 - No production deployment, no production migration 0009, no real payment. `main` untouched; `ALLOW_MAINNET_DEPOSITS` unset.
+
+
+## Provider poll serialization refinement — 5 November 2026
+
+- Extended the provider-poll compare-and-set snapshot to include `last_polled_at` in addition to lifecycle status and destination transaction candidate. This closes a same-status/same-candidate race where two concurrent polls could otherwise both pass the earlier guard.
+- Added a regression case that changes only `last_polled_at` while a provider request is in flight and asserts the stale response receives HTTP 409 without overwriting provider state.
+- Implementation commit: `7207241`; regression commit: `60d232e`.
+- CI and preview deployment for the new commits are pending. Do not treat this refinement as verified until checks complete.
+- Preview D1 remains on migration 0009. Production database and production deployment remain unchanged. No real payment execution; main branch untouched.
