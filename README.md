@@ -30,16 +30,14 @@ Keep the implementation focused on this path. Do not add more chains, more index
 
 ## Current verification state (5 November 2026)
 
-The embedded widget currently discovers source assets and requests a dry exact-output quote. It now has an explicit buyer-confirmed action that calls the committed-quote endpoint and displays the provider deposit address/memo when a valid committed response is returned. This creates payment instructions only; it does not send funds, connect a wallet, poll order status from the browser, or mark an order paid. The testnet path has not yet been exercised live through Preview.
-
-- Operational branch: `ops/live-d1-readiness`; application integration branch: `build/live-intents`. `main` is untouched.
-- Preview deployment `https://ae9cf247.pelargo.pages.dev` succeeded from commit `024133d6800e436dbac2abdce7f0a53ea3e91016`; CI and deployment checks passed.
-- Preview is configured with isolated D1 and Tidepool testnet provider settings. `ALLOW_TESTNET_DEPOSITS=true` is enabled in Preview configuration; mainnet commits remain disabled.
-- Deployment success does not prove live Tidepool connectivity. Live token discovery, quote, committed quote, deposit instructions and settlement have not yet been exercised through Pelargo Preview.
-- The embedded widget supports dry quote preview, explicit buyer confirmation for a committed quote, display of the returned deposit address/memo and exact committed source amount, and buyer-scoped payment-status polling using the signed checkout session. It does not connect a wallet or send funds.
-- Buyer polling is authorized against the signed session's own committed order; merchant polling remains API-key authenticated.
-- CI and Cloudflare Preview deployment passed for commit `ad33d5f` at [`https://eeea7253.pelargo.pages.dev`](https://eeea7253.pelargo.pages.dev). These checks use mocked external provider/indexer/RPC responses and do not prove live Tidepool compatibility or a real settlement.
-- No committed quote, deposit or real testnet transfer has been executed. Production is unchanged and `main` has not been merged.
+- Operational branch: `ops/live-d1-readiness`; application integration branch: `build/live-intents`. `main` remains untouched.
+- Preview is configured with isolated D1 and Tidepool testnet provider settings. `ALLOW_TESTNET_DEPOSITS=true` enables only testnet committed quotes; mainnet commits remain disabled.
+- The widget supports dry quote preview, buyer-confirmed committed-quote creation, display of the provider's deposit address/memo, exact committed source amount and deadline, and buyer-scoped payment-status polling using the signed checkout session. It does not connect a wallet or submit a transfer.
+- Buyer polling is restricted to the session's own committed order. Merchant polling remains authenticated with the merchant API key.
+- CI passed type-check, checkout-session security tests, checkout API integration tests and frontend build for commit `ad33d5f`.
+- Cloudflare Preview deployment passed for that commit: [`https://eeea7253.pelargo.pages.dev`](https://eeea7253.pelargo.pages.dev). The latest documentation-only commits are currently rebuilding Preview.
+- These checks use mocked external provider/indexer/RPC responses. Live Tidepool token discovery, dry quote, committed quote, real testnet deposit and independent end-to-end settlement remain unverified. No transfer has been made.
+- Production is unchanged and `main` has not been merged.
 
 See [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) for the exact verification record and next sequence.
 
