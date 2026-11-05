@@ -776,3 +776,13 @@ This section is the current source of truth and supersedes older dated notes bel
 - Quote instruction recovery is still dependent on Tidepool returning `quoteResponse` from its status endpoint. The CI test uses a mocked provider response; it does not prove Tidepool includes these fields for the existing order.
 - Preview deployment `d9ba8e02-2562-4dce-ba0f-62952acc714f` is building from `ops/live-d1-readiness` commit `7a6e85704bd5a0c3204b59c9c1f611f8941c246b`. Deployment completion and live endpoint verification remain pending.
 - No quote was reissued, no deposit was made, and no Production deployment, merge to `main`, or mainnet activation occurred.
+
+
+## Committed checkout recovery after buyer-session expiry — 5 November 2026
+
+- Buyer payment-status authentication now separates signature validation from expiry enforcement. The status endpoint may validate an expired HMAC-signed checkout token only in recovery mode; it still requires an exact persisted JTI, token hash, merchant/order binding, and a session row whose state is `committed`.
+- This exception is read-only: it only reaches the existing payment-status polling path for that buyer's own committed order. It does not extend quote creation, permit another order, or reactivate expired/uncommitted checkout sessions. The checkout-session instruction endpoint continues to reject expired tokens under normal expiry validation.
+- Added security and API regression tests for normal expiry rejection, signature validation in recovery mode, expired committed-order status recovery, and cross-order denial.
+- CI passed on commit `f1315750f1de14b829c072f0cd3d06ca65a5739e` (workflow run 42037481332). The change is on `ops/live-d1-readiness`; Pages Preview has not yet been refreshed for it.
+- This does not settle or modify the existing `ORDER-83587591` payment. Its Preview D1 row remains `processing`, provider status `PROCESSING`, with no persisted destination transaction candidate/hash. The successful NEAR testnet transaction still requires provider/indexer reconciliation and independent NEP-141 verification.
+- No new payment was initiated, no Production deployment occurred, and `main` was not changed.
