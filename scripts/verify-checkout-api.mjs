@@ -32,6 +32,7 @@ sqlite.exec("PRAGMA foreign_keys = ON");
 sqlite.exec(readFileSync(new URL("../migrations/0001_checkout_storage.sql", import.meta.url), "utf8"));
 sqlite.exec(readFileSync(new URL("../migrations/0002_payment_lifecycle.sql", import.meta.url), "utf8"));
 sqlite.exec(readFileSync(new URL("../migrations/0003_provider_status.sql", import.meta.url), "utf8"));
+sqlite.exec(readFileSync(new URL("../migrations/0004_commit_state_sync.sql", import.meta.url), "utf8"));
 const db = {
   prepare(sql) { return new Statement(sqlite, sql); },
   batch(statements) {
@@ -258,7 +259,72 @@ try {
     env,
   });
   assert.equal(disabledCommit.status, 403, "committed quotes must remain disabled by default");
+
   assert.equal(upstreamCalls, 1, "disabled commit must not reach upstream");
+
+  const commitOrder = { ...order, orderId: "order-commit" };
+  const commitIssued = await responseJson(await checkoutSession({
+    request: request("https://pelargo.test/api/checkout-session", "POST", commitOrder, {
+      "x-pelargo-merchant-key": created.body.apiKey,
+    }),
+    env,
+  }));
+  assert.equal(commitIssued.status, 201, "second order should receive a commit-test session");
+  const commitJti = JSON.parse(atob(commitIssued.body.token.split(".")[0].replace(/-/g, "+").replace(/_/g, "/"))).jti;
+  const commitLifecycleId = sqlite.query(
+    "SELECT id FROM checkout_orders WHERE external_order_id = ?"
+  ).get("order-commit").id;
+
+  assert.throws(
+    () => sqlite.query("UPDATE payment_lifecycle SET status = 'quote_committed' WHERE order_id = ?").run(commitLifecycleId),
+    /checkout session state could not be synchronized/,
+    "lifecycle commit must abort if the session is not in commit_attempted state",
+  );
+  assert.equal(
+    sqlite.query("SELECT status FROM payment_lifecycle WHERE order_id = ?").get(commitLifecycleId).status,
+    "pending",
+    "failed dependent-row synchronization must roll back the lifecycle transition",
+  );
+
+  env.ALLOW_MAINNET_DEPOSITS = "true"; // test-only: upstream is fully mocked; no real request or transfer
+  globalThis.fetch = async (_url, init) => {
+    const submitted = JSON.parse(init.body);
+    assert.equal(submitted.dry, false);
+    return Response.json({
+      correlationId: "quote-correlation-test",
+      quote: { depositAddress: "provider-deposit-test", depositMemo: "provider-memo-test" },
+    });
+  };
+  const committed = await responseJson(await quote({
+    request: request("https://pelargo.test/api/quote", "POST", {
+      ...quoteBody, dry: false, sessionToken: commitIssued.body.token,
+    }),
+    env,
+  }));
+  assert.equal(committed.status, 200, "mocked committed quote should be persisted");
+  assert.equal(
+    sqlite.query("SELECT status FROM payment_lifecycle WHERE order_id = ?").get(commitLifecycleId).status,
+    "quote_committed",
+  );
+  assert.equal(
+    sqlite.query("SELECT status FROM checkout_orders WHERE id = ?").get(commitLifecycleId).status,
+    "quote_committed",
+    "order state must synchronize with lifecycle state",
+  );
+  const persistedQuote = sqlite.query(
+    "SELECT quote_id, deposit_address, deposit_memo FROM payment_lifecycle WHERE order_id = ?"
+  ).get(commitLifecycleId);
+  assert.deepEqual(persistedQuote, {
+    quote_id: "quote-correlation-test",
+    deposit_address: "provider-deposit-test",
+    deposit_memo: "provider-memo-test",
+  });
+  assert.equal(
+    sqlite.query("SELECT status FROM checkout_sessions WHERE jti = ?").get(commitJti).status,
+    "committed",
+    "session must become committed in the same atomic state transition",
+  );
+  env.ALLOW_MAINNET_DEPOSITS = undefined;
 } finally {
   globalThis.fetch = originalFetchForQuote;
   sqlite.close();
