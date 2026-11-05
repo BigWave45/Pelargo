@@ -1,4 +1,13 @@
-import { D1Database } from "../functions/_lib/database";
+import type { D1Database } from "../functions/_lib/database";
+
+interface ScheduledEventLike {
+  cron?: string;
+  scheduledTime?: number;
+}
+
+interface WorkerExecutionContextLike {
+  waitUntil(promise: Promise<unknown>): void;
+}
 
 export interface ExpiryWorkerEnv {
   DB: D1Database;
@@ -33,9 +42,9 @@ export async function expireAbandonedCheckouts(
 
 export default {
   async scheduled(
-    _event: ScheduledController,
+    _event: ScheduledEventLike,
     env: ExpiryWorkerEnv,
-    ctx: ExecutionContext,
+    ctx: WorkerExecutionContextLike,
   ): Promise<void> {
     ctx.waitUntil(
       expireAbandonedCheckouts(env.DB).then((expired) => {
