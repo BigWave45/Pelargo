@@ -1,6 +1,6 @@
 # Pelargo
 
-Pelargo is a universal checkout widget powered by NEAR Intents.
+Pelargo is a universal checkout widget powered by NEAR Intents. Its product category is Web3 payments infrastructure: a cross-chain crypto checkout and payment gateway.
 
 Any merchant or application can add a checkout button to an existing website or app. A customer opens Pelargo, chooses a supported token and blockchain they can pay from, and completes payment through a wallet they already use. NEAR Intents routes the payment so the merchant receives the asset configured for settlement.
 
