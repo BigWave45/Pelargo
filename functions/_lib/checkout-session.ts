@@ -64,6 +64,7 @@ export async function signCheckoutSession(
 export async function verifyCheckoutSession(
   token: string,
   env: Env,
+  options: { allowExpired?: boolean } = {},
 ): Promise<CheckoutSessionClaims | null> {
   if (!env.ORDER_SESSION_SECRET || env.ORDER_SESSION_SECRET.length < 32) return null;
   const parts = token.split(".");
@@ -94,7 +95,7 @@ export async function verifyCheckoutSession(
       typeof claims.destinationAsset !== "string" ||
       typeof claims.recipient !== "string" ||
       typeof claims.exp !== "number" ||
-      claims.exp <= now ||
+      (!options.allowExpired && claims.exp <= now) ||
       claims.iat > now + 60 ||
       claims.exp - claims.iat > 1800
     ) return null;
