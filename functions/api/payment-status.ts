@@ -335,7 +335,7 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
     }
 
     let verificationStatus = payment.status;
-    const candidateDiagnostics: Array<{ hash: string; stage: string }> = [];
+    const candidateDiagnostics: Array<{ hash: string; stage: string; detail?: string }> = [];
     try {
       // Polling can skip intermediate provider states. SUCCESS confirms the
       // provider completed its swap; record the missing internal progression
@@ -345,7 +345,7 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
       if (verificationStatus === "processing" &&
           payment.destination_network.trim().toUpperCase() === "NEAR") {
         let evidence = null;
-        let candidateVerificationError: unknown = null;
+        const candidateErrors: string[] = [];
         // Provider responses can contain multiple NEAR transactions for one
         // intent. Verify each hash independently; never assume the first is
         // the destination transfer. A bad indexer response for one candidate
@@ -364,10 +364,30 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
             }, hash, (stage) => candidateDiagnostics.push({ hash, stage }));
             if (evidence) break;
           } catch (error) {
-            candidateVerificationError = error;
+            const detail = error instanceof Error ? error.message.slice(0, 240) : "Unknown verifier failure";
+            candidateDiagnostics.push({ hash, stage: "verifier_exception", detail });
+            candidateErrors.push(`${hash}: ${detail}`);
           }
         }
-        if (!evidence && candidateVerificationError) throw candidateVerificationError;
+        // Keep every candidate failure visible. A later candidate may still
+        // verify successfully; if none does, return the complete bounded
+        // diagnostic set instead of throwing only the last candidate's error.
+        if (!evidence && candidateErrors.length > 0) {
+          console.error("[pelargo] near_candidate_verification_errors", {
+            orderId, candidateErrors: candidateErrors.slice(0, 8),
+          });
+          return json({
+            orderId,
+            paymentStatus: verificationStatus,
+            providerStatus: provider.status,
+            settlement: "verification_unavailable_or_mismatched",
+            code: "NEAR_SETTLEMENT_CANDIDATES_FAILED",
+            verificationDiagnostics: candidateDiagnostics.slice(0, 24),
+            providerEvidence,
+            candidateHash: effectiveCandidateHash,
+            depositInstructions,
+          }, 503);
+        }
 
         if (evidence) {
           const verifiedAt = new Date().toISOString();
