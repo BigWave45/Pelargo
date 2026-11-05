@@ -161,7 +161,7 @@ export async function reconcileDuePayments(
       // Invoke the exact same authenticated status/verifier implementation used
       // by browser polling. No quote or provider execution endpoint is called.
       const internalRequest = new Request(
-        `https://pelargo.internal/api/payment-status?orderId=${encodeURIComponent(order.external_order_id)}`,
+        `https://pelargo.internal/api/payment-status?internalOrderId=${encodeURIComponent(job.orderId)}`,
         { method: "GET", headers: { "x-pelargo-reconciliation-secret": env.RECONCILIATION_SECRET } },
       );
       const response = await reconcilePaymentStatus({
