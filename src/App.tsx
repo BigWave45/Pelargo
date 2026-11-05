@@ -45,7 +45,17 @@ async function api<T>(url: string, init: RequestInit = {}): Promise<T> {
     const detail = diagnostic && typeof diagnostic === "object"
       ? ` (${String(diagnostic.name || "Error")}: ${String(diagnostic.message || "No diagnostic message")})`
       : "";
-    throw new Error(`${data.error || `Request failed (${response.status})`}${detail}`);
+    // Keep bounded provider hash evidence visible when settlement verification
+    // fails. This is needed to distinguish provider hash selection from RPC
+    // verification failures without exposing credentials or raw provider data.
+    const providerEvidence = data.providerEvidence && typeof data.providerEvidence === "object"
+      ? JSON.stringify(data.providerEvidence)
+      : "";
+    const candidate = typeof data.candidateHash === "string" ? data.candidateHash : "";
+    const evidenceDetail = providerEvidence || candidate
+      ? ` [candidate=${candidate || "none"}; providerEvidence=${providerEvidence || "{}"}]`
+      : "";
+    throw new Error(`${data.error || `Request failed (${response.status})`}${detail}${evidenceDetail}`);
   }
   return data as T;
 }
