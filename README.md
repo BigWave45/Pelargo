@@ -93,6 +93,24 @@ Merchant application
 
 The widget must remain independent of any one merchant storefront. Merchant-specific order details and destination settings are inputs to checkout, not hardcoded demo data.
 
+## Merchant order sessions (early security boundary)
+
+The active branch includes:
+
+- `POST /api/checkout-session`: requires the server-side `X-Pelargo-Merchant-Key` and issues an HMAC-SHA256 signed session.
+- `GET /api/checkout-session?token=...`: verifies a signed session and returns its public order claims.
+- Sessions expire after a bounded lifetime (60–1800 seconds; 15 minutes by default).
+- `POST /api/quote`: requires a valid signed session and enforces the session's destination asset, recipient and exact output amount. The buyer can still choose the source asset and refund address.
+- The custom element requires a `session-token` attribute. The merchant must create the session from its own server and pass the returned token into the browser widget.
+
+Required Cloudflare Pages secrets:
+- `PELARGO_MERCHANT_API_KEY`: server-to-server key used to authorize session issuance.
+- `ORDER_SESSION_SECRET`: random signing secret of at least 32 characters.
+
+Never put `PELARGO_MERCHANT_API_KEY` or `ORDER_SESSION_SECRET` in browser code, HTML attributes, a public repository or a Vite `VITE_*` variable. The browser receives only the short-lived signed session token.
+
+**Current limitation:** session issuance currently uses one shared gateway API key, not separate merchant credentials or a merchant account registry. The `merchantId` claim is supplied by the trusted caller and is not independently looked up. This is a first server-side boundary, not production multi-tenant merchant authentication. There is no persistent store for one-time use, order uniqueness or replay revocation. Keep committed quotes disabled and do not configure a production payment flow.
+
 ## Embeddable checkout element (integration prototype)
 
 The active branch now has a standalone custom-element entry point:
@@ -117,7 +135,8 @@ Example integration markup (replace the host and order values):
   order-id="ORDER-123"
   destination-symbol="USDC"
   destination-network="Base"
-  recipient="0xYOUR_PUBLIC_RECEIVING_ADDRESS">
+  recipient="0xYOUR_PUBLIC_RECEIVING_ADDRESS"
+  session-token="SIGNED_SESSION_TOKEN">
 </pelargo-checkout>
 ```
 
