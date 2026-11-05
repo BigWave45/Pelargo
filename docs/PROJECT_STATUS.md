@@ -825,3 +825,25 @@ This section is the current source of truth and supersedes older dated notes bel
 - CI passed on commit `f1315750f1de14b829c072f0cd3d06ca65a5739e` (workflow run 42037481332). The change is on `ops/live-d1-readiness`; Pages Preview has not yet been refreshed for it.
 - This does not settle or modify the existing `ORDER-83587591` payment. Its Preview D1 row remains `processing`, provider status `PROCESSING`, with no persisted destination transaction candidate/hash. The successful NEAR testnet transaction still requires provider/indexer reconciliation and independent NEP-141 verification.
 - No new payment was initiated, no Production deployment occurred, and `main` was not changed.
+
+
+## System audit correction — 5 November 2026
+
+A direct read-only inspection of Preview D1 and Cloudflare Pages configuration corrected the previous recovery handover:
+
+- **Recovery configuration was absent.** Neither the deployed Preview metadata nor the current Pages Preview project configuration contains `NEAR_TX_HASH`, `NEAR_TX_SIGNER_ID` or `NEAR_TX_ORDER_ID`. The prior statement that these variables were configured was wrong. The configured-signer recovery path was not actually activated in this Preview deployment.
+- **Multi-candidate persistence is incompatible with the database guard.** The verifier may inspect multiple hashes, but the `payment_settlement_evidence_insert_guard` trigger accepts evidence only when its transaction hash equals the single persisted `destination_tx_candidate`. The verified candidate and evidence must be written together atomically; the guard must not be weakened.
+- **Current D1 evidence for ORDER-83587591:** order UUID `32dc4b6f-0288-4357-b0ee-1f754bf75860`; order status `quote_committed`; lifecycle `processing`; provider status `PROCESSING`; candidate `6Y2GiawNNnwG3vu4rDhMh2enZJxhCvXJevKesHLw8cay`; no row in `payment_settlement_evidence`.
+- **Origin evidence is present:** Base Sepolia transaction `0x6ccc936c0de29f926478ce525434ef3b26c2ccb792efbdfab10a75471ad9553d`, token contract `0x38d81431b9f76d9699af7517040d5221d9dea252`, amount `1012633`, verified through `chain_rpc` with 16,510 confirmations at the inspected snapshot.
+- `checkout_orders.status=quote_committed` while lifecycle is `processing` is consistent with the current schema: the order is promoted to `paid` only after verified settlement. Do not treat this alone as a bug.
+- Preview deployment `feeef960-0c24-452b-93de-f7f6c7a2b0fe` used commit `55a9b62e10456749fb145f22b18d9e6b457a80a2`; build and upload succeeded. This does not establish browser runtime health.
+
+### Corrective implementation sequence
+
+1. Correct Preview-only recovery configuration through Cloudflare Pages settings, without changing Production.
+2. Refactor settlement candidate handling so the exact candidate that passes canonical NEAR verification is used in one atomic D1 batch to update `destination_tx_candidate`, insert immutable evidence, and transition lifecycle to `settled`. The database guards remain strict.
+3. Ensure response serialization reports the verified transaction hash, not a stale first candidate.
+4. Add regression tests for later-candidate success, wrong token, wrong recipient, wrong net amount, non-final transactions, provider processing status, and concurrent polls.
+5. Run CI, inspect the diff, then deploy only to Preview. Reconcile the existing order; do not request another payment.
+
+No database writes or configuration changes were made during the audit. No Production deployment, merge to `main`, manual paid-state update or mainnet activation.
