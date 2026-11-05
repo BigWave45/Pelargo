@@ -813,6 +813,39 @@ try {
     "committed",
     "session must become committed in the same atomic state transition",
   );
+  // Buyer polling is authorized only by the signed token for its own committed order.
+  const originalFetchForBuyerStatus = globalThis.fetch;
+  try {
+    globalThis.fetch = async (url, init) => {
+      assert.match(String(url), /\\/v0\\/status\\?/);
+      assert.equal(init.method, "GET");
+      return Response.json({ status: "PENDING_DEPOSIT" });
+    };
+    const buyerStatus = await responseJson(await paymentStatus({
+      request: new Request("https://pelargo.test/api/payment-status?orderId=order-commit", {
+        headers: { authorization: "Bearer " + commitIssued.body.token },
+      }),
+      env,
+    }));
+    assert.equal(buyerStatus.status, 200, "buyer session should retrieve its own committed payment status");
+    assert.equal(buyerStatus.body.paymentStatus, "awaiting_deposit");
+    const crossOrderStatus = await paymentStatus({
+      request: new Request("https://pelargo.test/api/payment-status?orderId=order-001", {
+        headers: { authorization: "Bearer " + commitIssued.body.token },
+      }),
+      env,
+    });
+    assert.equal(crossOrderStatus.status, 403, "buyer session must not retrieve another order");
+    const buyerOptions = await paymentStatus({
+      request: new Request("https://pelargo.test/api/payment-status", { method: "OPTIONS" }),
+      env,
+    });
+    assert.equal(buyerOptions.status, 204);
+    assert.match(buyerOptions.headers.get("access-control-allow-headers") ?? "", /Authorization/i);
+  } finally {
+    globalThis.fetch = originalFetchForBuyerStatus;
+  }
+
   env.ALLOW_MAINNET_DEPOSITS = undefined;
 } finally {
   globalThis.fetch = originalFetchForQuote;
