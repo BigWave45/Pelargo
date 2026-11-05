@@ -1,5 +1,20 @@
 # Live handover — 5 November 2026
 
+## Source deposit and delayed settlement reconciliation — 5 November 2026
+
+- Added `functions/_lib/base-deposit-verifier.ts`: checks Base Sepolia chain ID, receipt success, exact requested transaction hash, exact ERC-20 token contract, Transfer recipient and amount, and at least 12 block confirmations.
+- Added migration `0016_origin_deposit_evidence.sql` for immutable, unique per-order source-deposit evidence. This migration is code only until applied to Preview D1.
+- Added merchant-authenticated `POST /api/deposit-submit`. It loads the merchant's committed quote, checks provider `correlationId`, exact quote source asset/input amount/output amount/deposit address, verifies the submitted Base transaction on-chain, and then calls the documented Tidepool `POST /v0/deposit/submit` notification endpoint. It confirms provider state through the documented status endpoint rather than assuming an undocumented response body.
+- Added duplicate-notification handling when the provider status already lists the source transaction, and rejection for terminal non-success provider states. The endpoint never creates a new quote or sends funds.
+- Added a dashboard recovery action for existing committed orders and a field for the already-submitted Base transaction hash. The UI action does not itself transfer tokens.
+- Updated `GET /api/payment-status` to expose bounded provider correlation/hash diagnostics and to run NEAR chain verification when a destination candidate is present, even if provider status remains `PROCESSING`. Exact destination token contract, recipient, net amount and NEAR finality remain mandatory before settlement.
+- CI passed for the delayed-provider destination verification test on commit `bb421431726f146c75b4ee19b38d0b1b20309c86`, and for provider notification response handling on `0ad85cdc743ba244f67f986878687573d8492b4e`. The latest source finality and migration changes are awaiting their own CI result.
+- All provider/RPC behavior in these new tests is mocked. The deposit notification route has not yet been tested against the existing live order, and the migration has not been applied to Preview D1. No new payment or transfer was initiated.
+- Next: pass CI on the latest head; apply migration 0016 to Preview D1 only; deploy a Preview build; test the existing `ORDER-83587591` using its already-submitted Base transaction hash; inspect the actual provider response and canonical NEAR RPC evidence; then decide whether settlement can be safely completed.
+- No Production deployment, merge to `main`, mainnet activation or additional transfer.
+
+---
+
 ## Live Tidepool testnet settlement investigation — 5 November 2026
 
 - Completed testnet payment: order `ORDER-83587591`, Tidepool quote `6fd9fef3-a12d-4347-a73f-e250c3acd40d`, destination `agentg.testnet`, expected output 1 USDC.
