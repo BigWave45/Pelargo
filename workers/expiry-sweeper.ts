@@ -129,7 +129,7 @@ async function retryOrReleaseJob(
   ).bind(nextAttempt, error.slice(0, 500), now.toISOString(), job.orderId, job.leaseToken).run();
 }
 
-async function reconcileDuePayments(
+export async function reconcileDuePayments(
   env: ExpiryWorkerEnv,
   now = new Date(),
   batchSize = 10,
