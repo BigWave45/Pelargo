@@ -85,14 +85,14 @@ export async function verifyNearNep141Settlement(
   if (!result || !rpcSuccess(result.status)) return null;
 
   const receipts = Array.isArray(result.receipts_outcome) ? result.receipts_outcome : [];
-  let matchingReceiptBlockHash: string | null = null;
+  let netReceived = 0n;
+  let lastRelevantReceiptBlockHash: string | null = null;
   for (const item of receipts) {
     const receiptOutcome = record(item);
     const outcome = record(receiptOutcome?.outcome);
-    const executorId = outcome?.executor_id;
-    const logs = Array.isArray(outcome?.logs) ? outcome.logs : [];
-    if (executorId !== tokenContract || !rpcSuccess(outcome?.status)) continue;
+    if (outcome?.executor_id !== tokenContract || !rpcSuccess(outcome.status)) continue;
 
+    const logs = Array.isArray(outcome.logs) ? outcome.logs : [];
     for (const rawLog of logs) {
       if (typeof rawLog !== "string" || !rawLog.startsWith("EVENT_JSON:")) continue;
       let event: JsonRecord | null = null;
@@ -100,29 +100,36 @@ export async function verifyNearNep141Settlement(
       catch { continue; }
       if (event?.standard !== "nep141" || event.version !== "1.0.0" ||
           event.event !== "ft_transfer" || !Array.isArray(event.data)) continue;
-      const matched = event.data.some((rawEntry) => {
+
+      for (const rawEntry of event.data) {
         const entry = record(rawEntry);
-        return entry?.new_owner_id === order.recipient &&
-          entry.amount === order.amountAtomic;
-      });
-      if (matched && typeof receiptOutcome?.block_hash === "string") {
-        matchingReceiptBlockHash = receiptOutcome.block_hash;
-        break;
+        if (!entry || typeof entry.amount !== "string" || !/^\\d+$/.test(entry.amount)) continue;
+        const incoming = entry.new_owner_id === order.recipient;
+        const outgoing = entry.old_owner_id === order.recipient;
+        if (!incoming && !outgoing) continue;
+        const amount = BigInt(entry.amount);
+        netReceived += incoming ? amount : -amount;
+        if (typeof receiptOutcome?.block_hash === "string") {
+          lastRelevantReceiptBlockHash = receiptOutcome.block_hash;
+        }
       }
     }
-    if (matchingReceiptBlockHash) break;
   }
-  if (!matchingReceiptBlockHash) return null;
+
+  // NEP-141 ft_transfer_call can emit an incoming transfer before its
+  // resolver receipt refunds some or all of it. Verify net movement across
+  // all successful token-contract receipts, not just the first incoming log.
+  if (netReceived !== BigInt(order.amountAtomic) || !lastRelevantReceiptBlockHash) return null;
 
   const blockResponse = await postJson(rpcUrl, {
     jsonrpc: "2.0",
     id: "pelargo-settlement-block",
     method: "block",
-    params: { block_id: matchingReceiptBlockHash },
+    params: { block_id: lastRelevantReceiptBlockHash },
   });
   const block = record(blockResponse.result);
   const header = record(block?.header);
-  if (!header || header.hash !== matchingReceiptBlockHash ||
+  if (!header || header.hash !== lastRelevantReceiptBlockHash ||
       (typeof header.height !== "number" && typeof header.height !== "string")) return null;
   const blockHeight = BigInt(header.height);
   if (blockHeight < 1n) return null;
@@ -145,7 +152,7 @@ export async function verifyNearNep141Settlement(
     recipient: order.recipient,
     amountAtomic: order.amountAtomic,
     blockNumber: blockHeight.toString(),
-    blockHash: matchingReceiptBlockHash,
+    blockHash: lastRelevantReceiptBlockHash,
     confirmations: Number(BigInt(latestHeader.height) - blockHeight + 1n),
   };
 }
