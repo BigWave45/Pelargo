@@ -45,6 +45,7 @@ sqlite.exec(readFileSync(new URL("../migrations/0011_payment_recovery_cases.sql"
 sqlite.exec(readFileSync(new URL("../migrations/0012_merchant_accounts.sql", import.meta.url), "utf8"));
 sqlite.exec(readFileSync(new URL("../migrations/0013_merchant_destination_settings.sql", import.meta.url), "utf8"));
 sqlite.exec(readFileSync(new URL("../migrations/0014_destination_decimals.sql", import.meta.url), "utf8"));
+sqlite.exec(readFileSync(new URL("../migrations/0015_auth_rate_limits.sql", import.meta.url), "utf8"));
 const db = {
   prepare(sql) { return new Statement(sqlite, sql); },
   batch(statements) {
