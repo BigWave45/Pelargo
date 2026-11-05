@@ -30,6 +30,8 @@ Keep the implementation focused on this path. Do not add more chains, more index
 
 ## Current verification state (5 November 2026)
 
+The embedded widget currently discovers source assets and requests a dry exact-output quote. It now has an explicit buyer-confirmed action that calls the committed-quote endpoint and displays the provider deposit address/memo when a valid committed response is returned. This creates payment instructions only; it does not send funds, connect a wallet, poll order status from the browser, or mark an order paid. The testnet path has not yet been exercised live through Preview.
+
 - Operational branch: `ops/live-d1-readiness`; application integration branch: `build/live-intents`. `main` is untouched.
 - Preview deployment `https://ae9cf247.pelargo.pages.dev` succeeded from commit `024133d6800e436dbac2abdce7f0a53ea3e91016`; CI and deployment checks passed.
 - Preview is configured with isolated D1 and Tidepool testnet provider settings. `ALLOW_TESTNET_DEPOSITS=true` is enabled in Preview configuration; mainnet commits remain disabled.
