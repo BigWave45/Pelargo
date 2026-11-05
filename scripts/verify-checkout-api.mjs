@@ -614,11 +614,12 @@ try {
   );
 
   env.ALLOW_MAINNET_DEPOSITS = "true"; // test-only: upstream is fully mocked; no real request or transfer
+  let omitCorrelationId = false;
   globalThis.fetch = async (_url, init) => {
     const submitted = JSON.parse(init.body);
     assert.equal(submitted.dry, false);
     return Response.json({
-      correlationId: "quote-correlation-test",
+      ...(omitCorrelationId ? {} : { correlationId: "quote-correlation-test" }),
       quote: { depositAddress: "provider-deposit-test", depositMemo: "provider-memo-test" },
     });
   };
