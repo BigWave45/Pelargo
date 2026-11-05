@@ -413,3 +413,15 @@ This section supersedes earlier infrastructure statements in this file where the
 - CI and Cloudflare Pages checks for `593b9bd` were queued/in progress at the time of this note. Do not call the tests passed until GitHub reports success.
 - Latest previous preview `3ec8313c` predates these changes. A new preview build is expected from the current branch push.
 - This is provider-payload validation in the mocked API suite. It does not constitute live 1Click compatibility, live NEAR verification, or deployed D1 runtime validation.
+
+
+## Settlement evidence concurrency hardening — 5 November 2026
+
+- Added migration `0009_settlement_evidence_insert_guard.sql`. A settlement-evidence row can now be inserted only while the matching lifecycle is `processing` and its `destination_tx_candidate` equals the evidence transaction hash. This blocks stale verifier results from inserting evidence after the candidate changes.
+- Extended `scripts/verify-checkout-api.mjs` to apply migration 0009 and assert that a mismatched candidate hash is rejected while the synthetic payment is processing. The fixture uses the actual order under settlement verification.
+- Commits: `bd4a7ab` (migration), `08571e1` (regression case), `9271227` (correct fixture binding).
+- Updated `wrangler.toml` comments to reflect the separate production and preview D1 bindings and the current migration requirement.
+- Updated README to document migration 0009 and its deployment prerequisite.
+- GitHub Actions and Cloudflare Pages checks for the documentation head were queued/in progress at the time of this update. Do not mark this commit green until both checks complete.
+- Migration 0009 has not yet been applied to either remote D1 database. Apply it to preview after CI passes, then run the preview runtime smoke tests. Apply it to production only as part of the approved controlled release sequence.
+- No production deployment, no main branch changes, no real payment execution. `ALLOW_MAINNET_DEPOSITS` remains unset.
