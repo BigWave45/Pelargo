@@ -1103,6 +1103,7 @@ try {
     if (parsed.hostname === "base-rpc.test") {
       const rpcRequest = JSON.parse(init.body);
       if (rpcRequest.method === "eth_chainId") return Response.json({ result: "0x14a34" });
+      if (rpcRequest.method === "eth_blockNumber") return Response.json({ result: "0x20" });
       if (rpcRequest.method === "eth_getTransactionReceipt") return Response.json({ result: {
         status: "0x1", transactionHash: originTxHash, blockNumber: "0x10", blockHash: "0x" + "b".repeat(64),
         logs: [{
