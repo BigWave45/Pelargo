@@ -144,3 +144,11 @@ The public repository, deployed demo and hackathon explanation must clearly dist
 - **Verified:** Source changes committed to build/live-intents. The panel still requires a successful Cloudflare Pages preview deployment and an actual button press before the quote result can be considered tested.
 - **Not verified:** Upstream quote acceptance, token identifier availability in the live token registry, and whether the provider requires a partner JWT.
 - **Next action:** Open the updated branch preview and press Run 1 USDC test. Share the displayed HTTP status and response for diagnosis.
+
+## Dry quote validation fix — 5 November 2026
+
+- **Completed:** The dry quote test now explicitly supplies `depositType: ORIGIN_CHAIN`, `refundType: ORIGIN_CHAIN`, and `recipientType: DESTINATION_CHAIN`, matching a source-chain deposit and destination-chain payout.
+- **Completed:** The request generates an ISO 8601 deadline ten minutes ahead at click time, rather than shipping a stale hard-coded timestamp.
+- **Verified:** The previous live response was HTTP 400 and explicitly identified these four missing fields. The patch is committed to build/live-intents.
+- **Not verified:** The corrected request has not yet been exercised against 1Click. A successful quote remains unproven.
+- **Next action:** Deploy the updated preview and run the dry quote test again. No committed quote or transfer is enabled.

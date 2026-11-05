@@ -8,6 +8,9 @@ const TEST_PAYLOAD = {
   originAsset: "nep141:arb-0xaf88d065e77c8cc2239327c5edb3a432268e5831.omft.near",
   destinationAsset: "nep141:base-0x833589fcd6edb6e08f4c7c32d4f71b54bda02913.omft.near",
   amount: "1000000",
+  depositType: "ORIGIN_CHAIN",
+  refundType: "ORIGIN_CHAIN",
+  recipientType: "DESTINATION_CHAIN",
   recipient: TEST_ADDRESS,
   refundTo: TEST_ADDRESS,
   slippageTolerance: 100,
@@ -31,7 +34,10 @@ export function DryQuoteTest() {
       const response = await fetch("/api/quote", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(TEST_PAYLOAD),
+        body: JSON.stringify({
+          ...TEST_PAYLOAD,
+          deadline: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+        }),
         signal: controller.signal,
       });
       const raw = await response.text();

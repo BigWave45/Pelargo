@@ -14,7 +14,6 @@ import {
   Trash2,
 } from "lucide-react";
 import { PelargoWidget, WidgetScreen } from "./components/PelargoWidget.tsx";
-import { DryQuoteTest } from "./components/DryQuoteTest.tsx";
 import { PelargoBird } from "./components/BrandMark.tsx";
 import { MerchantDashboard } from "./components/MerchantDashboard.tsx";
 import {
@@ -343,7 +342,6 @@ export default function App() {
             </section>
           </>
         )}
-      <DryQuoteTest />
       </main>
 
       {/* Dev-only Reviewer Panel in corner */}
