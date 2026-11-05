@@ -106,7 +106,7 @@ export async function verifyNearNep141Settlement(
 ): Promise<NearSettlementEvidence | null> {
   const reject = (stage: string): null => {
     onDiagnostic?.(stage);
-    throw new Error(`NEAR settlement verification rejected: ${stage}`);
+    return null;
   };
   if (order.destinationNetwork.trim().toUpperCase() !== "NEAR") return reject("unsupported_destination_network");
   const assetMatch = /^nep141:([a-z0-9._-]+)$/i.exec(order.destinationAsset);
