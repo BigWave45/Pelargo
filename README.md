@@ -110,10 +110,10 @@ The active branch adds a Cloudflare D1-backed merchant/order/session model.
 
 ### One-time infrastructure setup
 
-1. Create a Cloudflare D1 database named `pelargo-checkout` in the same Cloudflare account as the Pages project.
-2. Add a Pages Function binding named `DB` pointing to that database (preview and production bindings are separate; configure preview first).
-3. Apply `migrations/0001_checkout_storage.sql` through `migrations/0008_settlement_evidence_contract_guard.sql` in numerical order.
-4. Add the following as Cloudflare Pages secrets for the preview environment:
+1. The Cloudflare Pages project `pelargo` is connected to the D1 database `pelargo-db` (`eae6ecc8-d79d-4d12-8a37-2d38ab84a0b1`).
+2. The production Pages environment has a `DB` binding to that database. Preview has no confirmed binding and is intentionally not treated as production-ready.
+3. Migrations `0001` through `0008` have been applied directly to D1 and reconciled with the `d1_migrations` history table in numerical order.
+4. Before deploying application changes, configure these as encrypted production Pages secrets:
    - `MERCHANT_PROVISIONING_SECRET`: high-entropy provisioning secret.
    - `ORDER_SESSION_SECRET`: random signing secret of at least 32 characters.
 5. Call `POST /api/merchant` from a trusted operator environment with `X-Pelargo-Provisioning-Key` to create a merchant. The API key is returned once; store it securely.
@@ -160,7 +160,7 @@ Run `bun run test:security` for session-token signing and verification. Run `bun
 - A successful upstream commit updates the lifecycle row with a compare-and-set operation. Migration 0004 uses a SQLite trigger to synchronize the order and session rows in that same atomic write; it aborts the lifecycle update if either dependent row is missing or stale.
 - An uncertain upstream result leaves the session consumed. This intentionally favors preventing duplicate deposits over automatic retry.
 
-**Current limitations:** merchant credentials are provisioned manually by an operator; there is no self-serve merchant signup, credential rotation UI or rate limiting yet. Automated tests cover cryptographic session validation and merchant/session/quote/order/payment-status handlers against an in-memory SQLite adapter using the actual migrations. The NEAR NEP-141 settlement verifier is exercised with mocked FastNear and RPC responses. Live Cloudflare D1 preview testing, D1 concurrency testing and real upstream payment lifecycle testing remain outstanding. Keep mainnet commit configuration disabled until separately reviewed and explicitly approved.
+**Current limitations:** merchant credentials are provisioned manually by an operator; there is no self-serve merchant signup, credential rotation UI or rate limiting yet. Automated tests cover cryptographic session validation and merchant/session/quote/order/payment-status handlers against an in-memory SQLite adapter using the actual migrations. The NEAR NEP-141 settlement verifier is exercised with mocked FastNear and RPC responses. Live production Pages Function testing against the newly configured D1 binding, D1 concurrency testing and real upstream payment lifecycle testing remain outstanding. Keep mainnet commit configuration disabled until separately reviewed and explicitly approved.
 
 ## Merchant order sessions (early security boundary)
 
