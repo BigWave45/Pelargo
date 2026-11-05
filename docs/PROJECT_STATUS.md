@@ -745,3 +745,13 @@ This section is the current source of truth and supersedes older dated notes bel
 - Updated both regression cases: a competing poll that changes the candidate hash, and a competing poll that changes only the poll timestamp. Both now assert the endpoint returns the persisted state and does not overwrite the newer values.
 - Implementation commit: `b58ca89`; regression commit: `42f58e0`. The implementation commit's CI failed only because the test assertions still expected HTTP 409; the assertion update is in the subsequent commit. The subsequent CI run is pending.
 - Preview deployment has not been refreshed for this change. No provider quote was reissued, no deposit was made, no production deployment or main-branch merge occurred.
+
+
+## Recovery of committed quote instructions from provider status — 5 November 2026
+
+- The documented 1Click status response includes the original `quoteResponse`, including the original quote request and quote fields. This gives Pelargo a provider-backed recovery path for the source asset, exact input amount, output amount and quote deadline, without creating another quote.
+- `GET /api/payment-status?orderId=...` now validates and returns a narrowly scoped `depositInstructions` object when the provider includes a valid `quoteResponse`. It contains the source asset ID, exact atomic and formatted input amount, output amount when present, deadline, and Pelargo's saved deposit address/memo. It does not expose the entire provider response.
+- The endpoint remains merchant-authenticated or buyer-session-authenticated. The provider response is treated as untrusted input; malformed asset IDs, amounts or dates are omitted/rejected rather than copied through.
+- Added an integration regression proving recovery of the original source asset, exact amount, destination amount and deadline from a mocked provider status response. Type-check, checkout-session security tests, API integration tests and frontend build passed on commit `7a6e857`.
+- This is a mocked contract test. The existing Tidepool order's real `quoteResponse` has not yet been retrieved through Pelargo Preview, so its source asset, exact amount and deadline are still unverified. The saved deposit address alone is not sufficient to authorize a transfer.
+- No new quote was requested, no deposit was made, no Production deployment or merge to `main` occurred.
