@@ -187,3 +187,6 @@ The scheduled reconciliation implementation now has integration tests for provid
 GitHub Actions passed on implementation commit abc5defc2ca8ed1ee4f30dafb52db136a56c92ae (run 42099998224), including type-check, checkout-session security tests, checkout API integration tests and frontend build. These are deterministic integration tests using in-memory SQLite and mocked provider/RPC responses; they do not establish live Cloudflare D1 concurrency behavior, live NEAR RPC availability, or successful scheduled execution in Cloudflare.
 
 The Worker remains un-deployed and its cron inactive. Migration 0017 remains unapplied to Cloudflare Preview D1, and the shared Preview secret has not been configured. No Production changes or payment execution occurred.
+
+
+The Preview Worker config also carries the non-secret, order-scoped NEAR recovery tuple for the existing testnet payment (`ORDER-83587591`): transaction hash `vif8EKtCAzHcaihLNuC6XaRMhCzEDxUiHbAJJRQVUVE`, signer hint `maker.tidepool-sandbox.testnet`, and matching external order ID. This is necessary because Worker bindings are separate from Pages Preview bindings. The signer hint is not trusted as settlement evidence; canonical NEAR RPC must still verify the exact transaction and NEP-141 transfer. The tuple is not included in the Production Worker config.
