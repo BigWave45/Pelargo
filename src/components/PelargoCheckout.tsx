@@ -101,6 +101,8 @@ export function PelargoCheckout({
   const [requestedAt, setRequestedAt] = useState("");
   const [committing, setCommitting] = useState(false);
   const [paymentInstructions, setPaymentInstructions] = useState<{ address: string; memo?: string | null; quoteId: string; amountIn: string; amountInFormatted?: string; deadline?: string } | null>(null);
+  const [paymentStatus, setPaymentStatus] = useState<{ paymentStatus: string; providerStatus?: string; settlement?: string } | null>(null);
+  const [statusError, setStatusError] = useState("");
   const quoteRequestRef = useRef(0);
 
   function clearQuote() {
@@ -109,6 +111,8 @@ export function PelargoCheckout({
     setQuoteId("");
     setRequestedAt("");
     setPaymentInstructions(null);
+    setPaymentStatus(null);
+    setStatusError("");
     setQuoting(false);
     setCommitting(false);
   }
@@ -312,6 +316,45 @@ export function PelargoCheckout({
     }
   }
 
+  useEffect(() => {
+    if (!paymentInstructions || !sessionToken) return;
+    let cancelled = false;
+    let timer: number | undefined;
+
+    const poll = async () => {
+      try {
+        const response = await fetch(
+          apiUrl("/api/payment-status?orderId=" + encodeURIComponent(orderId)),
+          {
+            headers: { accept: "application/json", authorization: "Bearer " + sessionToken },
+            cache: "no-store",
+          },
+        );
+        const payload = await response.json();
+        if (!response.ok) {
+          if (response.status === 401 || response.status === 403) {
+            if (!cancelled) setStatusError(payload?.error || "This checkout session can no longer retrieve payment status.");
+            return;
+          }
+          throw new Error(payload?.error || "Payment status returned HTTP " + response.status);
+        }
+        if (cancelled) return;
+        setStatusError("");
+        setPaymentStatus(payload);
+        const terminal = ["settled", "failed", "refunded", "incomplete_deposit", "expired"];
+        if (terminal.includes(String(payload.paymentStatus).toLowerCase())) return;
+      } catch (cause) {
+        if (!cancelled) setStatusError(cause instanceof Error ? cause.message : "Unable to retrieve payment status.");
+      }
+      if (!cancelled) timer = window.setTimeout(poll, 5000);
+    };
+
+    void poll();
+    return () => {
+      cancelled = true;
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
+  }, [paymentInstructions?.quoteId, sessionToken, orderId, apiBaseUrl]);
   async function copyValue(value: string) {
     try {
       await navigator.clipboard.writeText(value);
@@ -395,7 +438,14 @@ export function PelargoCheckout({
           )}
           <div className="pelargo-quote-detail"><span>Provider quote reference</span><strong>{paymentInstructions.quoteId}</strong></div>
           {paymentInstructions.deadline && <div className="pelargo-quote-detail"><span>Deposit deadline</span><strong>{formatExpiry(paymentInstructions.deadline)}</strong></div>}
-          <p>Creating these instructions did not send funds. After you send the testnet deposit, the merchant's server must verify the provider result and destination-chain settlement. Do not treat a wallet send or provider success alone as proof that the order is paid.</p>
+          <div className="pelargo-payment-status" aria-live="polite">
+            <span>Payment status</span>
+            <strong>{paymentStatus?.paymentStatus?.replaceAll("_", " ") ?? "Waiting for status"}</strong>
+            {paymentStatus?.providerStatus && <small>Provider: {paymentStatus.providerStatus}</small>}
+            {paymentStatus?.settlement && <small>Settlement check: {paymentStatus.settlement.replaceAll("_", " ")}</small>}
+            {statusError && <small role="alert">{statusError}</small>}
+          </div>
+          <p>Creating these instructions did not send funds. After you send the testnet deposit, Pelargo checks provider status and independently verifies destination-chain settlement. Provider success or a wallet send alone does not mean the order is paid.</p>
         </div>
       )}
       <div className="pelargo-checkout-foot">Merchant destination: {destinationToken?.symbol ?? destinationSymbol} · {recipient ? `${recipient.slice(0, 7)}…${recipient.slice(-5)}` : "Not configured"}</div>
