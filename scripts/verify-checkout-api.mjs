@@ -33,6 +33,9 @@ sqlite.exec(readFileSync(new URL("../migrations/0001_checkout_storage.sql", impo
 sqlite.exec(readFileSync(new URL("../migrations/0002_payment_lifecycle.sql", import.meta.url), "utf8"));
 sqlite.exec(readFileSync(new URL("../migrations/0003_provider_status.sql", import.meta.url), "utf8"));
 sqlite.exec(readFileSync(new URL("../migrations/0004_commit_state_sync.sql", import.meta.url), "utf8"));
+sqlite.exec(readFileSync(new URL("../migrations/0005_verified_settlement.sql", import.meta.url), "utf8"));
+sqlite.exec(readFileSync(new URL("../migrations/0006_order_destination_metadata.sql", import.meta.url), "utf8"));
+sqlite.exec(readFileSync(new URL("../migrations/0007_match_settlement_network.sql", import.meta.url), "utf8"));
 const db = {
   prepare(sql) { return new Statement(sqlite, sql); },
   batch(statements) {
@@ -176,6 +179,16 @@ try {
   }));
   assert.equal(providerSuccess.body.settlement, "awaiting_destination_chain_verification");
   assert.equal(sqlite.query("SELECT status FROM payment_lifecycle WHERE order_id = (SELECT id FROM checkout_orders WHERE external_order_id = ?)").get("order-001").status, "processing", "provider SUCCESS must not independently settle an order");
+  assert.throws(
+    () => sqlite.query("UPDATE payment_lifecycle SET status = 'settled' WHERE order_id = (SELECT id FROM checkout_orders WHERE external_order_id = ?)").run("order-001"),
+    /verified settlement evidence does not match order/,
+    "database must reject settlement without independently verified evidence",
+  );
+  assert.equal(
+    sqlite.query("SELECT status FROM payment_lifecycle WHERE order_id = (SELECT id FROM checkout_orders WHERE external_order_id = ?)").get("order-001").status,
+    "processing",
+    "rejected settlement must leave payment in processing",
+  );
 } finally {
   globalThis.fetch = originalFetch;
 }
