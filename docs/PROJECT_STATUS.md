@@ -383,3 +383,14 @@ This section supersedes earlier infrastructure statements in this file where the
 - All synthetic rows were removed. Final preview table counts: merchants 0, orders 0, sessions 0, lifecycles 0, events 0, settlement evidence 0.
 - Important limitation: these were direct D1 tests, not HTTP requests through deployed Pages Functions. Merchant provisioning, session signing/validation, order lookup and API-level D1 binding access remain unverified at runtime.
 
+
+
+## Preview configuration and regression-test follow-up — 5 November 2026
+
+- Commit `8968cfc735819c5c2b49a5dcd875f7613f0bec74` adds API route-handler regressions for missing session signing secret (503 fail-closed), stored expired sessions (410), revoked sessions (410), and inactive merchant credentials (401).
+- GitHub Actions `verify` passed for this commit. Cloudflare Pages preview deployment `2d869dc1` also built successfully: https://2d869dc1.pelargo.pages.dev.
+- These tests run against in-memory SQLite with mocked upstream responses. They do not exercise deployed Cloudflare Functions or live provider/chain services.
+- Cloudflare Pages configuration read-back confirms encrypted-secret entries named `MERCHANT_PROVISIONING_SECRET` and `ORDER_SESSION_SECRET` in both environments. Secret values are redacted; their validity is not inferred from presence alone.
+- Production Pages `DB` binding points to `pelargo-db`; preview `DB` binding has now been configured to the isolated `pelargo-preview-db`. The binding change happened after preview deployment `2d869dc1`; a fresh preview deployment is required before runtime testing.
+- `main` remains untouched. No production deployment, committed quote or real payment was performed. Keep `ALLOW_MAINNET_DEPOSITS` unset.
+- Next: publish a fresh preview build after the binding update, then run non-payment HTTP smoke tests using synthetic merchant data. Verify D1-backed merchant provisioning, checkout-session issuance/retrieval, order lookup and unauthenticated rejection. Do not expose API keys or session tokens in logs or chat.
