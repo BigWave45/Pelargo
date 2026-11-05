@@ -1,5 +1,11 @@
 # Backend update — 5 November 2026
 
+## Settlement guard CI verification
+
+- GitHub Actions run `41972481094`, commit `20996a9`, passed all checks: TypeScript, checkout-session security tests, checkout API integration tests and frontend build.
+- The API suite loads migrations `0001`–`0007`, verifies destination metadata persistence, and confirms a direct attempt to mark an order `settled` without matching immutable settlement evidence is rejected by the database.
+- The generic lifecycle helper no longer allows `processing -> settled`.
+
 ## Settlement guard and destination metadata
 
 - Added `destination_network` and `destination_symbol` to persisted checkout orders through migration `0006_order_destination_metadata.sql`; session creation now writes both fields.
