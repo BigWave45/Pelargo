@@ -1,6 +1,7 @@
 import { Env, intentsRequest, json } from "../_lib/intents";
 import { sha256Hex } from "../_lib/database";
 import { PaymentStatus, transitionPayment, PaymentTransitionError } from "../_lib/payment-lifecycle";
+import { verifyNearNep141Settlement } from "../_lib/near-settlement-verifier";
 
 type ProviderStatus =
   | "PENDING_DEPOSIT"
@@ -39,13 +40,15 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
 
   const payment = await env.DB.prepare(
     `SELECT o.id, o.external_order_id, o.status AS order_status,
+            o.destination_network, o.destination_asset, o.recipient, o.amount_atomic,
             p.status, p.deposit_address, p.deposit_memo, p.provider_status
        FROM checkout_orders o
        JOIN payment_lifecycle p ON p.order_id = o.id
       WHERE o.merchant_id = ? AND o.external_order_id = ?`
   ).bind(merchant.id, orderId).first<{
-    id: string; external_order_id: string; order_status: string; status: PaymentStatus;
-    deposit_address: string | null; deposit_memo: string | null; provider_status: string | null;
+    id: string; external_order_id: string; order_status: string;
+    destination_network: string; destination_asset: string; recipient: string; amount_atomic: string;
+    status: PaymentStatus; deposit_address: string | null; deposit_memo: string | null; provider_status: string | null;
   }>();
 
   if (!payment) return json({ error: "Order not found" }, 404);
@@ -89,11 +92,71 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
   // SUCCESS is only a provider assertion. Preserve it as evidence for a later
   // independent destination-chain verification; do not mark the order settled.
   if (provider.status === "SUCCESS") {
+    if (payment.status === "settled") {
+      return json({ orderId, paymentStatus: "settled", providerStatus: provider.status, settlement: "verified" });
+    }
+    if (!candidateHash) {
+      return json({
+        orderId, paymentStatus: payment.status, providerStatus: provider.status,
+        settlement: "provider_success_missing_destination_tx",
+      });
+    }
+
+    if (payment.status === "processing" && payment.destination_network.trim().toUpperCase() === "NEAR") {
+      try {
+        const evidence = await verifyNearNep141Settlement(env, {
+          destinationNetwork: payment.destination_network,
+          destinationAsset: payment.destination_asset,
+          recipient: payment.recipient,
+          amountAtomic: payment.amount_atomic,
+        }, candidateHash);
+
+        if (evidence) {
+          const verifiedAt = new Date().toISOString();
+          const results = await env.DB.batch([
+            env.DB.prepare(
+              `INSERT INTO payment_settlement_evidence
+                (order_id, destination_chain, destination_asset, token_contract, transaction_hash,
+                 recipient, amount_atomic, block_number, block_hash, confirmations, verification_source, verified_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'chain_rpc', ?)`
+            ).bind(
+              payment.id, evidence.destinationChain, evidence.destinationAsset, evidence.tokenContract,
+              evidence.transactionHash, evidence.recipient, evidence.amountAtomic, evidence.blockNumber,
+              evidence.blockHash, evidence.confirmations, verifiedAt,
+            ),
+            env.DB.prepare(
+              `UPDATE payment_lifecycle
+                  SET status = 'settled', updated_at = ?
+                WHERE order_id = ? AND status = 'processing' AND destination_tx_candidate = ?`
+            ).bind(verifiedAt, payment.id, candidateHash),
+          ]);
+          if (!results[0]?.success || !results[1]?.success || (results[1]?.meta?.changes ?? 0) !== 1) {
+            return json({ error: "Verified transfer could not be committed to the payment ledger; reconciliation is required" }, 502);
+          }
+          return json({
+            orderId, paymentStatus: "settled", providerStatus: provider.status,
+            settlement: "verified", destinationTransactionHash: candidateHash,
+            verifiedBlockHeight: evidence.blockNumber,
+          });
+        }
+      } catch (error) {
+        console.error("[pelargo] near_settlement_verification_failed", {
+          orderId, message: error instanceof Error ? error.message : "unknown",
+        });
+        return json({
+          orderId, paymentStatus: payment.status, providerStatus: provider.status,
+          settlement: "verification_unavailable_or_mismatched",
+        }, 503);
+      }
+    }
+
     return json({
       orderId,
       paymentStatus: payment.status,
       providerStatus: provider.status,
-      settlement: candidateHash ? "awaiting_destination_chain_verification" : "provider_success_missing_destination_tx",
+      settlement: payment.destination_network.trim().toUpperCase() === "NEAR"
+        ? "awaiting_destination_chain_verification"
+        : "destination_network_verifier_not_supported",
     });
   }
 
