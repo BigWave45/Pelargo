@@ -33,7 +33,8 @@ export default function App() {
   order-id="ORDER-123"
   destination-symbol="${asset}"
   destination-network="${network}"
-  recipient="${recipient || "YOUR_RECIPIENT_ADDRESS"}">
+  recipient="${recipient || "YOUR_RECIPIENT_ADDRESS"}"
+  session-token="SIGNED_SESSION_TOKEN">
 </pelargo-checkout>`;
     try {
       await navigator.clipboard.writeText(snippet);
