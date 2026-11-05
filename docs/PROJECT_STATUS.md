@@ -402,3 +402,14 @@ This section supersedes earlier infrastructure statements in this file where the
 - Cloudflare project read-back confirms preview environment `DB` now maps to `pelargo-preview-db` (ID `0335acdc-f0e0-42f6-ba87-e3448fb91728`). Production remains mapped to `pelargo-db`.
 - GitHub Actions `verify` and the Cloudflare Pages check were still in progress at the time of this entry; do not record them as passed until their check runs complete.
 - Attempting to open the deployed API URL through the available web reader was unsupported. No HTTP runtime result is claimed. Next test must use a direct HTTP-capable client or Cloudflare-supported runtime tooling with synthetic credentials, and must verify unauthenticated rejection plus authenticated D1-backed operations without logging secrets.
+
+
+## Provider-status input hardening — 5 November 2026
+
+- Updated `functions/api/payment-status.ts` to reject malformed provider `updatedAt` timestamps before writing provider state.
+- Destination transaction-hash parsing now tolerates malformed/null array entries and only selects a non-empty bounded hash string.
+- Added regression cases in `scripts/verify-checkout-api.mjs` for invalid timestamps and malformed transaction-hash entries.
+- Code commits: `23ba7b5` (handler hardening), `593b9bd` (regression tests).
+- CI and Cloudflare Pages checks for `593b9bd` were queued/in progress at the time of this note. Do not call the tests passed until GitHub reports success.
+- Latest previous preview `3ec8313c` predates these changes. A new preview build is expected from the current branch push.
+- This is provider-payload validation in the mocked API suite. It does not constitute live 1Click compatibility, live NEAR verification, or deployed D1 runtime validation.
