@@ -483,3 +483,11 @@ This section supersedes earlier infrastructure statements in this file where the
 - Added regression assertions for missing quote correlation IDs, retired public status access, FastNear Bearer authentication, and NEAR RPC `EXPERIMENTAL_tx_status` using `FINAL`.
 - These are code-level tests using mocked provider/indexer/RPC responses. They do not establish live FastNear credentials, live NEAR RPC compatibility, or live 1Click behavior.
 - Changes are grouped in one commit to conserve preview deployments. No production deployment, main-branch change, committed real quote, or payment execution.
+
+
+## Persisted destination transaction candidate reuse — 5 November 2026
+
+- Fixed a polling gap where 1Click could omit a destination transaction hash from a later `SUCCESS` response even though Pelargo had already persisted a valid candidate from an earlier poll.
+- The status handler now uses the current response hash when supplied, otherwise the previously persisted candidate. The compare-and-set still protects against stale concurrent polls.
+- Added a regression test where provider `SUCCESS` omits the hash, Pelargo reuses its stored candidate, and independent NEAR verification still runs. A transfer with a refund-adjusted amount mismatch remains unsettled.
+- This is a mocked integration test; it does not establish live 1Click response consistency or live NEAR RPC/indexer availability.

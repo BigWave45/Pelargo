@@ -113,6 +113,9 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
     tx !== null && typeof tx === "object" &&
     typeof tx.hash === "string" && tx.hash.trim().length > 0 && tx.hash.length <= 256
   )?.hash ?? null;
+  // A later provider response may omit hashes already observed on an earlier
+  // poll. Preserve and reuse the persisted candidate for SUCCESS verification.
+  const effectiveCandidateHash = candidateHash ?? payment.destination_tx_candidate;
   // Compare-and-set against the lifecycle snapshot read before the upstream
   // request. Two concurrent polls may return different candidate hashes; only
   // the first response based on this snapshot may update provider state.
@@ -135,7 +138,7 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
     if (payment.status === "settled") {
       return json({ orderId, paymentStatus: "settled", providerStatus: provider.status, settlement: "verified" });
     }
-    if (!candidateHash) {
+    if (!effectiveCandidateHash) {
       return json({
         orderId, paymentStatus: payment.status, providerStatus: provider.status,
         settlement: "provider_success_missing_destination_tx",
@@ -156,7 +159,7 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
           destinationAsset: payment.destination_asset,
           recipient: payment.recipient,
           amountAtomic: payment.amount_atomic,
-        }, candidateHash);
+        }, effectiveCandidateHash);
 
         if (evidence) {
           const verifiedAt = new Date().toISOString();
@@ -175,14 +178,14 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
               `UPDATE payment_lifecycle
                   SET status = 'settled', updated_at = ?
                 WHERE order_id = ? AND status = 'processing' AND destination_tx_candidate = ?`
-            ).bind(verifiedAt, payment.id, candidateHash),
+            ).bind(verifiedAt, payment.id, effectiveCandidateHash),
           ]) as Array<{ success: boolean; meta?: { changes?: number } }>;
           if (!results[0]?.success || !results[1]?.success || (results[1]?.meta?.changes ?? 0) !== 1) {
             return json({ error: "Verified transfer could not be committed to the payment ledger; reconciliation is required" }, 502);
           }
           return json({
             orderId, paymentStatus: "settled", providerStatus: provider.status,
-            settlement: "verified", destinationTransactionHash: candidateHash,
+            settlement: "verified", destinationTransactionHash: effectiveCandidateHash,
             verifiedBlockHeight: evidence.blockNumber,
           });
         }

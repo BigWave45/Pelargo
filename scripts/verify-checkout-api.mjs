@@ -330,12 +330,14 @@ try {
   // The next SUCCESS poll intentionally skips the provider's PROCESSING state;
   // the route must fill the internal lifecycle gap before chain verification.
   const destinationHash = "1111111111111111111111111111111111111111111";
-  const mockNearVerifier = (transferAmount, refundAmount = "0") => async (url, init = {}) => {
+  const mockNearVerifier = (transferAmount, refundAmount = "0", includeDestinationHash = true) => async (url, init = {}) => {
     const parsed = new URL(String(url));
     if (parsed.hostname === "1click.chaindefuser.com") {
       return Response.json({
         status: "SUCCESS", updatedAt: "2026-11-05T00:01:00Z",
-        swapDetails: { destinationChainTxHashes: [{ hash: destinationHash }] },
+        swapDetails: includeDestinationHash
+          ? { destinationChainTxHashes: [{ hash: destinationHash }] }
+          : {},
       });
     }
     if (parsed.hostname === "tx.main.fastnear.com") {
@@ -380,14 +382,18 @@ try {
     throw new Error(`Unexpected verifier request: ${url}`);
   };
 
-  globalThis.fetch = mockNearVerifier("2000000", "1");
+  // The provider no longer returns the hash, but Pelargo has a previously
+  // observed candidate. SUCCESS must still run independent chain verification.
+  sqlite.query("UPDATE payment_lifecycle SET destination_tx_candidate = ? WHERE order_id = (SELECT id FROM checkout_orders WHERE external_order_id = ?)").run(destinationHash, "order-001");
+  globalThis.fetch = mockNearVerifier("2000000", "1", false);
   const mismatchedTransfer = await responseJson(await paymentStatus({
     request: new Request("https://pelargo.test/api/payment-status?orderId=order-001", {
       headers: { "x-pelargo-merchant-key": created.body.apiKey },
     }),
     env,
   }));
-  assert.equal(mismatchedTransfer.body.settlement, "awaiting_destination_chain_verification");
+  assert.equal(mismatchedTransfer.body.settlement, "awaiting_destination_chain_verification",
+    "persisted candidate hash must be verified when a later SUCCESS response omits hashes");
   assert.equal(
     sqlite.query("SELECT status FROM payment_lifecycle WHERE order_id = (SELECT id FROM checkout_orders WHERE external_order_id = ?)").get("order-001").status,
     "processing",
