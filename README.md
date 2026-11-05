@@ -101,7 +101,7 @@ The active branch adds a Cloudflare D1-backed merchant/order/session model.
 
 1. Create a Cloudflare D1 database named `pelargo-checkout` in the same Cloudflare account as the Pages project.
 2. Add a Pages Function binding named `DB` pointing to that database (preview and production bindings are separate; configure preview first).
-3. Apply `migrations/0001_checkout_storage.sql` through `migrations/0007_match_settlement_network.sql` in numerical order.
+3. Apply `migrations/0001_checkout_storage.sql` through `migrations/0008_settlement_evidence_contract_guard.sql` in numerical order.
 4. Add the following as Cloudflare Pages secrets for the preview environment:
    - `MERCHANT_PROVISIONING_SECRET`: high-entropy provisioning secret.
    - `ORDER_SESSION_SECRET`: random signing secret of at least 32 characters.
@@ -121,9 +121,9 @@ Run `bun run test:security` for session-token signing and verification. Run `bun
 
 ### Destination-chain settlement verification
 
-- Migrations `0005`–`0007` add immutable settlement evidence and a database guard for the `settled` transition.
+- Migrations `0005`–`0008` add immutable settlement evidence and a database guard for the `settled` transition.
 - `functions/_lib/near-settlement-verifier.ts` supports NEAR mainnet NEP-141 destinations only. It resolves the signer for the provider candidate hash through the FastNear transaction indexer, then asks canonical NEAR RPC for `EXPERIMENTAL_tx_status` at `FINAL`.
-- The verifier requires a successful transaction and receipt, a NEP-141 `ft_transfer` event emitted by the exact destination token contract, and exact recipient and atomic amount matches. It checks the receipt block and latest finalized block before producing evidence.
+- The verifier requires a successful transaction and receipt, a NEP-141 `ft_transfer` event emitted by the exact destination token contract, and exact net recipient amount after accounting for any resolver refund events. It checks the receipt block and latest finalized block before producing evidence.
 - `GET /api/payment-status?orderId=...` invokes this verifier only after 1Click reports `SUCCESS`, the payment lifecycle is already `processing`, and a destination hash is present.
 - Verified evidence and the lifecycle transition to `settled` are committed in one D1 batch. Database triggers require evidence to match the order's network, exact asset ID, recipient, amount and candidate hash, then synchronize the order status to `paid`.
 - The generic lifecycle transition helper cannot set `settled`. Unsupported destination networks and token standards remain unverified and fail closed.
@@ -132,7 +132,7 @@ Run `bun run test:security` for session-token signing and verification. Run `bun
 
 - Defaults target NEAR mainnet RPC (`https://rpc.mainnet.near.org`) and FastNear's mainnet transaction indexer (`https://tx.main.fastnear.com/v0/transactions`).
 - Optional Cloudflare secrets/variables: `NEAR_RPC_URL`, `NEAR_TX_INDEXER_URL`, and `NEAR_INDEXER_API_KEY`. The indexer is used only to resolve the transaction signer; NEAR RPC verifies execution and finality.
-- API tests use mocked indexer and RPC responses. They cover mismatched transfer amounts, matching NEP-141 transfer evidence, finalized block checks, atomic settlement evidence persistence and order status synchronization.
+- API tests use mocked indexer and RPC responses. They cover mismatched/refunded transfer amounts, matching NEP-141 transfer evidence, finalized block checks, atomic settlement evidence persistence and order status synchronization.
 - This is not live-chain validation. Live 1Click response compatibility, FastNear/RPC availability and response-shape compatibility, D1 batch/trigger behavior, RPC rate limits and production confirmation policy still require preview/testnet or controlled mainnet validation. No real payment has been tested.
 
 ### Payment status polling
