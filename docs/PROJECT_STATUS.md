@@ -7,7 +7,7 @@
 - Added regression assertion in scripts/verify-checkout-api.mjs that a wrong net NEP-141 amount is associated with the exact candidate and rejection stage.
 - No payment execution behavior, state transition policy, settlement evidence constraints, database schema, or financial accounting was changed.
 - No Cloudflare configuration, D1 data, Preview or Production deployment was changed.
-- Verification pending: run type-check, security tests, API integration tests and frontend build. The tests are mocked; they cannot establish live NEAR RPC availability or settle ORDER-83587591.
+- GitHub Actions CI passed on commit 3f9251b182ba2a0a407c6c069526a000664bbf01 (run 42097755714). Type-check, checkout-session security tests, checkout API integration tests and frontend build all passed. The tests use mocked external RPC/indexer responses; they do not establish live NEAR RPC availability or settle ORDER-83587591.
 - Next proposed work after test results: implement durable scheduled reconciliation for already-committed payments using a separate Preview-only Cloudflare Worker and isolated D1 binding. Before implementation, inspect the existing worker configuration and migration constraints; do not deploy the worker or change production settings.
 # Live handover — 5 November 2026
 
