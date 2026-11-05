@@ -28,6 +28,7 @@ export type BaseSepoliaDepositEvidence = {
   amountAtomic: string;
   blockNumber: string;
   blockHash: string;
+  confirmations: number;
 };
 
 export async function verifyBaseSepoliaErc20Deposit(
@@ -55,6 +56,11 @@ export async function verifyBaseSepoliaErc20Deposit(
       typeof receipt.blockNumber !== "string" || typeof receipt.blockHash !== "string" ||
       !Array.isArray(receipt.logs)) return null;
 
+  const latestBlock = await rpc(rpcUrl, "eth_blockNumber", []) as string;
+  if (typeof latestBlock !== "string" || !/^0x[0-9a-fA-F]+$/.test(latestBlock)) return null;
+  const confirmations = Number(BigInt(latestBlock) - BigInt(receipt.blockNumber) + 1n);
+  if (!Number.isSafeInteger(confirmations) || confirmations < 12) return null;
+
   const expectedToken = input.tokenContract.toLowerCase();
   const expectedRecipient = input.depositAddress.toLowerCase();
   const transferTopic = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
@@ -80,5 +86,6 @@ export async function verifyBaseSepoliaErc20Deposit(
     amountAtomic: received.toString(),
     blockNumber: BigInt(receipt.blockNumber).toString(),
     blockHash: receipt.blockHash,
+    confirmations,
   };
 }
