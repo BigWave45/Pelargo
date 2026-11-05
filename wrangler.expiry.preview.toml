@@ -14,6 +14,10 @@ crons = ["*/5 * * * *"]
 [vars]
 INTENTS_API_BASE_URL = "https://www.usetidepool.tech"
 ALLOW_TESTNET_DEPOSITS = "true"
+# One-order recovery hint. The signer is still independently checked by canonical RPC.
+NEAR_TX_HASH = "vif8EKtCAzHcaihLNuC6XaRMhCzEDxUiHbAJJRQVUVE"
+NEAR_TX_SIGNER_ID = "maker.tidepool-sandbox.testnet"
+NEAR_TX_ORDER_ID = "ORDER-83587591"
 
 [[d1_databases]]
 binding = "DB"
