@@ -33,8 +33,17 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
   try {
     passwordHash = await hashPassword(password);
   } catch (error) {
-    console.error("[merchant-register] password hashing failed", error);
-    return json({ error: "Unable to secure account credentials. Please try again.", code: "PASSWORD_HASH_FAILED" }, 500);
+    const diagnostic = error instanceof Error
+      ? { name: error.name, message: error.message }
+      : { name: "UnknownError", message: String(error) };
+    console.error("[merchant-register] password hashing failed", diagnostic);
+    const response: Record<string, unknown> = {
+      error: "Unable to secure account credentials. Please try again.",
+      code: "PASSWORD_HASH_FAILED",
+    };
+    // Expose sanitized crypto diagnostics only on the isolated Tidepool testnet Preview.
+    if (env.INTENTS_API_BASE_URL === "https://www.usetidepool.tech") response.diagnostic = diagnostic;
+    return json(response, 500);
   }
   try {
     await env.DB.batch([
