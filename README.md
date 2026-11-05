@@ -79,12 +79,14 @@ Ambiguous commits are never automatically retried, reactivated or expired. The p
 
 ## Verification status and limits
 
-- API/security tests use an in-memory SQLite database and mocked upstream provider, FastNear and NEAR RPC responses. They validate application logic; they are not live provider or chain tests.
+- API/security tests use an in-memory SQLite database and mocked upstream provider, NearScanner and NEAR RPC responses. They validate application logic; they are not live provider or chain tests.
 - Preview D1 has migration history 0001–0011. Migrations 0010 and 0011 were applied to preview on 5 November 2026.
 - Direct synthetic preview-D1 tests passed for migration 0010 expiry synchronization and migration 0011 recovery-case insertion/idempotency. All synthetic records were removed; cleanup returned zero remaining probe records.
 - The Pages preview `DB` binding targets the isolated preview database. Preview deployments have been re-enabled only for `ops/live-d1-readiness`; the next eligible push is intended to create the single refreshed preview needed for runtime verification.
-- Live 1Click response compatibility, FastNear authentication/response compatibility and live NEAR RPC verification remain outstanding.
-- `NEAR_INDEXER_API_KEY` is required by the verifier. It has not been configured in Cloudflare because no key has been supplied.
+- NearScanner's documented transaction lookup route is `GET /api/v1/explorer/tx/{hash}`. The adapter sends the configured key in `X-API-Key` and accepts only a response containing a transaction object whose hash exactly matches the requested hash and which supplies `signer_id`.
+- NearScanner's public developer page does not publish the complete authentication/response schema. The adapter contract is covered by mocked tests, but live authentication and response compatibility still require Preview verification.
+- `NEARSCANNER_API_KEY` must be configured as a server-side Cloudflare secret in Preview and Production. Do not expose it to browser code.
+- Live 1Click response compatibility, NearScanner authentication/response compatibility and live NEAR RPC verification remain outstanding.
 - Merchant webhooks, self-serve onboarding, credential rotation, production rate limiting and non-NEAR settlement verifiers are not implemented.
 
 ## Safety and release controls

@@ -143,7 +143,7 @@ Returns the authenticated merchant's stored order and current database status. A
 
 Polls 1Click using the persisted deposit address and optional memo. Provider status and destination transaction candidate are stored with concurrency guards. Provider `SUCCESS` is not sufficient to mark an order paid.
 
-For NEAR mainnet NEP-141 destinations, Pelargo resolves the transaction signer through FastNear and independently verifies finalized NEAR transaction/receipt execution and the exact token contract, recipient and net amount. Verified evidence must match the order and stored transaction candidate before the database marks it paid. Other destination networks/token standards fail closed.
+For NEAR mainnet NEP-141 destinations, Pelargo resolves the transaction signer through NearScanner's `GET /api/v1/explorer/tx/{hash}` endpoint and independently verifies finalized NEAR transaction/receipt execution and the exact token contract, recipient and net amount. Verified evidence must match the order and stored transaction candidate before the database marks it paid. Other destination networks/token standards fail closed.
 
 ### `GET /api/operator/recovery-cases`
 
@@ -168,12 +168,12 @@ The target Pages environment needs:
 - `MERCHANT_PROVISIONING_SECRET` for operator provisioning and recovery access.
 - `ORDER_SESSION_SECRET` with high entropy (at least 32 characters).
 - A provisioned merchant and its API key stored server-side.
-- `NEAR_INDEXER_API_KEY` for NEAR settlement verification; it has not yet been configured in Cloudflare because no key has been supplied.
-- Optional `NEAR_RPC_URL` and `NEAR_TX_INDEXER_URL` endpoint overrides.
+- `NEARSCANNER_API_KEY` for NearScanner signer lookup; the user reports that this secret has been added to Cloudflare.
+- Optional `NEAR_RPC_URL` and `NEARSCANNER_TX_API_URL` endpoint overrides.
 
 Repository migrations currently run through `0011`. The isolated preview D1 migration history was verified through 0011 on 5 November 2026. Production migration state is separate and must be checked before release. The expiry/recovery Worker code and five-minute cron configuration exist, but the Worker has not been deployed and its cron is not active.
 
-Tests in `bun run test:security` and `bun run test:api` use in-memory SQLite and mocked provider/indexer/RPC responses. They do not prove live 1Click, FastNear, NEAR RPC or deployed Pages runtime compatibility. Preview HTTP runtime testing remains outstanding.
+Tests in `bun run test:security` and `bun run test:api` use in-memory SQLite and mocked provider/indexer/RPC responses. They do not prove live 1Click, NearScanner authentication/response, NEAR RPC or deployed Pages runtime compatibility. Preview HTTP runtime testing remains outstanding.
 
 Current product limitations:
 - NEAR mainnet NEP-141 is the only implemented destination settlement verifier.

@@ -5,8 +5,8 @@ export interface Env {
   MERCHANT_PROVISIONING_SECRET?: string;
   ALLOW_MAINNET_DEPOSITS?: string;
   NEAR_RPC_URL?: string;
-  NEAR_TX_INDEXER_URL?: string;
-  NEAR_INDEXER_API_KEY?: string;
+  NEARSCANNER_TX_API_URL?: string;
+  NEARSCANNER_API_KEY?: string;
 }
 
 const API_BASE = "https://1click.chaindefuser.com";

@@ -31,11 +31,10 @@ function rpcSuccess(value: unknown): boolean {
   return Boolean(status && ("SuccessValue" in status || "SuccessReceiptId" in status));
 }
 
-async function postJson(url: string, body: unknown, headers: HeadersInit = {}): Promise<JsonRecord> {
+async function requestJson(url: string, init: RequestInit): Promise<JsonRecord> {
   const response = await fetch(url, {
-    method: "POST",
-    headers: { "content-type": "application/json", accept: "application/json", ...headers },
-    body: JSON.stringify(body),
+    ...init,
+    headers: { accept: "application/json", ...init.headers },
     signal: AbortSignal.timeout(12_000),
   });
   if (!response.ok) throw new Error(`NEAR verification upstream returned HTTP ${response.status}`);
@@ -44,9 +43,43 @@ async function postJson(url: string, body: unknown, headers: HeadersInit = {}): 
   return payload;
 }
 
+async function postJson(url: string, body: unknown): Promise<JsonRecord> {
+  return requestJson(url, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+function indexedSigner(payload: JsonRecord, expectedHash: string): string | null {
+  // NearScanner documents the transaction lookup route, but its public page
+  // does not publish a complete response schema. Accept only explicit,
+  // hash-bound transaction objects; never recursively trust an arbitrary
+  // signer_id elsewhere in the response.
+  const data = record(payload.data);
+  const result = record(payload.result);
+  const candidates = [
+    record(payload.transaction),
+    record(data?.transaction),
+    record(result?.transaction),
+    data,
+    result,
+    payload,
+  ];
+  for (const candidate of candidates) {
+    if (candidate?.hash === expectedHash &&
+        typeof candidate.signer_id === "string" &&
+        candidate.signer_id.length > 0 &&
+        candidate.signer_id.length <= 64) {
+      return candidate.signer_id;
+    }
+  }
+  return null;
+}
+
 /**
- * Verifies a NEAR NEP-141 transfer. FastNear's indexed transaction lookup is
- * used only to resolve signer_id; canonical NEAR RPC then verifies execution
+ * Verifies a NEAR NEP-141 transfer. NearScanner's indexed transaction lookup
+ * is used only to resolve signer_id; canonical NEAR RPC then verifies execution
  * at FINAL and the receipt's NEP-141 event. Unsupported networks/assets fail closed.
  */
 export async function verifyNearNep141Settlement(
@@ -60,24 +93,22 @@ export async function verifyNearNep141Settlement(
       !/^[1-9A-HJ-NP-Za-km-z]{32,64}$/.test(transactionHash)) return null;
   const tokenContract = assetMatch[1].toLowerCase();
 
-  if (!env.NEAR_INDEXER_API_KEY) {
-    throw new Error("FastNear API key is required for NEAR settlement verification");
+  if (!env.NEARSCANNER_API_KEY) {
+    throw new Error("NearScanner API key is required for NEAR settlement verification");
   }
-  const indexerUrl = env.NEAR_TX_INDEXER_URL || "https://tx.main.fastnear.com/v0/transactions";
+  const indexerBaseUrl = (env.NEARSCANNER_TX_API_URL ||
+    "https://nearscanner.com/api/v1/explorer/tx").replace(/\\/$/, "");
   const rpcUrl = env.NEAR_RPC_URL || "https://rpc.mainnet.near.org";
-  const indexerHeaders: Record<string, string> = {
-    authorization: `Bearer ${env.NEAR_INDEXER_API_KEY}`,
-  };
 
-  const indexed = await postJson(indexerUrl, { tx_hashes: [transactionHash] }, indexerHeaders);
-  const indexedTransactions = Array.isArray(indexed.transactions) ? indexed.transactions : [];
-  const indexedTx = record(indexedTransactions[0]);
-  const indexedTransaction = record(indexedTx?.transaction);
-  if (indexedTransaction?.hash !== transactionHash ||
-      typeof indexedTransaction.signer_id !== "string" ||
-      !indexedTransaction.signer_id) return null;
-
-  const signerId = indexedTransaction.signer_id;
+  const indexed = await requestJson(
+    `${indexerBaseUrl}/${encodeURIComponent(transactionHash)}`,
+    {
+      method: "GET",
+      headers: { "x-api-key": env.NEARSCANNER_API_KEY },
+    },
+  );
+  const signerId = indexedSigner(indexed, transactionHash);
+  if (!signerId) return null;
   const txStatus = await postJson(rpcUrl, {
     jsonrpc: "2.0",
     id: "pelargo-settlement-verifier",

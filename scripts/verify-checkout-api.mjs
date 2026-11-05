@@ -47,7 +47,7 @@ const env = {
   DB: db,
   MERCHANT_PROVISIONING_SECRET: "test-provisioning-secret",
   ORDER_SESSION_SECRET: "test-only-order-session-secret-with-32-plus-characters",
-  NEAR_INDEXER_API_KEY: "test-fastnear-api-key",
+  NEARSCANNER_API_KEY: "test-nearscanner-api-key",
 };
 const responseJson = async (response) => ({ status: response.status, body: await response.json() });
 const request = (url, method, body, headers = {}) => new Request(url, {
@@ -364,11 +364,13 @@ try {
           : {},
       });
     }
-    if (parsed.hostname === "tx.main.fastnear.com") {
-      assert.equal(new Headers(init.headers).get("authorization"), "Bearer test-fastnear-api-key",
-        "FastNear indexer request must use Bearer API-key authentication");
+    if (parsed.hostname === "nearscanner.com" && parsed.pathname.startsWith("/api/v1/explorer/tx/")) {
+      assert.equal(init.method, "GET", "NearScanner transaction lookup must use GET");
+      assert.equal(new Headers(init.headers).get("x-api-key"), "test-nearscanner-api-key",
+        "NearScanner transaction lookup must send the configured API key");
+      assert.equal(decodeURIComponent(parsed.pathname.split("/").at(-1)), destinationHash);
       return Response.json({
-        transactions: [{ transaction: { hash: destinationHash, signer_id: "sender.near" } }],
+        data: { transaction: { hash: destinationHash, signer_id: "sender.near" } },
       });
     }
     if (parsed.hostname === "rpc.mainnet.near.org") {
@@ -454,7 +456,7 @@ try {
         swapDetails: { destinationChainTxHashes: [{ hash: destinationHash }] },
       });
     }
-    if (parsed.hostname === "tx.main.fastnear.com") throw new Error("synthetic indexer outage");
+    if (parsed.hostname === "nearscanner.com") throw new Error("synthetic indexer outage");
     throw new Error("unexpected verifier request");
   };
   const unavailableVerifier = await responseJson(await paymentStatus({

@@ -9,7 +9,7 @@
 
 ## NEAR NEP-141 settlement verifier — mocked CI verified
 
-- Added `functions/_lib/near-settlement-verifier.ts`. For NEAR destination orders whose Intents asset ID is `nep141:<token-contract>`, it resolves the signer from FastNear's transaction indexer and verifies the transaction through NEAR RPC at `FINAL`.
+- Added `functions/_lib/near-settlement-verifier.ts`. For NEAR destination orders whose Intents asset ID is `nep141:<token-contract>`, it resolves the signer from the NearScanner transaction lookup endpoint and verifies the transaction through NEAR RPC at `FINAL`.
 - The verifier requires successful transaction execution, a successful receipt executed by the exact token contract, and a NEP-141 `ft_transfer` event matching the order's exact recipient and atomic amount.
 - It checks the receipt block hash/height and ensures the block is no higher than the latest finalized block before creating evidence.
 - `GET /api/payment-status` now invokes the verifier only after provider `SUCCESS`, while the lifecycle is `processing`, and a destination transaction hash is supplied.
@@ -38,9 +38,10 @@ Routing and settlement support are separate. NEAR Intents may quote source/desti
 
 ## Operational configuration and unverified scope
 
-- Defaults: NEAR mainnet RPC `https://rpc.mainnet.near.org`; FastNear mainnet transaction indexer `https://tx.main.fastnear.com/v0/transactions`.
-- Optional configuration: `NEAR_RPC_URL`, `NEAR_TX_INDEXER_URL`, and `NEAR_INDEXER_API_KEY`. FastNear is used to resolve the signer only; canonical NEAR RPC verifies transaction execution and finality.
-- The integration tests mock all external HTTP responses. No live FastNear, NEAR RPC, 1Click or Cloudflare D1 call has been validated.
+- Defaults: NEAR mainnet RPC `https://rpc.mainnet.near.org`; NearScanner transaction lookup `https://nearscanner.com/api/v1/explorer/tx/{hash}`.
+- Optional configuration: `NEAR_RPC_URL` and `NEARSCANNER_TX_API_URL`; required secret: `NEARSCANNER_API_KEY`. The adapter sends the key in `X-API-Key` and uses NearScanner only to resolve the transaction signer. Canonical NEAR RPC verifies transaction execution and finality.
+- NearScanner's public developer page documents the GET transaction route but does not publish its complete auth/response schema. Mocked tests cover the assumed `data.transaction.{hash,signer_id}` shape and reject unbound/missing signer data. Live authentication and response compatibility remain unverified.
+- The integration tests mock all external HTTP responses. No live NearScanner, NEAR RPC, 1Click or Cloudflare D1 call has been validated.
 - NEAR mainnet NEP-141 is the only implemented settlement verifier. EVM, Solana, Bitcoin, NEAR native coin transfers and other token standards remain unsupported and fail closed.
 - The current verifier uses the NEAR finality boundary, but production operational policy still needs RPC redundancy, rate-limit/backoff handling, reorg/incident reconciliation, indexer outage handling and an agreed confirmation policy.
 - No deployment, merge to `main`, mainnet committed quote or real payment execution has been performed.
@@ -556,8 +557,8 @@ This section is the current source of truth and supersedes older dated notes bel
 
 ### Secrets and external dependencies
 - Separate encrypted `MERCHANT_PROVISIONING_SECRET` and `ORDER_SESSION_SECRET` entries exist for preview and production; values are redacted by Cloudflare.
-- `NEAR_INDEXER_API_KEY` is required by the verifier but has not been configured because no FastNear key has been supplied. Do not claim live NEAR settlement verification is operational.
-- Defaults target NEAR mainnet RPC and FastNear transaction indexer. API tests mock both dependencies; endpoint and authentication compatibility need live validation.
+- `NEARSCANNER_API_KEY` is the required NearScanner credential. The user has reported adding it to Cloudflare; the integration is not operationally verified until a deployment receives the secret and a live Preview lookup succeeds.
+- Defaults target NEAR mainnet RPC and NearScanner's transaction lookup endpoint. API tests mock both dependencies; live authentication and response compatibility still need validation.
 - Do not expose secret values in logs, chat, source code or browser bundles.
 
 ### Test evidence and remaining validation
@@ -571,3 +572,13 @@ This section is the current source of truth and supersedes older dated notes bel
 - README rewritten to describe current architecture, API endpoints, supported settlement scope, migration state and verification gaps.
 - Merchant integration guide rewritten with current API contracts, trust boundaries, lifecycle behavior and unsupported capabilities.
 - This handover section reconciles historical status entries below. Do not copy old deployment/migration claims forward without rechecking the live environment.
+
+
+## NearScanner signer-lookup adapter — 5 November 2026
+
+- Replaced the FastNear-specific transaction-indexer request with NearScanner's documented `GET /api/v1/explorer/tx/{hash}` endpoint.
+- The adapter sends `NEARSCANNER_API_KEY` as `X-API-Key`. It accepts only a transaction object whose hash exactly equals the requested candidate and whose `signer_id` is a non-empty string. Missing/mismatched signer data fails closed.
+- Canonical NEAR RPC remains responsible for FINAL transaction/receipt execution, token contract, NEP-141 transfer logs, net amount and finality checks. NearScanner does not determine settlement.
+- Updated the API integration mock to assert the GET route, API-key header and hash-bound `data.transaction` response.
+- The public NearScanner developer page documents the route but does not expose a complete response/authentication schema in its indexed documentation. The response shape and header are therefore an explicit adapter assumption, not a live-verified contract.
+- The user reports that `NEARSCANNER_API_KEY` has been added to Cloudflare. The next eligible Preview deployment will be required for the runtime to receive the secret. No production deployment, Worker activation, mainnet deposit or real payment was performed.
