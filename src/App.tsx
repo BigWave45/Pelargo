@@ -26,12 +26,15 @@ export default function App() {
   const [copied, setCopied] = useState(false);
 
   const copySnippet = async () => {
-    const snippet = `<!-- Pelargo checkout integration — SDK availability pending -->
-<div data-pelargo-checkout
-  data-amount="25.00"
-  data-currency="USD"
-  data-recipient="${recipient || "YOUR_RECIPIENT_ADDRESS"}">
-</div>`;
+    const snippet = `<script type="module" src="https://YOUR_PELARGO_HOST/pelargo.js"></script>
+<pelargo-checkout
+  merchant-name="${merchantName || "Your business"}"
+  amount="25.00"
+  order-id="ORDER-123"
+  destination-symbol="${asset}"
+  destination-network="${network}"
+  recipient="${recipient || "YOUR_RECIPIENT_ADDRESS"}">
+</pelargo-checkout>`;
     try {
       await navigator.clipboard.writeText(snippet);
       setCopied(true);
@@ -135,12 +138,15 @@ export default function App() {
           {section === "developers" && (
             <>
               <div className="workspace-heading-row"><div><div className="eyebrow">BUILD WITH PELARGO</div><h1>Developer integration</h1><p className="workspace-subtitle">Connect Pelargo to your existing checkout rather than sending customers to a separate storefront.</p></div><span className="draft-pill">SDK in development</span></div>
-              <section className="integration-panel"><div className="integration-panel-copy"><span className="integration-icon"><Code2 size={19} /></span><h2>Embed checkout</h2><p>The intended integration is a lightweight checkout component configured with an order amount and your verified settlement destination.</p><div className="integration-facts"><div><Check size={15} /><span>Merchant-defined settlement asset</span></div><div><Check size={15} /><span>Buyer-selected supported payment asset</span></div><div><Check size={15} /><span>Settlement verification before paid status</span></div></div></div><div className="code-panel"><div className="code-panel-head"><span>HTML · PROPOSED API</span><button onClick={copySnippet}><Copy size={14} />{copied ? "Copied" : "Copy"}</button></div><pre>{`<!-- SDK and embed API are not published yet -->
-<div data-pelargo-checkout
-  data-amount="25.00"
-  data-currency="USD"
-  data-recipient="${recipient || "YOUR_RECIPIENT_ADDRESS"}">
-</div>`}</pre><div className="code-panel-foot">Illustrative markup only. This snippet is not executable.</div></div></section>
+              <section className="integration-panel"><div className="integration-panel-copy"><span className="integration-icon"><Code2 size={19} /></span><h2>Embed checkout</h2><p>The intended integration is a lightweight checkout component configured with an order amount and your verified settlement destination.</p><div className="integration-facts"><div><Check size={15} /><span>Merchant-defined settlement asset</span></div><div><Check size={15} /><span>Buyer-selected supported payment asset</span></div><div><Check size={15} /><span>Settlement verification before paid status</span></div></div></div><div className="code-panel"><div className="code-panel-head"><span>HTML · PROPOSED API</span><button onClick={copySnippet}><Copy size={14} />{copied ? "Copied" : "Copy"}</button></div><pre>{`<script type="module" src="https://YOUR_PELARGO_HOST/pelargo.js"></script>
+<pelargo-checkout
+  merchant-name="${merchantName || "Your business"}"
+  amount="25.00"
+  order-id="ORDER-123"
+  destination-symbol="${asset}"
+  destination-network="${network}"
+  recipient="${recipient || "YOUR_RECIPIENT_ADDRESS"}">
+</pelargo-checkout>`}</pre><div className="code-panel-foot">Embed contract preview. Replace the host and order values; do not use client-supplied attributes as trusted payment authority.</div></div></section>
               <div className="notice-panel"><strong>Integration is not ready for production.</strong><p>The public SDK, authenticated order creation, webhook delivery and persistent order records have not been implemented. Do not paste this illustrative snippet into a live store.</p></div>
               <section className="workspace-card api-card"><div className="card-heading"><div><h3>API surface</h3><p>Server-side routes currently present in this branch.</p></div><Link2 size={17} /></div><div className="api-row"><code>GET /api/tokens</code><span>Proxy scaffold · verification pending</span></div><div className="api-row"><code>POST /api/quote</code><span>Dry quote validation · schema corrected, retest pending</span></div><div className="api-row"><code>GET /api/status</code><span>Proxy scaffold · end-to-end lifecycle not connected</span></div></section>
             </>
