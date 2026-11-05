@@ -2,18 +2,10 @@ import { Env, json } from "../_lib/intents";
 import { CheckoutSessionClaims, signCheckoutSession, verifyCheckoutSession } from "../_lib/checkout-session";
 import { sha256Hex } from "../_lib/database";
 
-function corsPreflight() {
-  return new Response(null, { status: 204, headers: {
-    "access-control-allow-origin": "*",
-    "access-control-allow-methods": "GET, POST, OPTIONS",
-    "access-control-allow-headers": "Content-Type, Accept, X-Pelargo-Merchant-Key",
-    "access-control-max-age": "86400",
-  }});
-}
-
 export async function onRequest(context: { request: Request; env: Env }): Promise<Response> {
   const { request, env } = context;
-  if (request.method === "OPTIONS") return corsPreflight();
+  // This endpoint is server-to-server. Do not grant browser CORS access to merchant credentials.
+  if (request.method === "OPTIONS") return json({ error: "Method not allowed" }, 405);
 
   if (request.method === "GET") {
     if (!env.DB) return json({ error: "Checkout storage is not configured" }, 503);
