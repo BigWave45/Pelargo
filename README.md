@@ -116,7 +116,7 @@ A merchant server sends an order reference, amount, atomic amount, destination a
 
 ### Automated security checks
 
-Run `bun run test:security` to exercise session-token signing and verification: valid signature acceptance, tamper rejection, expiry rejection, wrong-secret rejection and missing-secret rejection. The GitHub Actions workflow runs this check alongside TypeScript and both frontend builds.
+Run `bun run test:security` for session-token signing and verification. Run `bun run test:api` for merchant provisioning, API-key hashing, merchant authentication, checkout-session issuance/retrieval, duplicate-order rejection, quote binding, dry-quote behavior, mainnet commit protection and merchant-scoped order lookup. These route-handler tests use an in-memory SQLite adapter; they do not replace a live Cloudflare D1 preview test. GitHub Actions runs both suites alongside TypeScript and the frontend build.
 
 ### Durable replay protection
 
@@ -127,7 +127,7 @@ Run `bun run test:security` to exercise session-token signing and verification: 
 - A successful upstream commit records `committed` and updates the order to `quote_committed`.
 - An uncertain upstream result leaves the session consumed. This intentionally favors preventing duplicate deposits over automatic retry.
 
-**Current limitations:** merchant credentials are provisioned manually by an operator; there is no self-serve merchant signup, credential rotation UI or rate limiting yet. Automated tests currently cover cryptographic session validation only; D1 concurrency and end-to-end API tests still need a configured preview database. A commit attempt is single-use, but no automated payment settlement verification is implemented. Keep mainnet commit configuration disabled until separately reviewed and explicitly approved.
+**Current limitations:** merchant credentials are provisioned manually by an operator; there is no self-serve merchant signup, credential rotation UI or rate limiting yet. Automated tests cover cryptographic session validation and merchant/session/quote/order API handlers against an in-memory SQLite adapter using the actual migration. Live Cloudflare D1 preview testing, D1 concurrency testing and real upstream payment lifecycle testing remain outstanding. A commit attempt is single-use, but no automated payment settlement verification is implemented. Keep mainnet commit configuration disabled until separately reviewed and explicitly approved.
 
 ## Merchant order sessions (early security boundary)
 
