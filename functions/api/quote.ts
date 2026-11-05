@@ -165,18 +165,24 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
 
       const quoteId = typeof payload.correlationId === "string" ? payload.correlationId : null;
       const now = new Date().toISOString();
-      const updated = await context.env.DB!.batch<{ success: boolean; meta?: { changes?: number } }>([
-        context.env.DB!.prepare(
-          "UPDATE payment_lifecycle SET status = 'quote_committed', quote_id = ?, deposit_address = ?, deposit_memo = ?, updated_at = ? WHERE order_id = (SELECT id FROM checkout_orders WHERE merchant_id = ? AND external_order_id = ?) AND status = 'pending'"
-        ).bind(quoteId, depositAddress, depositMemo ?? null, now, session.merchantId, session.orderId),
-        context.env.DB!.prepare(
-          "UPDATE checkout_orders SET status = 'quote_committed' WHERE merchant_id = ? AND external_order_id = ? AND status = 'pending'"
-        ).bind(session.merchantId, session.orderId),
-        context.env.DB!.prepare(
-          "UPDATE checkout_sessions SET status = 'committed' WHERE jti = ? AND status = 'commit_attempted'"
-        ).bind(session.jti),
-      ]);
-      if (updated.some((result) => !result.success)) {
+      // One compare-and-set is the commit point. Migration 0004's trigger
+      // synchronizes the order and session rows in the same SQLite statement
+      // and aborts the whole write if either dependent row is stale or missing.
+      const persisted = await context.env.DB!.prepare(
+        `UPDATE payment_lifecycle
+            SET status = 'quote_committed', quote_id = ?, deposit_address = ?, deposit_memo = ?, updated_at = ?
+          WHERE order_id = (
+            SELECT o.id FROM checkout_orders o
+             WHERE o.merchant_id = ? AND o.external_order_id = ? AND o.status = 'pending'
+          )
+            AND status = 'pending'
+            AND EXISTS (
+              SELECT 1 FROM checkout_sessions s
+               WHERE s.jti = ? AND s.order_id = payment_lifecycle.order_id
+                 AND s.status = 'commit_attempted'
+            )`
+      ).bind(quoteId, depositAddress, depositMemo ?? null, now, session.merchantId, session.orderId, session.jti).run();
+      if (!persisted.success || (persisted.meta?.changes ?? 0) !== 1) {
         return json({ error: "Quote committed upstream but local payment state could not be saved. Do not submit another payment; contact support." }, 502);
       }
     }
