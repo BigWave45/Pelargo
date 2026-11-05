@@ -530,11 +530,11 @@ try {
   // The next SUCCESS poll intentionally skips the provider's PROCESSING state;
   // the route must fill the internal lifecycle gap before chain verification.
   const destinationHash = "1111111111111111111111111111111111111111111";
-  const mockNearVerifier = (transferAmount, refundAmount = "0", includeDestinationHash = true) => async (url, init = {}) => {
+  const mockNearVerifier = (transferAmount, refundAmount = "0", includeDestinationHash = true, providerStatus = "SUCCESS") => async (url, init = {}) => {
     const parsed = new URL(String(url));
     if (parsed.hostname === "1click.chaindefuser.com") {
       return Response.json({
-        status: "SUCCESS", updatedAt: "2026-11-05T00:01:00Z",
+        status: providerStatus, updatedAt: "2026-11-05T00:01:00Z",
         swapDetails: includeDestinationHash
           ? { destinationChainTxHashes: [{ hash: destinationHash }] }
           : {},
@@ -652,8 +652,10 @@ try {
     "processing",
   );
 
-  globalThis.fetch = mockNearVerifier("2000000");
+  globalThis.fetch = mockNearVerifier("2000000", "0", true, "PROCESSING");
 
+  // A finalized destination transfer can settle the order even while the
+  // provider still reports PROCESSING; this also exercises atomic ledger rollback.
   // Force the lifecycle half of the settlement batch to fail after the
   // evidence insert is attempted. D1's batch must roll back both writes.
   sqlite.exec(`CREATE TRIGGER force_settlement_batch_rollback
@@ -684,7 +686,7 @@ try {
   );
   sqlite.exec("DROP TRIGGER force_settlement_batch_rollback");
 
-  // Retry the same provider SUCCESS after the transient ledger failure.
+  // Retry the same provider PROCESSING response after the transient ledger failure.
   // It must verify and commit once the database is writable again.
   const verifiedTransfer = await responseJson(await paymentStatus({
     request: new Request("https://pelargo.test/api/payment-status?orderId=order-001", {
