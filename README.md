@@ -205,7 +205,7 @@ Open `http://localhost:3000`.
 - Keep `main` untouched unless the project owner explicitly authorises a merge.
 - Do not deploy production changes, enable committed mainnet quotes or spend funds without explicit approval.
 
-See [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) for the engineering handover.
+See [docs/INTEGRATION.md](docs/INTEGRATION.md) for the server-to-server merchant integration contract and [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) for the engineering handover.
 
 ## License
 
