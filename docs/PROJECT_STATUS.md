@@ -1,3 +1,28 @@
+# Current engineering update — 5 November 2026
+
+## Verified backend milestone
+
+- GitHub Actions run for commit `1eb7198` passed: TypeScript type-check, checkout-session security tests, checkout API integration tests and frontend build.
+- API integration tests run against an in-memory SQLite adapter with the actual migration and route handlers. This is local integration coverage, not a live Cloudflare D1 preview test.
+- Added `GET /api/order?orderId=...`. It requires `X-Pelargo-Merchant-Key`, resolves the active merchant by API-key hash and scopes the order query by merchant ID.
+- Added tests for unauthenticated access, own-order retrieval, cross-merchant isolation, missing order ID, returned order fields and token non-disclosure.
+- The first test run exposed a test defect: the missing-order-ID case omitted merchant authentication, so the endpoint correctly returned 401 before validating the query. The test was corrected to authenticate, and the subsequent CI run passed.
+- All work remains on `build/live-intents`. No production deployment, merge to `main`, or committed payment execution was performed.
+
+## Current limitations
+
+- Cloudflare D1 preview binding and migration have not been verified from this environment.
+- The order endpoint currently returns the stored order status; it does not establish settlement.
+- The existing `/api/status` endpoint is still an upstream status proxy and is not merchant-scoped. It must not be treated as the merchant's verified order status API.
+- The payment state machine, deposit-address/reference persistence, settlement reconciliation and merchant webhooks remain unimplemented.
+- Mainnet committed quotes must remain disabled.
+
+## Next engineering milestone
+
+Define and implement the durable order/payment state model and event history before enabling any real execution. State transitions must be server-controlled, monotonic where appropriate, idempotent and driven by verified NEAR Intents status plus destination transaction evidence. Add tests for invalid transitions, duplicate events, amount/asset/recipient mismatches, timeout and terminal states.
+
+---
+
 # Pelargo — Build Status
 
 Last updated: 5 November 2026
