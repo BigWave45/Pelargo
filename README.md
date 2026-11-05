@@ -166,4 +166,4 @@ The first reliability change is limited to settlement diagnosis; it does not alt
 
 Regression coverage asserts that a wrong net NEP-141 transfer amount is reported against the exact transaction candidate. Existing tests continue to enforce the database settlement evidence guard and atomic settlement batch rollback.
 
-This change does not add background reconciliation, retry provider execution, change payment state transitions, relax database guards, modify financial accounting, or deploy anything. CI and runtime verification are pending.
+This change does not add background reconciliation, retry provider execution, change payment state transitions, relax database guards, modify financial accounting, or deploy anything. GitHub Actions CI passed on commit 3f9251b182ba2a0a407c6c069526a000664bbf01 (run 42097755714), including type-check, checkout-session security tests, checkout API integration tests and frontend build. Live NEAR RPC verification remains pending.
