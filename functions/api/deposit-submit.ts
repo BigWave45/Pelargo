@@ -243,6 +243,7 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
     providerNotification: alreadyKnown ? "already_known" : "accepted",
     providerStatus: confirmedStatus,
     sourceTransactionHash: transactionHash,
+    originChainTxHashes: submitted.swapDetails?.originChainTxHashes ?? [],
     nearTxHashes: submitted.swapDetails?.nearTxHashes ?? [],
     destinationChainTxHashes: submitted.swapDetails?.destinationChainTxHashes ?? [],
   });
