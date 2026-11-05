@@ -91,6 +91,9 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
       env.DB.prepare(
         "INSERT INTO checkout_sessions (jti, order_id, merchant_id, token_hash, status, issued_at, expires_at) VALUES (?, (SELECT id FROM checkout_orders WHERE merchant_id = ? AND external_order_id = ?), ?, ?, 'active', ?, ?)"
       ).bind(claims.jti, merchant.id, claims.orderId, merchant.id, tokenHash, issuedAt, expiresAt),
+      env.DB.prepare(
+        "INSERT INTO payment_lifecycle (order_id, status) SELECT id, 'pending' FROM checkout_orders WHERE merchant_id = ? AND external_order_id = ?"
+      ).bind(merchant.id, claims.orderId),
     ]);
   } catch {
     return json({ error: "Order already exists or checkout storage rejected the session" }, 409);
