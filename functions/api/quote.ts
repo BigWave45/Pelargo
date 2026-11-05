@@ -1,4 +1,5 @@
 import { Env, forwardJson, intentsRequest, json } from "../_lib/intents";
+import { verifyCheckoutSession } from "../_lib/checkout-session";
 
 const MAX_BODY_BYTES = 12_000;
 
@@ -27,7 +28,7 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
     return json({ error: "Invalid JSON body" }, 400);
   }
 
-  const requiredStrings = ["swapType", "originAsset", "destinationAsset", "amount", "recipient", "refundTo"];
+  const requiredStrings = ["swapType", "originAsset", "destinationAsset", "amount", "recipient", "refundTo", "sessionToken"];
   for (const field of requiredStrings) {
     if (typeof body[field] !== "string" || !(body[field] as string).trim()) {
       return json({ error: `Missing or invalid ${field}` }, 400);
@@ -47,6 +48,19 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
     return json({ error: "One or more quote fields exceed allowed length" }, 400);
   }
 
+  if (typeof body.sessionToken !== "string" || body.sessionToken.length > 4096) {
+    return json({ error: "A valid checkout session token is required" }, 400);
+  }
+  const session = await verifyCheckoutSession(body.sessionToken, context.env);
+  if (!session) return json({ error: "Checkout session is invalid or expired" }, 401);
+  if (
+    body.swapType !== "EXACT_OUTPUT" ||
+    body.amount !== session.amountAtomic ||
+    body.destinationAsset !== session.destinationAsset ||
+    body.recipient !== session.recipient
+  ) {
+    return json({ error: "Quote parameters do not match the signed merchant order" }, 409);
+  }
   if (body.dry !== true && body.dry !== false) {
     return json({ error: "dry must be a boolean" }, 400);
   }
@@ -94,7 +108,7 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
 
   const allowedKeys = new Set([
     "dry", "swapType", "originAsset", "destinationAsset", "amount",
-    "recipient", "refundTo", "depositType", "recipientType", "refundType",
+    "recipient", "refundTo", "sessionToken", "depositType", "recipientType", "refundType",
     "slippageTolerance", "deadline", "quoteWaitingTimeMs",
     "referral", "sessionId",
   ]);
@@ -104,9 +118,10 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
   }
 
   try {
+    const { sessionToken: _sessionToken, ...quoteRequest } = body;
     const upstream = await intentsRequest("quote", {
       method: "POST",
-      body: JSON.stringify(body),
+      body: JSON.stringify(quoteRequest),
     }, context.env);
     return await forwardJson(upstream);
   } catch {
