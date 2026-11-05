@@ -1,20 +1,24 @@
 import { Env, json } from "../_lib/intents";
 import { sha256Hex } from "../_lib/database";
+import { authenticateMerchantSession } from "../_lib/merchant-auth";
 
 export async function onRequest(context: { request: Request; env: Env }): Promise<Response> {
   const { request, env } = context;
   if (request.method !== "GET") return json({ error: "Method not allowed" }, 405);
   if (!env.DB) return json({ error: "Checkout storage is not configured" }, 503);
 
+  let merchant: { id: string } | null = null;
   const suppliedKey = request.headers.get("x-pelargo-merchant-key") ?? "";
-  if (!suppliedKey || suppliedKey.length > 512) {
-    return json({ error: "Merchant authentication failed" }, 401);
+  if (suppliedKey) {
+    if (suppliedKey.length > 512) return json({ error: "Merchant authentication failed" }, 401);
+    const keyHash = await sha256Hex(suppliedKey);
+    merchant = await env.DB.prepare(
+      "SELECT id FROM merchants WHERE api_key_hash = ? AND active = 1"
+    ).bind(keyHash).first<{ id: string }>();
+  } else {
+    const account = await authenticateMerchantSession(request, env);
+    if (account) merchant = { id: account.id };
   }
-
-  const keyHash = await sha256Hex(suppliedKey);
-  const merchant = await env.DB.prepare(
-    "SELECT id FROM merchants WHERE api_key_hash = ? AND active = 1"
-  ).bind(keyHash).first<{ id: string }>();
   if (!merchant) return json({ error: "Merchant authentication failed" }, 401);
 
   const url = new URL(request.url);
