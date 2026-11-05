@@ -1,20 +1,22 @@
 # Backend update — 5 November 2026
 
-## CI repair and provider-status test milestone
+## Verified CI, provider status and committed-quote persistence milestone
 
-- Fixed the duplicate top-level `originalFetch` declaration in `scripts/verify-checkout-api.mjs` by giving the quote-test fetch stub its own name.
-- The next run exposed a faulty test URL regex: it did not match the literal question mark in the status URL. Replaced the regex assertion with explicit URL pathname and query-parameter assertions.
-- GitHub Actions run `41949348566`, commit `5214c1f`, passed all checks: TypeScript type-check, checkout-session security tests, checkout API integration tests and frontend build.
-- The API suite now covers merchant-authenticated payment-status polling, persisted deposit memo forwarding, provider status persistence and the rule that provider `SUCCESS` cannot mark an order settled.
-- Test scope is in-memory SQLite using the repository migrations and mocked fetch responses. This does not establish live Cloudflare D1 compatibility or live NEAR Intents request/response compatibility.
+- GitHub Actions run `41949603160`, commit `3bba71b`, passed TypeScript type-check, checkout-session security tests, checkout API integration tests and frontend build.
+- Fixed the duplicate fetch declaration and the incorrect status URL assertion in the API test harness.
+- Added `migrations/0004_commit_state_sync.sql`. A lifecycle transition to `quote_committed` now synchronizes the matching order and commit-attempted session inside the same SQLite statement. A missing/stale dependent row aborts the entire transition.
+- Changed `POST /api/quote` to use one compare-and-set lifecycle update rather than three loosely coordinated batch updates. It requires exactly one lifecycle row to change.
+- Added mocked committed-quote integration coverage: provider correlation ID, deposit address and memo are persisted; lifecycle/order/session states are synchronized; an invalid dependent session causes the transition to roll back.
+- The test temporarily enables the commit flag only in its isolated test environment and replaces upstream fetch with a mock. No live quote is created and no funds are moved.
+- Provider-status tests cover merchant authentication, deposit-memo forwarding, status persistence and the guard preventing provider `SUCCESS` from independently settling an order.
+- These tests use in-memory SQLite with repository migrations and mocked upstream responses. They do not prove live Cloudflare D1 behavior or live 1Click schema compatibility.
 
 ## Remaining payment lifecycle gaps
 
-- Committed quote persistence has not yet been exercised end-to-end by the API test suite. Mainnet commits remain disabled, and no real deposit instructions have been requested.
-- Provider status is not independent settlement proof. Destination-chain transaction verification is not implemented; a candidate transaction hash must not be trusted until verified against the destination chain, recipient, asset, amount and finality requirements.
-- Live 1Click status schema, live D1 migrations/bindings, status polling reliability, webhook delivery and scheduled reconciliation remain unverified or unimplemented.
+- The committed-quote path is now covered with mocked route-handler tests, but live 1Click committed quote behavior remains unverified. Mainnet commits remain disabled in the deployed configuration; no real deposit instructions have been requested.
+- Provider status is not independent settlement proof. Destination-chain transaction verification is not implemented. A candidate transaction hash must be independently checked against the destination chain, recipient, asset, amount and finality requirements before settlement.
+- Live D1 migration execution/bindings, live 1Click status and quote schemas, polling reliability, webhook delivery and scheduled reconciliation remain unverified or unimplemented.
 - No deployment, merge to `main`, or real payment execution has been performed.
-
 ---
 
 # Backend update — 5 November 2026
