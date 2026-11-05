@@ -23,7 +23,7 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
        FROM merchant_accounts a JOIN merchants m ON m.id = a.merchant_id
       WHERE a.email = ? COLLATE NOCASE AND m.active = 1`
   ).bind(email).first<{ merchant_id: string; password_hash: string }>();
-  if (!account || !(await verifyPassword(password, account.password_hash))) {
+  if (!account || !(await verifyPassword(password, account.password_hash, env.ORDER_SESSION_SECRET ?? ""))) {
     return json({ error: "Email or password is incorrect" }, 401);
   }
 
