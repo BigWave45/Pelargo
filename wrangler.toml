@@ -3,9 +3,9 @@ compatibility_date = "2026-11-04"
 pages_build_output_dir = "./dist"
 
 # Cloudflare Pages Functions are discovered from ./functions.
-# Configure a D1 database binding named DB in Pages settings and apply
-# migrations/0001_checkout_storage.sql through 0008_settlement_evidence_contract_guard.sql
-# in numerical order before using merchant/session/payment-status APIs.
+# Production Pages binding DB points to the pelargo-db D1 database.
+# Migrations 0001-0008 have been applied and recorded in d1_migrations.
+# Preview has no confirmed DB binding; do not treat preview as production-ready.
 # Configure MERCHANT_PROVISIONING_SECRET and ORDER_SESSION_SECRET as secrets.
 # Add ONECLICK_JWT as a secret only if/when a partner JWT is obtained.
 # ALLOW_MAINNET_DEPOSITS must remain unset until an explicitly approved
