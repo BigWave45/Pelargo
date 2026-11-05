@@ -1,5 +1,12 @@
 # Backend update — 5 November 2026
 
+## NEAR NEP-141 verifier hardening
+
+- Added a net-transfer calculation across successful token-contract receipt logs. Incoming `ft_transfer` events increase the merchant's received amount; outgoing events from the merchant, including resolver refunds, reduce it.
+- This prevents a successful-looking initial transfer event from settling an order when `ft_transfer_call` later refunds part or all of the amount.
+- Added migration `0008_settlement_evidence_contract_guard.sql`, requiring the stored NEAR asset ID to equal `nep141:` plus the verified token contract. The network comparison is normalized for case/whitespace.
+- Extended the mocked API test to include a 1-unit refund after a 2,000,000-unit incoming transfer; the net 1,999,999 result must remain un-settled. An exact net 2,000,000 transfer then settles.
+
 ## NEAR NEP-141 settlement verifier — mocked CI verified
 
 - Added `functions/_lib/near-settlement-verifier.ts`. For NEAR destination orders whose Intents asset ID is `nep141:<token-contract>`, it resolves the signer from FastNear's transaction indexer and verifies the transaction through NEAR RPC at `FINAL`.
@@ -9,7 +16,7 @@
 - Settlement evidence insertion and the `processing -> settled` update occur in one D1 batch. Existing database triggers verify the evidence/order/candidate match and synchronize order status to `paid`.
 - Non-NEAR destinations, non-NEP-141 asset IDs, missing candidate hashes, failed execution, missing/mismatched transfer events and unfinalized blocks do not settle.
 - Added mocked integration tests for a wrong transfer amount (must remain processing) and an exact transfer match (must persist evidence and atomically settle the order).
-- GitHub Actions run `41973082530`, commit `d60c4fd`, passed TypeScript, checkout-session security tests, checkout API integration tests and frontend build.
+- GitHub Actions run `41973082530`, commit `d60c4fd`, passed TypeScript, checkout-session security tests, checkout API integration tests and frontend build before the additional refund-handling and migration-0008 hardening. The latest hardening changes are awaiting CI.
 
 ## Operational configuration and unverified scope
 
