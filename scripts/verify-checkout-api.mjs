@@ -394,7 +394,11 @@ try {
     }),
     env,
   });
-  assert.equal(stalePoll.status, 409, "stale provider poll must return a conflict");
+  assert.equal(stalePoll.status, 200, "stale provider poll should return the latest persisted state");
+  const stalePollBody = await stalePoll.json();
+  assert.equal(stalePollBody.concurrentPoll, true);
+  assert.equal(stalePollBody.paymentStatus, "awaiting_deposit");
+  assert.equal(stalePollBody.providerStatus, null);
   const afterStalePoll = sqlite.query(
     "SELECT status, provider_status, destination_tx_candidate FROM payment_lifecycle WHERE order_id = (SELECT id FROM checkout_orders WHERE external_order_id = ?)"
   ).get("order-001");
@@ -421,7 +425,11 @@ try {
     }),
     env,
   });
-  assert.equal(stalePoll.status, 409, "a newer poll timestamp must invalidate an older in-flight poll");
+  assert.equal(stalePoll.status, 200, "a newer poll timestamp should return the latest persisted state");
+  const stalePollBody = await stalePoll.json();
+  assert.equal(stalePollBody.concurrentPoll, true);
+  assert.equal(stalePollBody.paymentStatus, "awaiting_deposit");
+  assert.equal(stalePollBody.providerStatus, null);
   const afterPollRace = sqlite.query(
     "SELECT status, provider_status, destination_tx_candidate, last_polled_at FROM payment_lifecycle WHERE order_id = (SELECT id FROM checkout_orders WHERE external_order_id = ?)"
   ).get("order-001");
