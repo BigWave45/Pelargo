@@ -143,7 +143,11 @@ export async function verifyNearNep141Settlement(
     jsonrpc: "2.0",
     id: "pelargo-settlement-verifier",
     method: "EXPERIMENTAL_tx_status",
-    params: [transactionHash, signerId, "FINAL"],
+    params: {
+      tx_hash: transactionHash,
+      sender_account_id: signerId,
+      wait_until: "FINAL",
+    },
   });
   if (txStatus.error) return null;
   const result = record(txStatus.result);
