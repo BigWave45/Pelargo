@@ -243,6 +243,33 @@ sqlite.query("UPDATE checkout_orders SET status = 'quote_committed' WHERE extern
 
 sqlite.query("UPDATE payment_lifecycle SET deposit_address = ?, deposit_memo = ? WHERE order_id = (SELECT id FROM checkout_orders WHERE external_order_id = ?)").run("deposit-address-test", "memo-test", "order-001");
 sqlite.query("UPDATE checkout_orders SET status = 'quote_committed' WHERE external_order_id = ?").run("order-001");
+
+// Simulate another poll/verifier changing the candidate while this request is
+// waiting on the provider. The stale response must not overwrite newer state.
+const originalFetchForRace = globalThis.fetch;
+globalThis.fetch = async () => {
+  sqlite.query("UPDATE payment_lifecycle SET destination_tx_candidate = ? WHERE order_id = (SELECT id FROM checkout_orders WHERE external_order_id = ?)").run("newer-candidate-from-concurrent-poll", "order-001");
+  return Response.json({ status: "KNOWN_DEPOSIT_TX", updatedAt: "2026-11-05T00:00:00Z" });
+};
+try {
+  const stalePoll = await paymentStatus({
+    request: new Request("https://pelargo.test/api/payment-status?orderId=order-001", {
+      headers: { "x-pelargo-merchant-key": created.body.apiKey },
+    }),
+    env,
+  });
+  assert.equal(stalePoll.status, 409, "stale provider poll must return a conflict");
+  const afterStalePoll = sqlite.query(
+    "SELECT status, provider_status, destination_tx_candidate FROM payment_lifecycle WHERE order_id = (SELECT id FROM checkout_orders WHERE external_order_id = ?)"
+  ).get("order-001");
+  assert.equal(afterStalePoll.status, "awaiting_deposit");
+  assert.equal(afterStalePoll.provider_status, null, "stale provider status must not overwrite current state");
+  assert.equal(afterStalePoll.destination_tx_candidate, "newer-candidate-from-concurrent-poll");
+} finally {
+  globalThis.fetch = originalFetchForRace;
+}
+sqlite.query("UPDATE payment_lifecycle SET destination_tx_candidate = NULL WHERE order_id = (SELECT id FROM checkout_orders WHERE external_order_id = ?)").run("order-001");
+
 const originalFetch = globalThis.fetch;
 globalThis.fetch = async (url) => {
   const statusUrl = new URL(String(url));
