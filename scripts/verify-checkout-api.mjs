@@ -403,6 +403,39 @@ try {
   );
 
   globalThis.fetch = mockNearVerifier("2000000");
+
+  // Force the lifecycle half of the settlement batch to fail after the
+  // evidence insert is attempted. D1's batch must roll back both writes.
+  sqlite.exec(`CREATE TRIGGER force_settlement_batch_rollback
+    BEFORE UPDATE OF status ON payment_lifecycle
+    WHEN NEW.status = 'settled'
+    BEGIN SELECT RAISE(ABORT, 'forced settlement batch rollback test'); END;`);
+  const failedSettlementCommit = await responseJson(await paymentStatus({
+    request: new Request("https://pelargo.test/api/payment-status?orderId=order-001", {
+      headers: { "x-pelargo-merchant-key": created.body.apiKey },
+    }),
+    env,
+  }));
+  assert.equal(failedSettlementCommit.status, 503, "failed ledger commit must not be reported as settled");
+  assert.equal(
+    sqlite.query("SELECT COUNT(*) AS count FROM payment_settlement_evidence").get().count,
+    0,
+    "evidence insert must roll back when lifecycle settlement update fails",
+  );
+  assert.equal(
+    sqlite.query("SELECT status FROM payment_lifecycle WHERE order_id = (SELECT id FROM checkout_orders WHERE external_order_id = ?)").get("order-001").status,
+    "processing",
+    "failed settlement batch must preserve processing lifecycle state",
+  );
+  assert.equal(
+    sqlite.query("SELECT status FROM checkout_orders WHERE external_order_id = ?").get("order-001").status,
+    "quote_committed",
+    "failed settlement batch must not mark the order paid",
+  );
+  sqlite.exec("DROP TRIGGER force_settlement_batch_rollback");
+
+  // Retry the same provider SUCCESS after the transient ledger failure.
+  // It must verify and commit once the database is writable again.
   const verifiedTransfer = await responseJson(await paymentStatus({
     request: new Request("https://pelargo.test/api/payment-status?orderId=order-001", {
       headers: { "x-pelargo-merchant-key": created.body.apiKey },
