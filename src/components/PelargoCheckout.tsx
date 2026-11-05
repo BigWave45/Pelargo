@@ -86,6 +86,11 @@ export function PelargoCheckout({
   const [sourceAssetId, setSourceAssetId] = useState("");
   const [refundTo, setRefundTo] = useState("");
   const [amount, setAmount] = useState(initialAmount);
+
+  useEffect(() => {
+    setAmount(initialAmount);
+    clearQuote();
+  }, [initialAmount]);
   const [loadingTokens, setLoadingTokens] = useState(true);
   const [quoting, setQuoting] = useState(false);
   const [error, setError] = useState("");
