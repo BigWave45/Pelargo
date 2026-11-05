@@ -167,3 +167,14 @@ The first reliability change is limited to settlement diagnosis; it does not alt
 Regression coverage asserts that a wrong net NEP-141 transfer amount is reported against the exact transaction candidate. Existing tests continue to enforce the database settlement evidence guard and atomic settlement batch rollback.
 
 This change does not add background reconciliation, retry provider execution, change payment state transitions, relax database guards, modify financial accounting, or deploy anything. GitHub Actions CI passed on commit 3f9251b182ba2a0a407c6c069526a000664bbf01 (run 42097755714), including type-check, checkout-session security tests, checkout API integration tests and frontend build. Live NEAR RPC verification remains pending.
+
+
+## Durable background payment reconciliation — implementation in progress — 5 November 2026
+
+Committed payments with a persisted deposit address are now scheduled for background reconciliation by a D1-backed job table (migrations/0017_payment_reconciliation_jobs.sql). Lifecycle triggers enqueue eligible orders, backfill existing eligible orders when the migration is applied, and remove jobs after terminal lifecycle states. Jobs use conditional D1 lease claims, so concurrent cron invocations cannot both own the same unexpired lease.
+
+The scheduled Worker reuses the existing GET /api/payment-status implementation in-process through a private, secret-authenticated internal path. This preserves the existing provider polling, candidate verification, immutable settlement evidence and database settlement guards. It does not create quotes, submit deposits, retry provider execution or mark payments paid from provider status alone. Retryable outcomes release the lease and schedule an exponential retry capped at one hour.
+
+The Preview Worker configuration explicitly selects Tidepool testnet and the isolated Preview D1 database. RECONCILIATION_SECRET must be configured as an encrypted secret on both the Pages Preview project and the Worker, using the same random value. The Worker is not deployed, the migration has not yet been applied to Cloudflare Preview D1, and the cron is not active. Production Worker configuration and Production D1 are unchanged.
+
+Automated integration coverage has been added for trigger enqueueing, internal worker polling, lease release, retry scheduling and the invariant that a provider PROCESSING response cannot settle an order. CI verification is pending.
