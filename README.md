@@ -33,9 +33,9 @@ Keep the implementation focused on this path. Do not add more chains, more index
 - Operational branch: `ops/live-d1-readiness`; application integration branch: `build/live-intents`. `main` remains untouched.
 - Preview is configured with isolated D1 and Tidepool testnet provider settings. `ALLOW_TESTNET_DEPOSITS=true` enables only testnet committed quotes; mainnet commits remain disabled.
 - The widget supports dry quote preview, buyer-confirmed committed-quote creation, display of the provider's deposit address/memo, exact committed source amount and deadline, and buyer-scoped payment-status polling using the signed checkout session. It does not connect a wallet or submit a transfer.
-- Buyer polling is restricted to the session's own committed order. Merchant polling remains authenticated with the merchant API key.
-- CI passed type-check, checkout-session security tests, checkout API integration tests and frontend build for commit `ad33d5f`.
-- Cloudflare Preview deployment passed for that commit: [`https://eeea7253.pelargo.pages.dev`](https://eeea7253.pelargo.pages.dev). The latest documentation-only commits are currently rebuilding Preview.
+- Buyer polling is restricted to the session's own committed order. Merchant server integrations use the merchant API key; the dashboard uses an HttpOnly merchant session cookie.
+- Self-service merchant registration/login, persisted destination settings, dashboard order creation and merchant-scoped activity APIs have now been added. CI passed type-check, checkout-session security tests, checkout API integration tests and frontend build for commit `7a5c0a2` (dashboard-authenticated payment polling).
+- The new merchant account and dashboard changes have not yet been deployed to Preview or tested against a live D1 database. Preview migrations currently need to be advanced from `0011` through `0015` before these routes can work there.
 - These checks use mocked external provider/indexer/RPC responses. Live Tidepool token discovery, dry quote, committed quote, real testnet deposit and independent end-to-end settlement remain unverified. No transfer has been made.
 - Production is unchanged and `main` has not been merged.
 
@@ -43,6 +43,9 @@ See [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) for the exact verification 
 
 ## What is implemented
 
+- Public merchant registration and password login, with PBKDF2 password hashing, database-backed login/registration throttling and seven-day opaque HttpOnly Secure SameSite=Lax sessions.
+- Merchant-scoped destination settings, dashboard order creation and order activity APIs.
+- Dashboard cookie authentication and server-side merchant API-key authentication remain separate; internal API keys are never returned to the browser.
 - Merchant-authenticated order and checkout-session creation.
 - Short-lived HMAC-signed sessions bound to merchant, order, amount, destination asset and recipient.
 - Session replay protection and merchant-scoped order lookup.
@@ -71,7 +74,7 @@ Do not spend hackathon time on:
 - Supporting every chain exposed by the routing provider.
 - Building or operating our own transaction indexer.
 - Integrating multiple indexer vendors before the current one has been tested.
-- Merchant billing, multi-tenant SaaS administration or a full self-serve onboarding system.
+- Merchant billing, multi-user organisations, email verification, password recovery, API-key rotation or enterprise identity management.
 - Production-grade redundancy, monitoring and incident operations.
 - Mainnet payment activation.
 
@@ -84,6 +87,9 @@ These are possible later product requirements, not prerequisites for demonstrati
 - `GET /api/tokens` — provider-supported asset discovery.
 - `POST /api/quote` — session-bound dry or committed quote request.
 - `GET /api/order?orderId=...` — merchant-scoped order lookup.
+- `GET /api/orders` — dashboard activity list for the authenticated merchant.
+- `GET/PUT /api/merchant-settings` — retrieve and persist merchant destination settings.
+- `POST /api/auth/register`, `POST /api/auth/login`, `GET /api/auth/session`, `POST /api/auth/logout` — merchant account and session lifecycle.
 - `GET /api/payment-status?orderId=...` — merchant-scoped provider polling and eligible NEAR settlement verification.
 - `GET /api/operator/recovery-cases` — operator-authenticated read-only queue for ambiguous quote commits.
 - `GET /api/status` — retired; returns HTTP 410.
@@ -92,7 +98,7 @@ See [docs/INTEGRATION.md](docs/INTEGRATION.md) for merchant request contracts an
 
 ## Database
 
-Migrations `0001` through `0011` are in the repository. Preview D1 has been migrated through `0011`; production migration state must be checked separately. Do not apply production migrations as part of ordinary hackathon testing.
+Migrations `0001` through `0015` are in the repository. Preview D1 was previously verified through `0011`; migrations `0012`–`0015` are required for self-service accounts, merchant settings and authentication throttling. They have not yet been applied to Preview. Production migration state must be checked separately. Do not apply production migrations as part of ordinary hackathon testing.
 
 ## Safety boundaries
 
