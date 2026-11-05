@@ -113,12 +113,21 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
     tx !== null && typeof tx === "object" &&
     typeof tx.hash === "string" && tx.hash.trim().length > 0 && tx.hash.length <= 256
   )?.hash ?? null;
-  await env.DB.prepare(
+  // Compare-and-set against the lifecycle snapshot read before the upstream
+  // request. Two concurrent polls may return different candidate hashes; only
+  // the first response based on this snapshot may update provider state.
+  const pollWrite = await env.DB.prepare(
     `UPDATE payment_lifecycle
         SET provider_status = ?, provider_updated_at = ?, destination_tx_candidate = COALESCE(?, destination_tx_candidate),
             last_polled_at = ?, updated_at = ?
-      WHERE order_id = ?`
-  ).bind(provider.status, provider.updatedAt ?? null, candidateHash, now, now, payment.id).run();
+      WHERE order_id = ? AND status = ? AND destination_tx_candidate IS ?`
+  ).bind(
+    provider.status, provider.updatedAt ?? null, candidateHash, now, now,
+    payment.id, payment.status, payment.destination_tx_candidate,
+  ).run();
+  if ((pollWrite.meta?.changes ?? 0) !== 1) {
+    return json({ error: "Payment changed during status polling; retry the lookup" }, 409);
+  }
 
   // SUCCESS is only a provider assertion. Preserve it as evidence for a later
   // independent destination-chain verification; do not mark the order settled.
