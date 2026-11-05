@@ -113,7 +113,7 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
 
         if (evidence) {
           const verifiedAt = new Date().toISOString();
-          const results = await env.DB.batch([
+          const results = await env.DB.batch<{ success: boolean; meta?: { changes?: number } }>([
             env.DB.prepare(
               `INSERT INTO payment_settlement_evidence
                 (order_id, destination_chain, destination_asset, token_contract, transaction_hash,
