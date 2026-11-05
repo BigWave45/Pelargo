@@ -18,6 +18,8 @@ export interface Env {
   NEARSCANNER_TX_API_URL?: string;
   NEARSCANNER_API_KEY?: string;
   BASE_SEPOLIA_RPC_URL?: string;
+  /** Private Worker-to-verifier credential; never expose to browser clients. */
+  RECONCILIATION_SECRET?: string;
 }
 
 const MAINNET_API_BASE = "https://1click.chaindefuser.com";
