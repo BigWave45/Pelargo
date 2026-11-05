@@ -84,34 +84,40 @@ async function claimNextJob(
   now: string,
   leaseMs: number,
 ): Promise<{ orderId: string; leaseToken: string; attemptCount: number } | null> {
-  const due = await db.prepare(
-    `SELECT j.order_id
-       FROM payment_reconciliation_jobs j
-       JOIN payment_lifecycle p ON p.order_id = j.order_id
-      WHERE j.next_attempt_at <= ?
-        AND (j.lease_until IS NULL OR j.lease_until <= ?)
-        AND p.status IN ('quote_committed', 'awaiting_deposit', 'deposit_detected', 'processing', 'incomplete_deposit')
-      ORDER BY j.next_attempt_at, j.created_at
-      LIMIT 1`
-  ).bind(now, now).first<DueJob>();
-  if (!due) return null;
+  // Another Worker can win the compare-and-set after this invocation selects
+  // a due row. Retry selection a few times so contention on one row does not
+  // make this invocation abandon other due jobs in the queue.
+  for (let contentionAttempt = 0; contentionAttempt < 5; contentionAttempt++) {
+    const due = await db.prepare(
+      `SELECT j.order_id
+         FROM payment_reconciliation_jobs j
+         JOIN payment_lifecycle p ON p.order_id = j.order_id
+        WHERE j.next_attempt_at <= ?
+          AND (j.lease_until IS NULL OR j.lease_until <= ?)
+          AND p.status IN ('quote_committed', 'awaiting_deposit', 'deposit_detected', 'processing', 'incomplete_deposit')
+        ORDER BY j.next_attempt_at, j.created_at
+        LIMIT 1`
+    ).bind(now, now).first<DueJob>();
+    if (!due) return null;
 
-  const leaseToken = crypto.randomUUID();
-  const leaseUntil = new Date(Date.parse(now) + leaseMs).toISOString();
-  const claimed = await db.prepare(
-    `UPDATE payment_reconciliation_jobs
-        SET lease_token = ?, lease_until = ?, attempt_count = attempt_count + 1,
-            last_attempt_at = ?, updated_at = ?
-      WHERE order_id = ? AND next_attempt_at <= ?
-        AND (lease_until IS NULL OR lease_until <= ?)`
-  ).bind(leaseToken, leaseUntil, now, now, due.order_id, now, now).run();
-  if ((claimed.meta?.changes ?? 0) !== 1) return null;
+    const leaseToken = crypto.randomUUID();
+    const leaseUntil = new Date(Date.parse(now) + leaseMs).toISOString();
+    const claimed = await db.prepare(
+      `UPDATE payment_reconciliation_jobs
+          SET lease_token = ?, lease_until = ?, attempt_count = attempt_count + 1,
+              last_attempt_at = ?, updated_at = ?
+        WHERE order_id = ? AND next_attempt_at <= ?
+          AND (lease_until IS NULL OR lease_until <= ?)`
+    ).bind(leaseToken, leaseUntil, now, now, due.order_id, now, now).run();
+    if ((claimed.meta?.changes ?? 0) !== 1) continue;
 
-  const row = await db.prepare(
-    "SELECT attempt_count FROM payment_reconciliation_jobs WHERE order_id = ? AND lease_token = ?"
-  ).bind(due.order_id, leaseToken).first<{ attempt_count: number }>();
-  if (!row) return null;
-  return { orderId: due.order_id, leaseToken, attemptCount: row.attempt_count };
+    const row = await db.prepare(
+      "SELECT attempt_count FROM payment_reconciliation_jobs WHERE order_id = ? AND lease_token = ?"
+    ).bind(due.order_id, leaseToken).first<{ attempt_count: number }>();
+    if (!row) continue;
+    return { orderId: due.order_id, leaseToken, attemptCount: row.attempt_count };
+  }
+  return null;
 }
 
 async function retryOrReleaseJob(
