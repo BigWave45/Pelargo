@@ -605,7 +605,10 @@ sqlite.query("UPDATE payment_lifecycle SET last_polled_at = NULL WHERE order_id 
 
     // A signer mismatch is rejected by canonical RPC and cannot produce evidence.
     globalThis.fetch = mockRpc("1000000", "wrong-signer.testnet");
-    const wrongSigner = await verifyNearNep141Settlement(envWithRecoverySigner, order, hash);
+    const wrongSigner = await verifyNearNep141Settlement({
+      ...envWithRecoverySigner,
+      NEAR_TX_SIGNER_ID: "wrong-signer.testnet",
+    }, order, hash);
     assert.equal(wrongSigner, null, "canonical RPC signer mismatch must fail closed");
   } finally {
     globalThis.fetch = original;
