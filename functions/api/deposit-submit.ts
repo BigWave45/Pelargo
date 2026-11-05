@@ -111,7 +111,7 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
   const sourceAssetMatch = typeof originAsset === "string"
     ? /^nep141:base-(0x[a-fA-F0-9]{40})\.tp-omft\.testnet$/i.exec(originAsset)
     : null;
-  if (!sourceAssetMatch || amountIn !== "1012633" && (!/^[1-9]\d*$/.test(String(amountIn))) ||
+  if (!sourceAssetMatch || typeof amountIn !== "string" || !/^[1-9]\d*$/.test(amountIn) ||
       amountOut !== payment.amount_atomic || providerDepositAddress !== payment.deposit_address) {
     return json({
       error: "Provider quote does not match the expected Base Sepolia source asset, amount, destination amount and deposit address",
