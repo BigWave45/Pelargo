@@ -67,6 +67,15 @@ function toAtomicUnits(value: string, decimals: number): string {
   return atomic.toString();
 }
 
+function displayNetwork(token: Token): string {
+  // Tidepool exposes Base Sepolia assets with a generic "base" blockchain
+  // field; the testnet OMFT suffix is the authoritative network distinction.
+  if (token.assetId.startsWith("nep141:base-") && token.assetId.endsWith(".tp-omft.testnet")) {
+    return "Base Sepolia";
+  }
+  return token.blockchain;
+}
+
 function formatExpiry(value?: string) {
   if (!value) return "Not supplied";
   const date = new Date(value);
@@ -281,7 +290,7 @@ export function PelargoCheckout({
     }
     if (paymentInstructions) return;
     const confirmed = window.confirm(
-      `Create a real Tidepool testnet deposit quote?\n\nSource asset: ${selectedSource.assetId}\nNetwork: ${selectedSource.blockchain}\n\nAfter instructions are created, transfer only this exact asset on this exact network. A token with the same symbol but a different contract is not interchangeable. This does not send funds.`
+      `Create a real Tidepool testnet deposit quote?\n\nSource asset: ${selectedSource.assetId}\nNetwork: ${displayNetwork(selectedSource)}\n\nAfter instructions are created, transfer only this exact asset on this exact network. A token with the same symbol but a different contract is not interchangeable. This does not send funds.`
     );
     if (!confirmed) return;
 
@@ -418,7 +427,7 @@ export function PelargoCheckout({
       <label className="pelargo-field-label" htmlFor="pelargo-source">You pay with</label>
       <select id="pelargo-source" className="pelargo-select" value={sourceAssetId} onChange={(event) => { setSourceAssetId(event.target.value); clearQuote(); }} disabled={loadingTokens || sourceTokens.length === 0}>
         {sourceTokens.map((token) => (
-          <option value={token.assetId} key={token.assetId}>{token.symbol} · {token.blockchain}</option>
+          <option value={token.assetId} key={token.assetId}>{token.symbol} · {displayNetwork(token)}</option>
         ))}
       </select>
       {selectedSource && (
