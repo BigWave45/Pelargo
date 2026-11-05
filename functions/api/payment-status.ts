@@ -330,6 +330,7 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
     }
 
     let verificationStatus = payment.status;
+    const candidateDiagnostics: Array<{ hash: string; stage: string }> = [];
     try {
       // Polling can skip intermediate provider states. SUCCESS confirms the
       // provider completed its swap; record the missing internal progression
@@ -340,7 +341,6 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
           payment.destination_network.trim().toUpperCase() === "NEAR") {
         let evidence = null;
         let candidateVerificationError: unknown = null;
-        const candidateDiagnostics: Array<{ hash: string; stage: string }> = [];
         // Provider responses can contain multiple NEAR transactions for one
         // intent. Verify each hash independently; never assume the first is
         // the destination transfer. A bad indexer response for one candidate
