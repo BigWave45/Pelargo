@@ -102,11 +102,13 @@ export async function verifyNearNep141Settlement(
   env: Env,
   order: NearSettlementOrder,
   transactionHash: string,
+  onDiagnostic?: (stage: string) => void,
 ): Promise<NearSettlementEvidence | null> {
-  if (order.destinationNetwork.trim().toUpperCase() !== "NEAR") return null;
+  const reject = (stage: string): null => { onDiagnostic?.(stage); return null; };
+  if (order.destinationNetwork.trim().toUpperCase() !== "NEAR") return reject("unsupported_destination_network");
   const assetMatch = /^nep141:([a-z0-9._-]+)$/i.exec(order.destinationAsset);
   if (!assetMatch || !order.recipient || !/^\d+$/.test(order.amountAtomic) ||
-      !/^[1-9A-HJ-NP-Za-km-z]{32,64}$/.test(transactionHash)) return null;
+      !/^[1-9A-HJ-NP-Za-km-z]{32,64}$/.test(transactionHash)) return reject("invalid_order_or_transaction_hash");
   const tokenContract = assetMatch[1].toLowerCase();
 
   const provider = intentsProvider(env);
@@ -134,11 +136,11 @@ export async function verifyNearNep141Settlement(
   const networkStatus = await postJson(rpcUrl, {
     jsonrpc: "2.0", id: "pelargo-near-network-check", method: "status", params: [],
   });
-  if (record(networkStatus.result)?.chain_id !== provider.network) return null;
+  if (record(networkStatus.result)?.chain_id !== provider.network) return reject("rpc_network_mismatch");
 
   const indexed = await requestJson(indexerUrl, { method: "GET", headers: indexerHeaders });
   const signerId = indexedSigner(indexed, transactionHash);
-  if (!signerId) return null;
+  if (!signerId) return reject("indexer_did_not_return_matching_signer");
   const txStatus = await postJson(rpcUrl, {
     jsonrpc: "2.0",
     id: "pelargo-settlement-verifier",
@@ -149,9 +151,9 @@ export async function verifyNearNep141Settlement(
       wait_until: "FINAL",
     },
   });
-  if (txStatus.error) return null;
+  if (txStatus.error) return reject("rpc_transaction_status_error");
   const result = record(txStatus.result);
-  if (!result || !rpcSuccess(result.status)) return null;
+  if (!result || !rpcSuccess(result.status)) return reject("transaction_not_successful_or_not_final");
 
   const receipts = Array.isArray(result.receipts_outcome) ? result.receipts_outcome : [];
   let netReceived = 0n;
@@ -188,7 +190,7 @@ export async function verifyNearNep141Settlement(
   // NEP-141 ft_transfer_call can emit an incoming transfer before its
   // resolver receipt refunds some or all of it. Verify net movement across
   // all successful token-contract receipts, not just the first incoming log.
-  if (netReceived !== BigInt(order.amountAtomic) || !lastRelevantReceiptBlockHash) return null;
+  if (netReceived !== BigInt(order.amountAtomic) || !lastRelevantReceiptBlockHash) return reject("exact_nep141_net_transfer_not_found");
 
   const blockResponse = await postJson(rpcUrl, {
     jsonrpc: "2.0",
@@ -199,9 +201,9 @@ export async function verifyNearNep141Settlement(
   const block = record(blockResponse.result);
   const header = record(block?.header);
   if (!header || header.hash !== lastRelevantReceiptBlockHash ||
-      (typeof header.height !== "number" && typeof header.height !== "string")) return null;
+      (typeof header.height !== "number" && typeof header.height !== "string")) return reject("receipt_block_lookup_failed");
   const blockHeight = BigInt(header.height);
-  if (blockHeight < 1n) return null;
+  if (blockHeight < 1n) return reject("invalid_receipt_block_height");
 
   const latestFinal = await postJson(rpcUrl, {
     jsonrpc: "2.0",
@@ -211,7 +213,7 @@ export async function verifyNearNep141Settlement(
   });
   const latestHeader = record(record(latestFinal.result)?.header);
   if (!latestHeader || (typeof latestHeader.height !== "number" && typeof latestHeader.height !== "string") ||
-      BigInt(latestHeader.height) < blockHeight) return null;
+      BigInt(latestHeader.height) < blockHeight) return reject("receipt_block_not_finalized");
 
   return {
     destinationChain: "NEAR",
