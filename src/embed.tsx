@@ -16,6 +16,7 @@ class PelargoCheckoutElement extends HTMLElement {
       "destination-symbol",
       "destination-network",
       "recipient",
+      "session-token",
     ];
   }
 
@@ -48,17 +49,18 @@ class PelargoCheckoutElement extends HTMLElement {
     const amount = this.getAttribute("amount") ?? "";
     const orderId = this.getAttribute("order-id") ?? "";
     const recipient = this.getAttribute("recipient") ?? "";
+    const sessionToken = this.getAttribute("session-token") ?? "";
     const destinationAssetId = this.getAttribute("destination-asset") ?? undefined;
     const destinationSymbol = this.getAttribute("destination-symbol") ?? "";
     const destinationNetwork = this.getAttribute("destination-network") ?? "";
     const merchantName = this.getAttribute("merchant-name") ?? "Merchant";
-    const missing = !amount || !orderId || !recipient ||
+    const missing = !amount || !orderId || !recipient || !sessionToken ||
       (!destinationAssetId && (!destinationSymbol || !destinationNetwork));
 
     if (missing) {
       this.root.render(
         <div className="pelargo-embed-error" role="alert">
-          Pelargo checkout configuration is incomplete. Provide amount, order-id, recipient and either destination-asset or destination-symbol plus destination-network.
+          Pelargo checkout configuration is incomplete. Provide amount, order-id, recipient, session-token and either destination-asset or destination-symbol plus destination-network.
         </div>
       );
       return;
@@ -74,6 +76,7 @@ class PelargoCheckoutElement extends HTMLElement {
         orderId={orderId}
         amount={amount}
         fixedAmount
+        sessionToken={sessionToken}
         apiBaseUrl={new URL(import.meta.url).origin}
       />
     );
