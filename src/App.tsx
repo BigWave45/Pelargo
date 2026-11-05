@@ -229,8 +229,13 @@ export default function App() {
         method: "POST",
         body: JSON.stringify({ orderId: recoveryOrderId, transactionHash: sourceTransactionHash.trim() }),
       });
+      const settlement = await api<{ paymentStatus: string; providerStatus: string; settlement: string }>(
+        `/api/payment-status?orderId=${encodeURIComponent(recoveryOrderId)}`
+      ).catch(() => null);
       await refreshWorkspace();
-      setNotice(`Source deposit verified and submitted to provider. Provider status: ${result.providerStatus}.`);
+      setNotice(settlement?.settlement === "verified"
+        ? "Source deposit verified. Destination settlement independently verified; order is paid."
+        : `Source deposit verified and provider notified. Provider status: ${settlement?.providerStatus || result.providerStatus}. Settlement: ${settlement?.settlement || "pending provider confirmation"}.`);
       setSourceTransactionHash("");
       setRecoveryOrderId("");
     } catch (e) { setError(e instanceof Error ? e.message : "Unable to reconcile source deposit."); }
