@@ -146,7 +146,9 @@ export default function App() {
   order-id="ORDER-123"
   destination-symbol="${asset}"
   destination-network="${network}"
-  recipient="${recipient || "YOUR_RECIPIENT_ADDRESS"}">
+  recipient="${recipient || "YOUR_RECIPIENT_ADDRESS"}"
+  session-token="SHORT_LIVED_SIGNED_SESSION_TOKEN"
+  button-label="Pay with crypto">
 </pelargo-checkout>`}</pre><div className="code-panel-foot">Embed contract preview. Replace the host and order values; do not use client-supplied attributes as trusted payment authority.</div></div></section>
               <div className="notice-panel"><strong>Integration is not ready for production.</strong><p>The public SDK, authenticated order creation, webhook delivery and persistent order records have not been implemented. Do not paste this illustrative snippet into a live store.</p></div>
               <section className="workspace-card api-card"><div className="card-heading"><div><h3>API surface</h3><p>Server-side routes currently present in this branch.</p></div><Link2 size={17} /></div><div className="api-row"><code>GET /api/tokens</code><span>Proxy scaffold · verification pending</span></div><div className="api-row"><code>POST /api/quote</code><span>Dry quote validation · schema corrected, retest pending</span></div><div className="api-row"><code>GET /api/status</code><span>Proxy scaffold · end-to-end lifecycle not connected</span></div></section>
