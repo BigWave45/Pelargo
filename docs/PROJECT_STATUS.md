@@ -1,21 +1,30 @@
 # Live handover — 5 November 2026
 
+## Latest status — destination-hash reconciliation fix — 5 November 2026
+
+- Existing live order: `ORDER-83587591`, Tidepool quote `6fd9fef3-a12d-4347-a73f-e250c3acd40d`, destination `agentg.testnet`, expected output 1 USDC.
+- The buyer's Base Sepolia source transaction `0x6ccc936c0de29f926478ce525434ef3b26c2ccb792efbdfab10a75471ad9553d` was independently verified by Pelargo's `POST /api/deposit-submit` recovery path. The endpoint accepted the source deposit and notified Tidepool. Its returned provider status was `PROCESSING`.
+- The buyer supplied NEAR testnet destination transaction `vif8EKtCAzHcaihLNuC6XaRMhCzEDxUiHbAJJRQVUVE`. The explorer details report successful `execute_intents` at block `276344865` and a 1 USDC transfer to `agentg.testnet`. These explorer details are not yet Pelargo settlement evidence.
+- Root cause identified in code inspection: `GET /api/payment-status` used a custom extractor for `destinationChainTxHashes` that accepted only objects shaped as `{ hash }`. A provider response containing plain transaction-hash strings was silently ignored. The shared parser already supports both strings and objects.
+- Fixed candidate extraction to normalize both provider hash representations before persisting the destination candidate. Added an API regression test where Tidepool returns a plain string in `destinationChainTxHashes`; the test asserts the exact hash is persisted.
+- CI passed on commit `dff45143da6d7f61277f32a4fd4d35954ad3c40d` (workflow run 42046672500). The preceding implementation commit's CI failed before the follow-up regression test was added; the latest head's run passed.
+- Cloudflare Pages Preview deployment `4607ba37` completed successfully from `ops/live-d1-readiness` commit `dff45143da6d7f61277f32a4fd4d35954ad3c40d`. Branch alias: `https://ops-live-d1-readiness.pelargo.pages.dev`.
+- The dashboard Check status control already has per-order progress feedback and a 20-second client timeout; the provider status request has a 12-second server timeout. The updated code is now deployed to Preview. A live button invocation against `ORDER-83587591` has not yet been verified after this deployment.
+- **Settlement remains unverified.** The latest previously observed lifecycle state was `processing`, provider status `PROCESSING`, with no persisted destination transaction candidate. Do not mark the order paid until Pelargo verifies the exact NEP-141 contract, recipient, net amount and finality through canonical NEAR RPC and stores settlement evidence.
+- Next: use the deployed Preview status endpoint against the existing order; inspect the provider's returned destination hash diagnostics; confirm the candidate is persisted; then verify the supplied NEAR transaction through the exact configured token contract and canonical NEAR RPC. If Tidepool still omits the destination hash, investigate its status response/correlation behavior rather than requesting another payment.
+- No additional payment or transfer was initiated. No Production deployment, merge to `main`, or mainnet activation.
+
 ## Source deposit and delayed settlement reconciliation — 5 November 2026
 
 - Added `functions/_lib/base-deposit-verifier.ts`: checks Base Sepolia chain ID, receipt success, exact requested transaction hash, exact ERC-20 token contract, Transfer recipient and amount, and at least 12 block confirmations.
-- Added migration `0016_origin_deposit_evidence.sql` for immutable, unique per-order source-deposit evidence. This migration is code only until applied to Preview D1.
-- Added merchant-authenticated `POST /api/deposit-submit`. It loads the merchant's committed quote, checks provider `correlationId`, exact quote source asset/input amount/output amount/deposit address, verifies the submitted Base transaction on-chain, and then calls the documented Tidepool `POST /v0/deposit/submit` notification endpoint. It confirms provider state through the documented status endpoint rather than assuming an undocumented response body.
-- Added duplicate-notification handling when the provider status already lists the source transaction, and rejection for terminal non-success provider states. The endpoint never creates a new quote or sends funds.
-- Added a dashboard recovery action for existing committed orders and a field for the already-submitted Base transaction hash. The UI action does not itself transfer tokens.
-- Updated `GET /api/payment-status` to expose bounded provider correlation/hash diagnostics and to run NEAR chain verification when a destination candidate is present, even if provider status remains `PROCESSING`. Exact destination token contract, recipient, net amount and NEAR finality remain mandatory before settlement.
-- GitHub Actions CI passed on branch head `e616c3bcf13c14e36aa22cc6911233aa1bf03771` (type-check, session security tests, API integration tests, frontend build). The suite includes mocked Base receipt verification with 12-confirmation depth, quote destination binding, and delayed-provider destination settlement.
-- Applied migration `0016_origin_deposit_evidence.sql` to Preview D1 `0335acdc-f0e0-42f6-ba87-e3448fb91728`; verified both the migration ledger row and evidence table schema, including the 12-confirmation constraint. Production D1 was not touched.
-- Cloudflare Pages Preview deployment `46e1f80e` completed successfully from branch `ops/live-d1-readiness`, commit `e616c3bcf13c14e36aa22cc6911233aa1bf03771`, and owns alias `https://ops-live-d1-readiness.pelargo.pages.dev`.
-- All provider/RPC behavior in the new tests is mocked. The deposit notification route has not yet been exercised against the existing live order. No new payment or transfer was initiated.
-- Next: pass CI on the latest head; apply migration 0016 to Preview D1 only; deploy a Preview build; test the existing `ORDER-83587591` using its already-submitted Base transaction hash; inspect the actual provider response and canonical NEAR RPC evidence; then decide whether settlement can be safely completed.
-- No Production deployment, merge to `main`, mainnet activation or additional transfer.
+- Added migration `0016_origin_deposit_evidence.sql` for immutable, unique per-order source-deposit evidence. This migration has been applied to Preview D1; its migration ledger row and evidence table schema were checked. Production D1 was not touched.
+- Added merchant-authenticated `POST /api/deposit-submit`. It loads the merchant's committed quote, checks provider `correlationId`, exact quote source asset/input amount/output amount/deposit address, verifies the submitted Base transaction on-chain, and then calls Tidepool's `POST /v0/deposit/submit` notification endpoint.
+- The endpoint has been exercised against the existing live order. Pelargo verified the buyer's Base Sepolia source deposit and notified Tidepool; Tidepool returned `PROCESSING`. Duplicate notification handling prevents a repeat source submission from being treated as a new payment.
+- Added a dashboard recovery action for existing committed orders. The action submits the already-broadcast source transaction hash for verification; it does not transfer tokens.
+- `GET /api/payment-status` runs NEAR chain verification when a destination candidate is present, even if Tidepool still reports `PROCESSING`. Exact destination token contract, recipient, net amount and NEAR finality remain mandatory before settlement.
+- The API suite includes mocked Base receipt verification with 12-confirmation depth, quote destination binding, and delayed-provider destination settlement. Mocked tests are not proof of live provider/RPC behavior.
+- No new payment or transfer was initiated during this recovery work.
 
----
 
 ## Live Tidepool testnet settlement investigation — 5 November 2026
 
