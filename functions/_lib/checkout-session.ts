@@ -71,11 +71,13 @@ export async function verifyCheckoutSession(
 
   try {
     const key = await signingKey(env.ORDER_SESSION_SECRET, ["verify"]);
+    const signature = fromBase64Url(parts[1]);
+    const signedPayload = new TextEncoder().encode(parts[0]);
     const valid = await crypto.subtle.verify(
       "HMAC",
       key,
-      fromBase64Url(parts[1]),
-      new TextEncoder().encode(parts[0]),
+      signature,
+      signedPayload,
     );
     if (!valid) return null;
 
