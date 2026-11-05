@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS payment_origin_deposit_evidence (
   amount_atomic TEXT NOT NULL,
   block_number TEXT NOT NULL,
   block_hash TEXT NOT NULL,
+  confirmations INTEGER NOT NULL CHECK (confirmations >= 12),
   verification_source TEXT NOT NULL CHECK (verification_source = 'chain_rpc'),
   provider_submit_status TEXT NOT NULL,
   verified_at TEXT NOT NULL,
