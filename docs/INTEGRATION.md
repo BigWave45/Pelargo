@@ -1,5 +1,7 @@
 # Merchant integration guide
 
+> **Current testnet status — 5 November 2026:** Pelargo Preview is configured to use the community-operated Tidepool NEAR testnet sandbox. The backend has a gated committed-quote path, but live token discovery, quote creation, deposit instructions and settlement have not yet been validated through Pelargo Preview. The embedded widget still supports dry-quote preview only; it is not yet a complete buyer payment flow. Do not use this integration to collect funds. See [PROJECT_STATUS.md](PROJECT_STATUS.md) for the live verification record.
+
 This describes the current Pelargo API and integration prototype. It is not a production payment integration. The widget currently supports dry quote preview; the full committed-quote, buyer payment and settlement flow has not been validated end to end. Do not use it to collect real customer funds.
 
 ## Security model
@@ -141,9 +143,9 @@ Returns the authenticated merchant's stored order and current database status. A
 
 ### `GET /api/payment-status?orderId=...`
 
-Polls 1Click using the persisted deposit address and optional memo. Provider status and destination transaction candidate are stored with concurrency guards. Provider `SUCCESS` is not sufficient to mark an order paid.
+Polls the configured Intents provider using the persisted deposit address and optional memo. Provider status and destination transaction candidate are stored with concurrency guards. Provider `SUCCESS` is not sufficient to mark an order paid.
 
-For NEAR mainnet NEP-141 destinations, Pelargo resolves the transaction signer through NearScanner's `GET /api/v1/explorer/tx/{hash}` endpoint and independently verifies finalized NEAR transaction/receipt execution and the exact token contract, recipient and net amount. Verified evidence must match the order and stored transaction candidate before the database marks it paid. Other destination networks/token standards fail closed.
+For NEAR NEP-141 destinations, Pelargo selects the signer lookup and canonical NEAR RPC for the configured provider network. Mainnet signer lookup uses NearScanner; testnet lookup is configured for NearBlocks v3 `GET /v3/txns/{hash}`. These external response contracts are currently mocked in CI and have not been validated against a live Pelargo transaction. Canonical NEAR RPC must independently verify finalized transaction/receipt execution and the exact token contract, recipient and net amount. Verified evidence must match the order and stored transaction candidate before the database marks it paid. Other destination networks/token standards fail closed.
 
 ### `GET /api/operator/recovery-cases`
 
@@ -173,7 +175,7 @@ The target Pages environment needs:
 
 Repository migrations currently run through `0011`. The isolated preview D1 migration history was verified through 0011 on 5 November 2026. Production migration state is separate and must be checked before release. The expiry/recovery Worker code and five-minute cron configuration exist, but the Worker has not been deployed and its cron is not active.
 
-Tests in `bun run test:security` and `bun run test:api` use in-memory SQLite and mocked provider/indexer/RPC responses. They do not prove live 1Click, NearScanner authentication/response, NEAR RPC or deployed Pages runtime compatibility. Preview HTTP runtime testing remains outstanding.
+Tests in `bun run test:security` and `bun run test:api` use in-memory SQLite and mocked provider/indexer/RPC responses. They do not prove live Tidepool/1Click, NearBlocks/NearScanner authentication or response compatibility, NEAR RPC or deployed Pages runtime compatibility. Preview build and deployment have passed, but live API requests through Preview remain outstanding. Preview HTTP runtime testing remains outstanding.
 
 Current product limitations:
 - NEAR mainnet NEP-141 is the only implemented destination settlement verifier.
