@@ -140,6 +140,10 @@ Optional: `expiresInSeconds` (60–1800; default 900).
 
 Returns HTTP 201 with `token` and public `session` claims. Duplicate order IDs for the same merchant return HTTP 409.
 
+### `GET /api/payment-status?orderId=...`
+
+Merchant-authenticated status refresh. Requires `X-Pelargo-Merchant-Key`. Pelargo resolves the order within that merchant, polls 1Click using the committed deposit address and optional memo, and stores the provider status. Non-terminal provider states may advance the internal payment lifecycle. A provider `SUCCESS` is recorded as a settlement candidate only; Pelargo does not report `settled` until destination-chain transaction verification is implemented.
+
 ### `GET /api/order?orderId=...`
 
 Merchant-authenticated lookup of one order belonging to the authenticated merchant. Requires `X-Pelargo-Merchant-Key`. Returns the stored order ID, atomic amount, destination asset, recipient, current database status, creation time and expiry time. An order belonging to another merchant returns 404. The endpoint does not prove that an order has settled; treat its status as an internal lifecycle record until settlement reconciliation is implemented.
