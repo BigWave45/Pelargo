@@ -148,7 +148,8 @@ export async function verifyNearNep141Settlement(
   // only a signer hint: canonical RPC must still resolve this exact hash for
   // that signer and prove successful final execution plus the exact NEP-141
   // transfer below. A wrong signer therefore fails closed.
-  const configuredSigner = env.NEAR_TX_SIGNER_ID?.trim();
+  const configuredHash = env.NEAR_TX_HASH?.trim();
+  const configuredSigner = configuredHash === transactionHash ? env.NEAR_TX_SIGNER_ID?.trim() : undefined;
   let signerId: string | null = null;
   if (configuredSigner) {
     if (!/^[a-z0-9._-]{2,64}$/.test(configuredSigner)) {
