@@ -1,5 +1,18 @@
 # Live handover — 5 November 2026
 
+## Latest status — hash-scoped NEAR recovery deployed to Preview — 5 November 2026
+
+- CI passed on commit `55a9b62e10456749fb145f22b18bc14fee15ba4` (workflow run `42059187806`). The checkout API integration suite now includes a mocked canonical NEAR RPC verifier scenario covering the configured transaction hash, signer, named `EXPERIMENTAL_tx_status` parameters, successful final receipt, exact NEP-141 contract, recipient, atomic amount and finality. Negative cases cover a different candidate hash, wrong configured signer and wrong transfer amount.
+- The recovery hash is now order-scoped. `NEAR_TX_HASH` is added as a candidate only when `NEAR_TX_ORDER_ID` equals the order's external ID. This prevents the same configured transaction from being considered for other orders.
+- Cloudflare Pages Preview variables are configured only in the `preview` environment: `NEAR_TX_HASH=vif8EKtCAzHcaihLNuC6XaRMhCzEDxUiHbAJJRQVUVE`, `NEAR_TX_SIGNER_ID=maker.tidepool-sandbox.testnet`, and `NEAR_TX_ORDER_ID=ORDER-83587591`. Existing Preview variables and Preview D1 binding were preserved. Production configuration was not changed.
+- Preview deployment `feeef960-0c24-452b-93de-f7f6c7a2b0fe` completed successfully at `https://feeef960.pelargo.pages.dev`, from commit `55a9b62e10456749fb145f22b18bc14db9e6b457a80a2` (recheck exact commit hash in deployment metadata if needed). This is a Preview deployment only.
+- **Live settlement is still unverified.** The test above uses mocked RPC responses. No canonical RPC result or D1 settlement-evidence row has yet been observed for the buyer-supplied hash. Do not mark the order paid until the deployed Preview verifier returns matching evidence and persists settlement.
+- Next: invoke Check status once for the existing `ORDER-83587591` against the new Preview deployment; inspect its response/diagnostic and D1 evidence. Do not send another payment.
+- No Production deployment, merge to `main`, or mainnet activation.
+
+---
+
+
 ## Latest status — destination-hash reconciliation fix — 5 November 2026
 
 - Existing live order: `ORDER-83587591`, Tidepool quote `6fd9fef3-a12d-4347-a73f-e250c3acd40d`, destination `agentg.testnet`, expected output 1 USDC.
