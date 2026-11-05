@@ -93,6 +93,38 @@ Merchant application
 
 The widget must remain independent of any one merchant storefront. Merchant-specific order details and destination settings are inputs to checkout, not hardcoded demo data.
 
+## Embeddable checkout element (integration prototype)
+
+The active branch now has a standalone custom-element entry point:
+
+- Source: `src/embed.tsx`.
+- Build config: `vite.embed.config.ts`.
+- Build output: `dist/pelargo.js` and `dist/pelargo.css`.
+- Element name: `<pelargo-checkout>`.
+- The element mounts the React checkout inside a Shadow DOM so merchant page styles do not directly affect the widget.
+- The widget calls the Pelargo API using the origin of the loaded embed script, rather than the merchant page's origin.
+- Public API responses include CORS headers; the quote route handles browser preflight.
+
+Build the site and embed bundle with `bun run build`. The separate embed-only command is `bun run build:embed`.
+
+Example integration markup (replace the host and order values):
+
+```html
+<script type="module" src="https://YOUR_PELARGO_HOST/pelargo.js"></script>
+<pelargo-checkout
+  merchant-name="Example Store"
+  amount="25.00"
+  order-id="ORDER-123"
+  destination-symbol="USDC"
+  destination-network="Base"
+  recipient="0xYOUR_PUBLIC_RECEIVING_ADDRESS">
+</pelargo-checkout>
+```
+
+You may use `destination-asset="EXACT_INTENTS_ASSET_ID"` instead of the symbol/network pair to bind the destination to an exact supported asset.
+
+**This is an integration prototype, not a production payment integration.** The attributes are currently public client-side inputs. There is no authenticated merchant order session, signature verification, server-side amount/destination binding, replay prevention or verified settlement callback. Do not treat the order ID or recipient in markup as trusted payment authority. Committed quotes remain disabled.
+
 ## Run locally
 
 ```bash
