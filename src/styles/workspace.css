@@ -61,3 +61,7 @@
 .pelargo-checkout-foot{padding-top:13px;margin-top:15px;border-top:1px solid #eeece6;color:#99a1a8;font-size:8px;line-height:1.5;overflow-wrap:anywhere}
 .pelargo-spin{animation:token-spin 1s linear infinite}
 @media(max-width:480px){.pelargo-checkout{padding:18px;border-radius:10px}.pelargo-checkout-head{flex-direction:column}.pelargo-order{align-self:flex-start}}
+
+/* Testnet deposit instructions */
+.pelargo-deposit-address{padding:11px 12px;margin:4px 0 10px;border:1px solid #dce4f7;border-radius:7px;background:#fff;color:#263647;font:10px/1.6 ui-monospace,monospace;overflow-wrap:anywhere;user-select:all}
+.pelargo-quote-result .pelargo-quote-detail button{border:0;background:transparent;color:#315be8;font:700 9px 'DM Sans';cursor:pointer}
