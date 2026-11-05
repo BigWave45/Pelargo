@@ -425,3 +425,14 @@ This section supersedes earlier infrastructure statements in this file where the
 - GitHub Actions and Cloudflare Pages checks for the documentation head were queued/in progress at the time of this update. Do not mark this commit green until both checks complete.
 - Migration 0009 has not yet been applied to either remote D1 database. Apply it to preview after CI passes, then run the preview runtime smoke tests. Apply it to production only as part of the approved controlled release sequence.
 - No production deployment, no main branch changes, no real payment execution. `ALLOW_MAINNET_DEPOSITS` remains unset.
+
+
+## Preview D1 migration 0009 verification — 5 November 2026
+
+- GitHub Actions `verify` and Cloudflare Pages checks completed successfully for commit `32379d452716ddc9b1b41db59c2443507288f147`.
+- Applied `0009_settlement_evidence_insert_guard.sql` to preview D1 database `pelargo-preview-db` (ID `0335acdc-f0e0-42f6-ba87-e3448fb91728`). Migration history now records migrations 0001–0009; `sqlite_master` confirms the trigger exists.
+- Ran a synthetic D1 integration probe: created a temporary merchant/order in `processing` with candidate hash `candidate-good`, attempted to insert settlement evidence with a different hash, and D1 rejected it with `SQLITE_CONSTRAINT_TRIGGER` and the expected message. This directly verifies the deployed database trigger behavior, independent of the in-memory SQLite test.
+- Removed the synthetic order and merchant. Final probe counts: orders 0, merchants 0, evidence 0.
+- This verifies preview D1 schema/trigger behavior. It does not verify HTTP Pages Function execution, real NEAR RPC/indexer behavior, or live 1Click quote compatibility.
+- Production database has not received migration 0009. No production deployment or real payment. `main` remains untouched; `ALLOW_MAINNET_DEPOSITS` remains unset.
+- Next: solve authenticated preview HTTP runtime testing, then validate quote/status against the actual 1Click response contract using provider test facilities or captured fixtures. Only after those pass proceed with the already-approved controlled production release.
