@@ -43,7 +43,7 @@ See [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) for the exact verification 
 
 ## What is implemented
 
-- Public merchant registration and password login, with PBKDF2 password hashing, database-backed login/registration throttling and seven-day opaque HttpOnly Secure SameSite=Lax sessions.
+- Public merchant registration and password login, with PBKDF2-SHA-256 (100,000 iterations, the Cloudflare Workers WebCrypto ceiling), per-account random salts, and a server-side HMAC-SHA-256 pepper derived from `ORDER_SESSION_SECRET`; database-backed login/registration throttling and seven-day opaque HttpOnly Secure SameSite=Lax sessions.
 - Merchant-scoped destination settings, dashboard order creation and order activity APIs.
 - Dashboard cookie authentication and server-side merchant API-key authentication remain separate; internal API keys are never returned to the browser.
 - Merchant-authenticated order and checkout-session creation.
