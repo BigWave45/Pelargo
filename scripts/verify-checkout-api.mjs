@@ -349,6 +349,14 @@ try {
   globalThis.fetch = async () => Response.json({
     status: "SUCCESS",
     updatedAt: "2026-11-05T00:00:00Z",
+    quoteResponse: {
+      quoteRequest: { originAsset: "eip155:8453/erc20:0xUSDC" },
+      quote: {
+        amountIn: "1012633", amountInFormatted: "1.012633",
+        amountOut: "1000000", amountOutFormatted: "1.00",
+        deadline: "2026-11-05T00:10:00.000Z",
+      },
+    },
     swapDetails: { destinationChainTxHashes: [null, {}, { hash: "" }, { hash: "valid-candidate-hash" }] },
   });
   const malformedHashes = await responseJson(await paymentStatus({
@@ -359,6 +367,16 @@ try {
   }));
   assert.equal(malformedHashes.status, 200, "malformed hash entries must not crash provider status parsing");
   assert.equal(malformedHashes.body.settlement, "awaiting_destination_chain_verification");
+  assert.deepEqual(malformedHashes.body.depositInstructions, {
+    originAssetId: "eip155:8453/erc20:0xUSDC",
+    amountInAtomic: "1012633",
+    amountInFormatted: "1.012633",
+    amountOutAtomic: "1000000",
+    amountOutFormatted: "1.00",
+    deadline: "2026-11-05T00:10:00.000Z",
+    depositAddress: "deposit-address-test",
+    depositMemo: "memo-test",
+  }, "status response should expose the original provider source asset, exact deposit amount and deadline");
   assert.equal(
     sqlite.query("SELECT destination_tx_candidate FROM payment_lifecycle WHERE order_id = (SELECT id FROM checkout_orders WHERE external_order_id = ?)").get("order-001").destination_tx_candidate,
     "valid-candidate-hash",
