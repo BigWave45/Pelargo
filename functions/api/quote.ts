@@ -144,6 +144,16 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
       method: "POST",
       body: JSON.stringify(quoteRequest),
     }, context.env);
+    if (body.dry === false && upstream.ok) {
+      await context.env.DB!.batch([
+        context.env.DB!.prepare(
+          "UPDATE checkout_sessions SET status = 'committed' WHERE jti = ? AND status = 'commit_attempted'"
+        ).bind(session.jti),
+        context.env.DB!.prepare(
+          "UPDATE checkout_orders SET status = 'quote_committed' WHERE merchant_id = ? AND external_order_id = ? AND status = 'pending'"
+        ).bind(session.merchantId, session.orderId),
+      ]);
+    }
     return await forwardJson(upstream);
   } catch {
     return json({ error: "Unable to reach the NEAR Intents quote service" }, 502);
