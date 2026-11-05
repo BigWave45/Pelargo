@@ -363,3 +363,13 @@ This section supersedes earlier infrastructure statements in this file where the
 - The preview build succeeding does not validate merchant provisioning, session issuance or payment routes because those require secrets and D1. Do not interpret the green Cloudflare build check as an API integration test.
 - Next gate: configure the two encrypted production secrets and decide whether preview should receive its own isolated D1 binding and separate test secrets. Then run authenticated, synthetic-only API smoke tests. Keep mainnet commit disabled.
 
+
+
+## Preview environment isolation — 5 November 2026
+
+- Created a separate Cloudflare D1 database `pelargo-preview-db` (ID `0335acdc-f0e0-42f6-ba87-e3448fb91728`). It is not the production database.
+- Applied migrations `0001` through `0008` to the preview database and verified the ordered migration history plus 18 schema objects (tables, indexes and triggers).
+- Configured the Pages preview environment's `DB` binding to `pelargo-preview-db`.
+- Generated separate preview-only `MERCHANT_PROVISIONING_SECRET` and `ORDER_SESSION_SECRET` encrypted secrets. They are not shared with production; values were not exposed.
+- Production continues to bind `DB` to `pelargo-db` and retains its own two encrypted secrets.
+- This is configuration and schema setup only. It does not itself publish a new preview deployment or prove deployed preview Functions can access D1. Runtime smoke tests remain next.
