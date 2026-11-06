@@ -1,5 +1,20 @@
 # Pelargo
 
+> **Current project handover — 6 November 2026.** This section is authoritative when older dated notes below conflict with it.
+>
+> - **Product:** Pelargo is an embeddable, non-custodial crypto checkout for merchant websites and applications. The checkout widget is the product; merchant setup exists to configure and integrate it. There is no Northwind Goods storefront in the current product.
+> - **Repository:** `BigWave45/Pelargo`. Current development branch: `reliability/background-reconciliation`. Draft PR #4 is not merged. `main` is not the active implementation branch.
+> - **Branch map:** `build/live-intents` is the earlier checkout/API integration baseline; `ops/live-d1-readiness` adds merchant accounts, source-deposit verification and Preview readiness; `ops/near-rpc-signer-reconciliation` and `ops/settlement-reconciliation-system-fix` contain intermediate settlement-recovery work; `reliability/near-verifier-diagnostics` adds candidate-specific verifier diagnostics; `reliability/background-reconciliation` contains the latest reconciliation, password-recovery and settlement-integrity work. `main` is an older demo-store snapshot plus a guarded Worker-dispatch workflow, not the current application implementation.
+> - **Settlement evidence:** the latest engineering status records an immutable `chain_rpc` evidence row in Preview D1 for `ORDER-83587591`, transaction `vif8EKtCAzHcaihLNuC6XaRMhCzEDxUiHbAJJRQVUVE`, recipient `agentg.testnet`, amount `1000000` atomic units, block `276344867`. Older README text below saying the order is unsettled is historical and superseded. The dashboard/Worker discrepancy still needs reconciliation; do not attribute settlement to the background Worker.
+> - **Latest integrity correction:** commits `3dc7e973` and `e2d1916d` make settled status reads return persisted immutable evidence without polling the provider, and add a regression test preventing the verified transaction candidate from being overwritten. CI and Preview deployment for these two latest commits are not yet verified.
+> - **Authentication blocker:** Preview registration and password recovery are failing because the Pages Preview runtime has not received a usable `ORDER_SESSION_SECRET` (minimum 32 characters). Password-reset code and migration 0018 exist; do not describe password recovery as unimplemented. Fix the Preview binding before more account tests.
+> - **Background reconciliation:** migrations 0017 and 0019, the scheduled Worker, and a Preview-only manual deployment workflow exist. The workflow has not been dispatched; Worker secret installation and five-minute cron activation are not confirmed.
+> - **Database:** the current branch includes migrations 0001–0019. Preview D1 has confirmed migrations through 0017 in prior read-back; migration 0019 application must be verified. Production D1 is separate and must not be touched.
+> - **Next work:** fix Preview authentication; verify CI/deployment for the latest settlement-integrity commits; reconcile the dashboard, D1 and Worker observations; verify migration 0019; only then consider a separately authorized Preview Worker deployment and complete a fresh end-to-end testnet checkout.
+> - **Release controls:** do not merge PR #4, modify Production D1/configuration, deploy Production, enable mainnet payments, or initiate another payment without explicit approval.
+>
+> Read `docs/PROJECT_STATUS.md` for the detailed chronological engineering record and `docs/INTEGRATION.md` for the merchant integration contract. Older dated sections are historical snapshots, not necessarily current state.
+
 Pelargo is an embeddable crypto checkout for merchants. It uses NEAR Intents / 1Click to quote cross-chain payment routes, while the merchant receives a configured destination asset when the route is supported.
 
 The checkout widget is the product. The merchant workspace exists to configure and integrate checkout; Pelargo is not a storefront builder.
@@ -28,7 +43,7 @@ Keep the implementation focused on this path. Do not add more chains, more index
 6. The NEAR verifier resolves the transaction signer through a network-matched indexer, then asks canonical NEAR RPC to verify final execution and the exact token transfer.
 7. Only a matching verified transfer can mark the order paid.
 
-## Current verification state (5 November 2026)
+## Historical verification snapshot — 5 November 2026 (superseded by the current handover above)
 
 - Operational branch: `ops/live-d1-readiness`; application integration branch: `build/live-intents`. `main` remains untouched.
 - Preview is configured with isolated D1 and Tidepool testnet provider settings. `ALLOW_TESTNET_DEPOSITS=true` enables only testnet committed quotes; mainnet commits remain disabled.
@@ -82,7 +97,7 @@ Do not spend hackathon time on:
 - Supporting every chain exposed by the routing provider.
 - Building or operating our own transaction indexer.
 - Integrating multiple indexer vendors before the current one has been tested.
-- Merchant billing, multi-user organisations, email verification, password recovery, API-key rotation or enterprise identity management.
+- Merchant billing, multi-user organisations, email verification, API-key rotation or enterprise identity management. Password recovery code exists on the current branch, but Preview runtime configuration remains broken.
 - Production-grade redundancy, monitoring and incident operations.
 - Mainnet payment activation.
 
@@ -107,7 +122,7 @@ See [docs/INTEGRATION.md](docs/INTEGRATION.md) for merchant request contracts an
 
 ## Database
 
-Migrations `0001` through `0016` are in the repository. Preview D1 has been advanced through `0016`, including merchant account, settings, authentication throttle and immutable origin-deposit evidence tables. Production migration state has not been checked or changed. Do not apply production migrations as part of ordinary hackathon testing.
+Migrations `0001` through `0019` are in the current repository branch. Preview D1 was previously confirmed through `0017`; verify whether `0018` and `0019` have been applied before relying on password recovery or background-job backfill. Production migration state has not been checked or changed. Do not apply production migrations as part of ordinary hackathon testing.
 
 ## Safety boundaries
 
@@ -120,8 +135,9 @@ Migrations `0001` through `0016` are in the repository. Preview D1 has been adva
 ## Repository and development
 
 - Repository: [BigWave45/Pelargo](https://github.com/BigWave45/Pelargo)
-- Application integration branch: `build/live-intents`
-- Current operational branch: `ops/live-d1-readiness`
+- Current development branch: `reliability/background-reconciliation`
+- Earlier application integration baseline: `build/live-intents`
+- Earlier operational branch: `ops/live-d1-readiness`
 - Cloudflare Pages project: `pelargo`
 
 Stack: React, TypeScript, Vite, Cloudflare Pages Functions, Cloudflare D1 and NEAR Intents / 1Click.
