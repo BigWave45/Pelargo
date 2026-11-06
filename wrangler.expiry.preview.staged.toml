@@ -17,3 +17,6 @@ NEAR_TX_ORDER_ID = "ORDER-83587591"
 binding = "DB"
 database_name = "pelargo-preview-db"
 database_id = "0335acdc-f0e0-42f6-ba87-e3448fb91728"
+
+[observability]
+enabled = true
