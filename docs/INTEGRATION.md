@@ -8,7 +8,7 @@ After instructions are created, the widget polls `GET /api/payment-status?orderI
 
 Provider `SUCCESS` alone is insufficient. The order becomes paid only after independent destination-chain verification succeeds and matching settlement evidence is persisted. The buyer widget displays the internal payment state and stops polling on terminal states or an invalid/unauthorized session.
 
-The buyer committed-quote and polling paths have mocked integration coverage and passed CI. They have not yet been exercised end-to-end against live Tidepool or a real testnet deposit. No real transfer has been executed. Do not use this integration to collect real customer funds.
+The buyer committed-quote and polling paths have mocked integration coverage. A live testnet payment has also been executed for ORDER-83587591: Pelargo verified the Base Sepolia source deposit, then independently verified the exact NEAR NEP-141 destination transfer through canonical NEAR RPC and persisted immutable settlement evidence in Preview D1. The merchant has since signed in successfully and reports that the latest status read displays settled. This proves one testnet payment path, not production readiness or the scheduled Worker's operation. Do not use this integration to collect real customer funds.
 
 ## Security model
 
@@ -31,7 +31,7 @@ The dashboard supports open merchant registration and password login. A new acco
 - `GET/PUT /api/merchant-settings` — read or save the merchant's destination configuration.
 - `GET /api/orders` — list up to 100 recent orders belonging to the authenticated merchant.
 
-Sessions last seven days. Registration is limited to five attempts per email/IP per hour; login is limited to ten attempts per email/IP per 15 minutes. Email verification, password recovery, API-key rotation and multi-user merchant accounts are not implemented. The destination asset ID and decimal precision must be confirmed against the active provider token catalogue; the form does not independently prove a token/recipient combination is settleable.
+Sessions last seven days. Registration is limited to five attempts per email/IP per hour; login is limited to ten attempts per email/IP per 15 minutes. Email verification, API-key rotation and multi-user merchant accounts are not implemented. Preview password recovery is implemented and has been exercised successfully: a one-time token is emitted to restricted Cloudflare Pages Preview runtime logs, expires after 30 minutes, and can be redeemed once; redemption updates the password and revokes prior sessions. No email delivery is configured, so this is an operator-assisted Preview recovery mechanism, not a production customer recovery channel. The destination asset ID and decimal precision must be confirmed against the active provider token catalogue; the form does not independently prove a token/recipient combination is settleable.
 
 The operator-only `POST /api/merchant` provisioning endpoint remains available for internal setup and existing server integrations. It is not the public signup flow.
 
@@ -190,7 +190,7 @@ Merchant webhooks/callbacks are not implemented. Merchants must currently poll t
 
 ## 5. Deployment prerequisites and current limits
 
-The target Pages environment needs:
+The target Preview Pages environment needs:
 - D1 binding named `DB`, with the required migrations applied.
 - `MERCHANT_PROVISIONING_SECRET` for operator provisioning and recovery access.
 - `ORDER_SESSION_SECRET` with high entropy (at least 32 characters).
@@ -198,17 +198,19 @@ The target Pages environment needs:
 - `NEARSCANNER_API_KEY` for NearScanner signer lookup; the user reports that this secret has been added to Cloudflare.
 - Optional `NEAR_RPC_URL` and `NEARSCANNER_TX_API_URL` endpoint overrides.
 
-Repository migrations currently run through `0011`. The isolated preview D1 migration history was verified through 0011 on 5 November 2026. Production migration state is separate and must be checked before release. The expiry/recovery Worker code and five-minute cron configuration exist, but the Worker has not been deployed and its cron is not active.
+The active branch contains migrations `0001` through `0019`. Preview D1 migration `0017` was applied and read back successfully. Migration `0019` application remains unverified. Preview password recovery has been exercised successfully, which confirms the deployed reset path and its required database state are functioning; do not infer that every later migration is applied. Production migration state is separate and must not be changed during hackathon testing.
 
-Tests in `bun run test:security` and `bun run test:api` use in-memory SQLite and mocked provider/indexer/RPC responses. They do not prove live Tidepool/1Click, NearBlocks/NearScanner authentication or response compatibility, NEAR RPC or deployed Pages runtime compatibility. Preview build and deployment have passed, but live API requests through Preview remain outstanding. Preview HTTP runtime testing remains outstanding.
+A Preview-only background reconciliation Worker and manual GitHub Actions deployment workflow exist. The workflow has not been dispatched. Worker deployment, encrypted `RECONCILIATION_SECRET` installation and five-minute cron activation are not confirmed. Dispatching the workflow also activates the existing Preview expiry and uncertain quote-commit recovery sweeps; review that side effect before authorization.
+
+Tests in `bun run test:security` and `bun run test:api` use in-memory SQLite and mocked provider/indexer/RPC responses. They do not prove live provider, indexer, RPC or scheduled Worker behavior. One live testnet payment, ORDER-83587591, has completed canonical NEAR NEP-141 settlement verification and immutable evidence persistence in Preview D1. The merchant has signed in successfully and reports the latest status read as settled. CI and Preview deployment for the subsequent settled-read immutability commits still need verification.
 
 Current product limitations:
-- NEAR mainnet NEP-141 is the only implemented destination settlement verifier.
-- EVM, Solana, Bitcoin and other settlement verifiers are not implemented.
-- No self-serve merchant onboarding or credential rotation.
-- No merchant webhooks.
-- No production rate limiting/admin controls.
+- NEAR NEP-141 is the only implemented destination settlement verifier; the active demo is on NEAR testnet.
+- EVM, Solana, Bitcoin, native NEAR and other destination settlement verifiers are not implemented.
+- Email delivery for password recovery is not configured; Preview recovery is operator-assisted.
+- Merchant webhooks are not implemented.
+- API-key rotation and multi-user merchant accounts are not implemented.
 - No published stable SDK/CDN package.
-- No live end-to-end payment validation.
+- The complete merchant-to-embedded-widget flow still needs a clean, reproducible submission demonstration.
 
 Keep `ALLOW_MAINNET_DEPOSITS` unset. Do not use this prototype to collect real customer funds.
