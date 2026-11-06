@@ -24,7 +24,7 @@ The implemented destination verifier supports NEAR NEP-141 tokens only. Routing 
 - [x] Provider deposit instructions are validated and displayed; buyer sends funds from their own wallet.
 - [x] Base Sepolia source-deposit verification and provider notification.
 - [x] Canonical NEAR RPC verification of an exact NEP-141 destination transfer, with immutable settlement evidence persisted in Preview D1 for `ORDER-83587591`.
-- [x] Merchant dashboard access restored; user reports the latest status read for the existing order displays `settled`.
+- [x] Merchant dashboard access restored; the 7 November order-history view shows six records: one `settled`, three `awaiting_deposit`, and two `expired`. The three awaiting-deposit records are unpaid checkouts; the two expired records are terminal expiries. This is a dashboard observation, not a fresh D1 reconciliation.
 - [x] Settled payment status handler changed to return persisted immutable evidence without polling the provider or mutating lifecycle state; regression test added. CI and Preview deployment for these latest commits still require verification.
 
 ## Implemented but not operationally verified
