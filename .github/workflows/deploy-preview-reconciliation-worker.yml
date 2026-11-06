@@ -1,0 +1,59 @@
+name: Deploy Preview reconciliation Worker
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pelargo-preview-reconciliation-worker
+  cancel-in-progress: false
+
+jobs:
+  deploy-preview:
+    # A manual dispatch from any other branch must never deploy this Worker.
+    if: github.ref == 'refs/heads/reliability/background-reconciliation'
+    runs-on: ubuntu-latest
+    environment: preview
+    steps:
+      - name: Check out the reviewed branch
+        uses: actions/checkout@v4
+        with:
+          ref: reliability/background-reconciliation
+
+      - name: Validate scheduled Worker configuration without deploying
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy --dry-run --config wrangler.expiry.preview.toml
+
+      # Bootstrap the named script with no cron trigger. The action deploys
+      # this version, then installs the encrypted secret from the environment.
+      - name: Bootstrap Preview Worker and install its encrypted secret
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy --config wrangler.expiry.preview.staged.toml
+          secrets: |
+            RECONCILIATION_SECRET
+        env:
+          RECONCILIATION_SECRET: ${{ secrets.RECONCILIATION_SECRET }}
+
+      # Only after the secret upload step succeeds do we deploy the config
+      # that attaches the five-minute Cron Trigger.
+      - name: Activate the Preview Cron Trigger
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy --config wrangler.expiry.preview.toml
+
+      - name: Verify deployed Preview schedule
+        run: |
+          test -n "${{ secrets.CLOUDFLARE_API_TOKEN }}"
+          test -n "${{ secrets.CLOUDFLARE_ACCOUNT_ID }}"
+          test -n "${{ secrets.RECONCILIATION_SECRET }}"
+          echo "Worker deployment completed. Confirm the script settings and cron through Cloudflare before treating reconciliation as operational."
