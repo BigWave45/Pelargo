@@ -76,10 +76,15 @@ jobs:
           wranglerVersion: "4.136.3"
           packageManager: bun
           command: deploy --config wrangler.expiry.preview.staged.toml
-          secrets: |
-            RECONCILIATION_SECRET
+
+      # Explicitly target the standalone Worker config. The repository-root
+      # wrangler.toml is a Pages config and must not be auto-detected here.
+      - name: Install encrypted secret on the Preview Worker
         env:
           RECONCILIATION_SECRET: ${{ secrets.RECONCILIATION_SECRET }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$RECONCILIATION_SECRET" | bunx wrangler secret put RECONCILIATION_SECRET --config wrangler.expiry.preview.staged.toml
 
       - name: Validate scheduled config after installing secret
         uses: cloudflare/wrangler-action@v4
