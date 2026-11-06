@@ -22,6 +22,17 @@ jobs:
         with:
           ref: reliability/background-reconciliation
 
+      - name: Require Preview-only deployment credentials
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          RECONCILIATION_SECRET: ${{ secrets.RECONCILIATION_SECRET }}
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test "$CLOUDFLARE_ACCOUNT_ID" = "6d2eb8839390f9b5c0affff9e8aa3972"
+          test "${#RECONCILIATION_SECRET}" -ge 32
+
       - name: Validate scheduled Worker configuration without deploying
         uses: cloudflare/wrangler-action@v3
         with:
@@ -51,9 +62,15 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: deploy --config wrangler.expiry.preview.toml
 
-      - name: Verify deployed Preview schedule
+      - name: Verify deployed Preview Worker, D1 binding and Cron Trigger
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          test -n "${{ secrets.CLOUDFLARE_API_TOKEN }}"
-          test -n "${{ secrets.CLOUDFLARE_ACCOUNT_ID }}"
-          test -n "${{ secrets.RECONCILIATION_SECRET }}"
-          echo "Worker deployment completed. Confirm the script settings and cron through Cloudflare before treating reconciliation as operational."
+          set -euo pipefail
+          base="https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/pelargo-expiry-sweeper-preview"
+          schedules="$(curl --fail --silent --show-error -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "$base/schedules")"
+          settings="$(curl --fail --silent --show-error -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "$base/settings")"
+          echo "$schedules" | jq -e '.success == true and any(.result.schedules[]?; .cron == "*/5 * * * *")'
+          echo "$settings" | jq -e '.success == true and any(.result.bindings[]?; .type == "d1" and .name == "DB" and .id == "0335acdc-f0e0-42f6-ba87-e3448fb91728")'
+          echo "Preview Worker exists, has the isolated Preview D1 binding, and has the expected five-minute Cron Trigger."
