@@ -1,8 +1,8 @@
 # Preview-only expiry/recovery Worker configuration.
 # This binds exclusively to pelargo-preview-db.
 # Preview-only expiry and payment-reconciliation Worker.
-# Deploying activates the five-minute cron; do not deploy until the Preview
-# migration is applied, secrets are configured, and runtime checks are reviewed.
+# The Preview Worker and five-minute cron are already deployed. Before any
+# redeployment, verify the Preview migration, encrypted secret and runtime state.
 name = "pelargo-expiry-sweeper-preview"
 main = "workers/expiry-sweeper.ts"
 compatibility_date = "2026-11-04"
