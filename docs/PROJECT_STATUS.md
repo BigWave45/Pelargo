@@ -1,5 +1,15 @@
 
 
+## 6 November 2026 — settled-payment immutability correction
+
+- Read-only Preview D1 inspection confirmed the three repeatedly reconciled orders are unpaid checkouts: lifecycle `awaiting_deposit`, provider `PENDING_DEPOSIT`, and no destination transaction candidate. Their `HTTP 200; not_settled` responses are expected; they are not evidence of a verifier failure.
+- The existing paid order `ORDER-83587591` has an immutable `chain_rpc` evidence row for transaction `vif8EKtCAzHcaihLNuC6XaRMhCzEDxUiHbAJJRQVUVE`, recipient `agentg.testnet`, amount `1000000`, block `276344867`. This confirms Preview D1 recorded canonical NEAR settlement evidence.
+- Audit found a post-settlement integrity defect: the payment-status handler continued polling the provider for settled orders and could overwrite `destination_tx_candidate` even though the immutable evidence row remained unchanged. This created a mismatch between the current candidate and the transaction that actually passed verification.
+- Fixed `functions/api/payment-status.ts` to return the persisted immutable settlement evidence immediately for settled payments, without another provider request or lifecycle mutation. If a settled row has no evidence, it now fails closed with `SETTLEMENT_EVIDENCE_MISSING`.
+- Added a regression in `scripts/verify-checkout-api.mjs` that asserts settled status reads do not call the provider and do not mutate the verified candidate.
+- Commits: `3dc7e9732aa66feead18d02d1b34488acb527803` (handler) and `e2d1916da92c8264da3c802bd0bbd93a900f0d26` (test). CI result and Preview deployment are not yet verified. No migration, D1 write, payment, Worker deployment, Production change, merge to `main`, or mainnet action was performed.
+
+
 ## Durable background payment reconciliation — implementation checkpoint — 5 November 2026
 
 - Work is isolated on reliability/background-reconciliation, based on reliability/near-verifier-diagnostics. No merge.
