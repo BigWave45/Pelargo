@@ -29,9 +29,30 @@ jobs:
           RECONCILIATION_SECRET: ${{ secrets.RECONCILIATION_SECRET }}
         run: |
           set -euo pipefail
-          test -n "$CLOUDFLARE_API_TOKEN"
-          test "$CLOUDFLARE_ACCOUNT_ID" = "6d2eb8839390f9b5c0affff9e8aa3972"
-          test "${#RECONCILIATION_SECRET}" -ge 32
+          failures=0
+
+          if [ -n "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "PASS: CLOUDFLARE_API_TOKEN is present."
+          else
+            echo "::error::FAIL: CLOUDFLARE_API_TOKEN is empty or unavailable to the preview environment."
+            failures=1
+          fi
+
+          if [ "$CLOUDFLARE_ACCOUNT_ID" = "6d2eb8839390f9b5c0affff9e8aa3972" ]; then
+            echo "PASS: CLOUDFLARE_ACCOUNT_ID matches the expected Preview account."
+          else
+            echo "::error::FAIL: CLOUDFLARE_ACCOUNT_ID is missing or does not match the expected Preview account."
+            failures=1
+          fi
+
+          if [ "${#RECONCILIATION_SECRET}" -ge 32 ]; then
+            echo "PASS: RECONCILIATION_SECRET meets the minimum length requirement."
+          else
+            echo "::error::FAIL: RECONCILIATION_SECRET is missing or shorter than the required 32 characters."
+            failures=1
+          fi
+
+          exit "$failures"
 
       - name: Validate scheduled Worker configuration without deploying
         uses: cloudflare/wrangler-action@v4
