@@ -12,6 +12,7 @@ type CheckoutProps = {
   orderId: string;
   amount: string;
   sessionToken: string;
+  sessionExpiresAt: string;
   apiBaseUrl: string;
 };
 
@@ -77,6 +78,7 @@ function PelargoCheckoutLauncher({
               amount={checkout.amount}
               fixedAmount
               sessionToken={checkout.sessionToken}
+              sessionExpiresAt={checkout.sessionExpiresAt}
               apiBaseUrl={checkout.apiBaseUrl}
             />
           </section>
@@ -100,6 +102,7 @@ class PelargoCheckoutElement extends HTMLElement {
       "destination-network",
       "recipient",
       "session-token",
+      "session-expires-at",
       "button-label",
     ];
   }
@@ -134,6 +137,7 @@ class PelargoCheckoutElement extends HTMLElement {
     const orderId = this.getAttribute("order-id") ?? "";
     const recipient = this.getAttribute("recipient") ?? "";
     const sessionToken = this.getAttribute("session-token") ?? "";
+    const sessionExpiresAt = this.getAttribute("session-expires-at") ?? "";
     const destinationAssetId = this.getAttribute("destination-asset") ?? undefined;
     const destinationSymbol = this.getAttribute("destination-symbol") ?? "";
     const destinationNetwork = this.getAttribute("destination-network") ?? "";
@@ -165,6 +169,7 @@ class PelargoCheckoutElement extends HTMLElement {
           orderId,
           amount,
           sessionToken,
+          sessionExpiresAt,
           apiBaseUrl: new URL(import.meta.url).origin,
         }}
       />
