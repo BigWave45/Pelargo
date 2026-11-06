@@ -175,7 +175,7 @@ Committed payments with a persisted deposit address are now scheduled for backgr
 
 The scheduled Worker reuses the existing GET /api/payment-status implementation in-process through a private, secret-authenticated internal path. This preserves the existing provider polling, candidate verification, immutable settlement evidence and database settlement guards. It does not create quotes, submit deposits, retry provider execution or mark payments paid from provider status alone. Retryable outcomes release the lease and schedule an exponential retry capped at one hour.
 
-The Preview Worker configuration explicitly selects Tidepool testnet and the isolated Preview D1 database. RECONCILIATION_SECRET must be configured as an encrypted secret on both the Pages Preview project and the Worker, using the same random value. Migration 0017 has now been applied to isolated Cloudflare Preview D1. The existing processing order was backfilled as one durable job. The Worker is not deployed, its secret is not configured, and the cron is not active. Production Worker configuration and Production D1 are unchanged.
+The Preview Worker configuration explicitly selects Tidepool testnet and the isolated Preview D1 database. RECONCILIATION_SECRET is required only as an encrypted secret on this Worker; the in-process status verifier uses the same Worker Env binding. Migration 0017 has now been applied to isolated Cloudflare Preview D1. The existing processing order was backfilled as one durable job. The Worker is not deployed, its secret is not configured, and the cron is not active. Production Worker configuration and Production D1 are unchanged.
 
 Automated integration coverage has been added for trigger enqueueing, internal worker polling, lease release, retry scheduling and the invariant that a provider PROCESSING response cannot settle an order. GitHub Actions CI passed on commit bcc8b982061cb034e59bb2a2fb5087b3cfdbc6aa (run 42099838987): type-check, checkout-session security tests, checkout API integration tests and frontend build. Failure-injection coverage subsequently passed on commit abc5defc2ca8ed1ee4f30dafb52db136a56c92ae (run 42099998224).
 
@@ -192,3 +192,14 @@ The Preview Worker config also carries the non-secret, order-scoped NEAR recover
 
 
 Preview migration 0017 was applied on 5 November 2026 to D1 database 0335acdc-f0e0-42f6-ba87-e3448fb91728. Read-back confirmed the migration ledger entry, all three reconciliation triggers, and one queued job for the existing processing payment ORDER-83587591. The three old awaiting-deposit test checkouts were intentionally excluded from the one-time backfill. The scheduled Worker remains inactive.
+
+
+### Manual Preview Worker deployment — 6 November 2026
+
+- Added a manually dispatched GitHub Actions workflow restricted to branch `reliability/background-reconciliation` and the GitHub `preview` environment. It uses Cloudflare Wrangler Action v4 with Wrangler 4.136.3 pinned.
+- The workflow validates the fixed Cloudflare account ID and a 32-character minimum secret before deployment. It dry-runs the no-cron bootstrap config, deploys the Worker without a schedule, installs the encrypted `RECONCILIATION_SECRET`, dry-runs the scheduled config (which declares the secret required), and only then deploys the five-minute Cron Trigger.
+- Post-deploy verification reads Cloudflare's Worker schedules and settings APIs and fails unless the expected cron and isolated Preview D1 binding are present.
+- Required GitHub Actions environment secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` (must equal the Preview account ID pinned in the workflow), and a randomly generated `RECONCILIATION_SECRET` of at least 32 characters. Secret values are not stored in the repository.
+- The Worker secret is not also required on Pages: the Worker invokes the existing payment-status handler in-process with its own Env object.
+- The five-minute Worker also runs the pre-existing abandoned-checkout expiry and uncertain-quote recovery sweeps. These remain scoped to Preview D1 by the config.
+- Workflow implementation is committed but not dispatched. No Worker has been deployed and no cron has been activated.
