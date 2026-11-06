@@ -4,6 +4,8 @@ import { strict as assert } from "node:assert";
 import { onRequest as provisionMerchant } from "../functions/api/merchant.ts";
 import { onRequest as registerMerchant } from "../functions/api/auth/register.ts";
 import { onRequest as loginMerchant } from "../functions/api/auth/login.ts";
+import { onRequest as requestPasswordReset } from "../functions/api/auth/password-reset-request.ts";
+import { onRequest as resetPassword } from "../functions/api/auth/password-reset.ts";
 import { onRequest as merchantSession } from "../functions/api/auth/session.ts";
 import { onRequest as logoutMerchant } from "../functions/api/auth/logout.ts";
 import { onRequest as merchantSettings } from "../functions/api/merchant-settings.ts";
@@ -51,6 +53,7 @@ sqlite.exec(readFileSync(new URL("../migrations/0014_destination_decimals.sql", 
 sqlite.exec(readFileSync(new URL("../migrations/0015_auth_rate_limits.sql", import.meta.url), "utf8"));
 sqlite.exec(readFileSync(new URL("../migrations/0016_origin_deposit_evidence.sql", import.meta.url), "utf8"));
 sqlite.exec(readFileSync(new URL("../migrations/0017_payment_reconciliation_jobs.sql", import.meta.url), "utf8"));
+sqlite.exec(readFileSync(new URL("../migrations/0018_preview_password_reset.sql", import.meta.url), "utf8"));
 const db = {
   prepare(sql) { return new Statement(sqlite, sql); },
   batch(statements) {
@@ -64,6 +67,8 @@ const env = {
   MERCHANT_PROVISIONING_SECRET: "test-provisioning-secret",
   ORDER_SESSION_SECRET: "test-only-order-session-secret-with-32-plus-characters",
   NEARSCANNER_API_KEY: "test-nearscanner-api-key",
+  INTENTS_API_BASE_URL: "https://www.usetidepool.tech",
+  ALLOW_TESTNET_DEPOSITS: "true",
 };
 const responseJson = async (response) => ({ status: response.status, body: await response.json() });
 
@@ -161,7 +166,66 @@ const afterLogout = await merchantSession({
   request: new Request("https://pelargo.test/api/auth/session", { headers: { cookie: loginCookie } }),
   env,
 });
+
 assert.equal(afterLogout.status, 401, "logout must revoke the server-side session");
+
+// Preview-only password recovery: generic request, one-time token, password update,
+// session revocation, and replay rejection.
+const originalWarn = console.warn;
+let resetLog = "";
+console.warn = (...args) => { resetLog = args.join(" "); };
+const resetRequestResponse = await requestPasswordReset({
+  request: request("https://reliability-background-recon.pelargo.pages.dev/api/auth/password-reset-request", "POST", {
+    email: "OWNER@example.test",
+  }, { origin: "https://reliability-background-recon.pelargo.pages.dev" }),
+  env,
+});
+console.warn = originalWarn;
+assert.equal(resetRequestResponse.status, 200, "known account reset request should return generic success");
+assert.match((await resetRequestResponse.json()).message, /reset link has been generated/i);
+const resetUrlMatch = resetLog.match(/https:\/\/reliability-background-recon\.pelargo\.pages\.dev\/\?password-reset=([a-f0-9]{64})/);
+assert.ok(resetUrlMatch, "operator Preview log should contain a one-time reset URL");
+const resetToken = resetUrlMatch[1];
+
+const resetResponse = await resetPassword({
+  request: request("https://reliability-background-recon.pelargo.pages.dev/api/auth/password-reset", "POST", {
+    token: resetToken, password: "new-long-test-password-789",
+  }, { origin: "https://reliability-background-recon.pelargo.pages.dev" }),
+  env,
+});
+assert.equal(resetResponse.status, 200, "valid reset token should update password");
+assert.match((await resetResponse.json()).message, /All previous sessions have been signed out/i);
+
+const oldSessionAfterReset = await merchantSession({
+  request: new Request("https://pelargo.test/api/auth/session", { headers: { cookie: selfServeCookie } }),
+  env,
+});
+assert.equal(oldSessionAfterReset.status, 401, "password reset must revoke pre-existing sessions");
+
+const replayResponse = await resetPassword({
+  request: request("https://reliability-background-recon.pelargo.pages.dev/api/auth/password-reset", "POST", {
+    token: resetToken, password: "another-long-test-password-999",
+  }, { origin: "https://reliability-background-recon.pelargo.pages.dev" }),
+  env,
+});
+assert.equal(replayResponse.status, 400, "reset token must be single-use");
+
+const resetLogin = await loginMerchant({
+  request: request("https://pelargo.test/api/auth/login", "POST", {
+    email: "owner@example.test", password: "new-long-test-password-789",
+  }),
+  env,
+});
+assert.equal(resetLogin.status, 200, "new password must authenticate after reset");
+
+const productionResetDenied = await requestPasswordReset({
+  request: request("https://pelargo.pages.dev/api/auth/password-reset-request", "POST", {
+    email: "owner@example.test",
+  }, { origin: "https://pelargo.pages.dev" }),
+  env,
+});
+assert.equal(productionResetDenied.status, 404, "password reset must be disabled outside the exact Preview host");
+
 
 
 const denied = await provisionMerchant({
