@@ -1,3 +1,33 @@
+# Current handover — 7 November 2026
+
+## Preview merchant access restored and settled status read confirmed
+
+- The existing Preview merchant account's password reset completed successfully. The user received the success response: “Password updated. All previous sessions have been signed out. You can now sign in.” The user then confirmed successful sign-in to the Preview merchant dashboard.
+- This confirms the Preview password-reset redemption path is operational for the existing account. The flow is Preview-only, operator-assisted through restricted Pages runtime logs, single-use and time-limited; no email delivery provider is configured. Do not describe password recovery as unimplemented.
+- The user reports that the latest transaction status read displays `settled` for the existing order. This is consistent with the previously read-back immutable Preview D1 `chain_rpc` evidence for ORDER-83587591: transaction `vif8EKtCAzHcaihLNuC6XaRMhCzEDxUiHbAJJRQVUVE`, recipient `agentg.testnet`, amount `1000000` atomic units, block `276344867`.
+- Do not attribute this settlement to the scheduled reconciliation Worker. The Worker workflow has not been dispatched and its deployment/cron activation remain unconfirmed.
+- The latest code commits `3dc7e973` and `e2d1916d` make settled status reads return persisted immutable evidence without provider polling or lifecycle mutation, with a regression test. CI and Preview deployment for these commits remain to be verified; the user's successful status read alone does not prove that these latest commits are deployed.
+- No new quote or payment was created as part of the password recovery/sign-in check. Production, `main`, and mainnet remain untouched.
+
+## Remaining work toward hackathon submission
+
+1. Verify CI for commits `3dc7e973` and `e2d1916d`, then verify the corresponding active Preview deployment commit.
+2. Verify migration `0019_reconciliation_backfill_eligible_states.sql` is applied to Preview D1 and read back. Migration `0017` was previously applied and verified.
+3. Complete a clean merchant-to-embedded-widget acceptance run on Preview/Tidepool testnet. The existing ORDER-83587591 proves a live testnet payment and canonical settlement path, but does not by itself prove the complete merchant-hosted widget integration is reproducible from a fresh merchant order.
+4. Decide whether to dispatch the Preview reconciliation Worker workflow. It remains unexecuted and also activates existing Preview expiry and uncertain quote-commit recovery sweeps. Obtain explicit operational authorization before dispatch.
+5. If deployed, verify Worker name, Preview D1 binding, encrypted secret, five-minute cron, job claim/retry behavior, and immutable settlement evidence from logs and D1. Do not infer Worker success from the existing settled order.
+6. Capture a reproducible demo with no credentials, bearer tokens or reset URLs exposed.
+7. Finalize public README/integration docs and publish the required public demo post on X; submit the public repository and demo links before the deadline.
+
+## Release and safety boundaries
+
+- Active branch remains `reliability/background-reconciliation`; draft PR #4 remains unmerged.
+- Do not merge to `main`, modify Production D1/configuration, deploy Production, enable mainnet payments, or initiate another payment without explicit authorization.
+- Keep all acceptance testing on the isolated Preview D1 and Tidepool testnet.
+- A provider status, quote or deposit address is not settlement proof. Only matching canonical chain evidence persisted in Preview D1 supports the paid state.
+
+---
+
 
 
 ## 6 November 2026 — settled-payment immutability correction
