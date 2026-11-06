@@ -916,3 +916,10 @@ A read-only Preview D1 inspection found three old awaiting-deposit test checkout
 - The workflow has not been dispatched. No deployment, secret write, cron activation, Production change or payment execution has occurred.
 
 - GitHub Actions CI passed on the current implementation/documentation head c5684554c4b15e8184b5d4b286813e5417182b52 (run 42168439303): type-check, checkout-session security tests, checkout API integration tests and frontend build. The workflow itself is manually dispatched and has not been run because its GitHub environment credentials are not yet configured.
+
+### Preview Worker observability configuration — 6 November 2026
+
+- Enabled Cloudflare Workers Observability in both `wrangler.expiry.preview.staged.toml` and `wrangler.expiry.preview.toml` (`[observability] enabled = true`). This keeps bootstrap and scheduled Worker deployments aligned with the dashboard setting.
+- Changes are committed on `reliability/background-reconciliation`: staged config commit `7cafbceb711e2c6c6adb871bb02923a80b52d607`; scheduled config commit `07d8a4bef1bc6eb9bb26358abb155a9af9b246b3`.
+- No Worker deployment was initiated by these repository edits. The currently deployed Worker remains on its previous version until the Preview deployment workflow is explicitly dispatched.
+- Observability being enabled in source configuration does not prove that a scheduled invocation has run, that the reconciliation job was claimed, or that ORDER-83587591 has settled. Verify those separately from Worker logs and persisted Preview D1 settlement evidence.
