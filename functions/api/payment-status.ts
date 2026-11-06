@@ -196,6 +196,25 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
   }>();
 
   if (!payment) return json({ error: "Order not found" }, 404);
+  // Settlement evidence is immutable. Once settled, do not poll the provider
+  // or update destination_tx_candidate: later provider responses can contain
+  // intermediate hashes that must never overwrite the verified transaction.
+  if (payment.status === "settled") {
+    const evidence = await env.DB.prepare(
+      "SELECT transaction_hash, block_number FROM payment_settlement_evidence WHERE order_id = ?"
+    ).bind(payment.id).first<{ transaction_hash: string; block_number: string }>();
+    if (!evidence) {
+      return json({ error: "Settled payment is missing immutable settlement evidence", code: "SETTLEMENT_EVIDENCE_MISSING" }, 503);
+    }
+    return json({
+      orderId,
+      paymentStatus: "settled",
+      providerStatus: payment.provider_status,
+      settlement: "verified",
+      destinationTransactionHash: evidence.transaction_hash,
+      verifiedBlockHeight: evidence.block_number,
+    });
+  }
   if (buyerSessionExpired && payment.status === "expired") {
     return json({ error: "Checkout session expired before payment instructions were committed" }, 401);
   }
