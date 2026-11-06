@@ -34,19 +34,21 @@ jobs:
           test "${#RECONCILIATION_SECRET}" -ge 32
 
       - name: Validate scheduled Worker configuration without deploying
-        uses: cloudflare/wrangler-action@v3
+        uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy --dry-run --config wrangler.expiry.preview.toml
+          wranglerVersion: "4.136.3"
+          command: deploy --dry-run --config wrangler.expiry.preview.staged.toml
 
       # Bootstrap the named script with no cron trigger. The action deploys
       # this version, then installs the encrypted secret from the environment.
       - name: Bootstrap Preview Worker and install its encrypted secret
-        uses: cloudflare/wrangler-action@v3
+        uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: "4.136.3"
           command: deploy --config wrangler.expiry.preview.staged.toml
           secrets: |
             RECONCILIATION_SECRET
@@ -56,10 +58,11 @@ jobs:
       # Only after the secret upload step succeeds do we deploy the config
       # that attaches the five-minute Cron Trigger.
       - name: Activate the Preview Cron Trigger
-        uses: cloudflare/wrangler-action@v3
+        uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: "4.136.3"
           command: deploy --config wrangler.expiry.preview.toml
 
       - name: Verify deployed Preview Worker, D1 binding and Cron Trigger
