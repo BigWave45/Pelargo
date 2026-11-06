@@ -27,3 +27,6 @@ database_id = "0335acdc-f0e0-42f6-ba87-e3448fb91728"
 # Configure RECONCILIATION_SECRET as an encrypted Worker secret and as an
 # encrypted Pages Preview variable. Use the same random value in both places.
 # Never put the secret value in this file or commit it to source control.
+
+[secrets]
+required = ["RECONCILIATION_SECRET"]
