@@ -844,6 +844,32 @@ try {
     confirmations: 11,
     verification_source: "chain_rpc",
   });
+
+  // A settled payment must return its immutable evidence without polling the
+  // provider. A later provider hash must not overwrite the verified candidate.
+  const settledCandidateBefore = sqlite.query(
+    "SELECT destination_tx_candidate FROM payment_lifecycle WHERE order_id = (SELECT id FROM checkout_orders WHERE external_order_id = ?)"
+  ).get("order-001").destination_tx_candidate;
+  const fetchBeforeSettledRead = globalThis.fetch;
+  globalThis.fetch = async () => { throw new Error("provider must not be called for settled payments"); };
+  try {
+    const settledRead = await responseJson(await paymentStatus({
+      request: new Request("https://pelargo.test/api/payment-status?orderId=order-001", {
+        headers: { "x-pelargo-merchant-key": created.body.apiKey },
+      }),
+      env,
+    }));
+    assert.equal(settledRead.status, 200);
+    assert.equal(settledRead.body.paymentStatus, "settled");
+    assert.equal(settledRead.body.destinationTransactionHash, destinationHash);
+    assert.equal(
+      sqlite.query("SELECT destination_tx_candidate FROM payment_lifecycle WHERE order_id = (SELECT id FROM checkout_orders WHERE external_order_id = ?)").get("order-001").destination_tx_candidate,
+      settledCandidateBefore,
+      "a settled payment's verified candidate must not be overwritten by later polling",
+    );
+  } finally {
+    globalThis.fetch = fetchBeforeSettledRead;
+  }
 } finally {
   globalThis.fetch = originalFetch;
 }
