@@ -914,3 +914,5 @@ A read-only Preview D1 inspection found three old awaiting-deposit test checkout
 - Required GitHub environment secrets are `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, and `RECONCILIATION_SECRET`. The secret belongs only on the Worker; the status handler is invoked in-process with the same Worker Env. A Pages secret is not required.
 - Important side effect: activating this Worker also activates its existing Preview-only abandoned-checkout expiry and uncertain quote-commit recovery sweeps, not just payment reconciliation. Its D1 binding is pinned to Preview database `0335acdc-f0e0-42f6-ba87-e3448fb91728`.
 - The workflow has not been dispatched. No deployment, secret write, cron activation, Production change or payment execution has occurred.
+
+- GitHub Actions CI passed on the current implementation/documentation head c5684554c4b15e8184b5d4b286813e5417182b52 (run 42168439303): type-check, checkout-session security tests, checkout API integration tests and frontend build. The workflow itself is manually dispatched and has not been run because its GitHub environment credentials are not yet configured.
