@@ -203,3 +203,5 @@ Preview migration 0017 was applied on 5 November 2026 to D1 database 0335acdc-f0
 - The Worker secret is not also required on Pages: the Worker invokes the existing payment-status handler in-process with its own Env object.
 - The five-minute Worker also runs the pre-existing abandoned-checkout expiry and uncertain-quote recovery sweeps. These remain scoped to Preview D1 by the config.
 - Workflow implementation is committed but not dispatched. No Worker has been deployed and no cron has been activated.
+
+- GitHub Actions CI passed on the current implementation/documentation head c5684554c4b15e8184b5d4b286813e5417182b52 (run 42168439303): type-check, checkout-session security tests, checkout API integration tests and frontend build. The workflow itself is manually dispatched and has not been run because its GitHub environment credentials are not yet configured.
