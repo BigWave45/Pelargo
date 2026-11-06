@@ -45,10 +45,16 @@ export async function onRequest({ request, env }: { request: Request; env: Env }
     return json({ error: "Password must be between 12 and 128 characters." }, 400);
   }
 
-  let passwordHash: string;
+    let passwordHash: string;
+  const pepper = env.ORDER_SESSION_SECRET ?? "";
   try {
-    passwordHash = await hashPassword(password, env.ORDER_SESSION_SECRET ?? "");
+    passwordHash = await hashPassword(password, pepper);
   } catch {
+    console.warn("[preview-password-reset] password pepper diagnostic", {
+      present: pepper.length > 0,
+      characterCount: pepper.length,
+      meetsMinimum: pepper.length >= 32,
+    });
     return json({ error: "Password recovery is not configured securely. Contact the operator." }, 503);
   }
 
