@@ -30,3 +30,6 @@ database_id = "0335acdc-f0e0-42f6-ba87-e3448fb91728"
 
 [secrets]
 required = ["RECONCILIATION_SECRET"]
+
+[observability]
+enabled = true
