@@ -1,0 +1,87 @@
+name: Deploy Preview reconciliation Worker
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pelargo-preview-reconciliation-worker
+  cancel-in-progress: false
+
+jobs:
+  deploy-preview:
+    # A manual dispatch from any other branch must never deploy this Worker.
+    if: github.ref == 'refs/heads/reliability/background-reconciliation'
+    runs-on: ubuntu-latest
+    environment: preview
+    steps:
+      - name: Check out the reviewed branch
+        uses: actions/checkout@v4
+        with:
+          ref: reliability/background-reconciliation
+
+      - name: Require Preview-only deployment credentials
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          RECONCILIATION_SECRET: ${{ secrets.RECONCILIATION_SECRET }}
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test "$CLOUDFLARE_ACCOUNT_ID" = "6d2eb8839390f9b5c0affff9e8aa3972"
+          test "${#RECONCILIATION_SECRET}" -ge 32
+
+      - name: Validate scheduled Worker configuration without deploying
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: "4.136.3"
+          command: deploy --dry-run --config wrangler.expiry.preview.staged.toml
+
+      # Bootstrap the named script with no cron trigger. The action deploys
+      # this version, then installs the encrypted secret from the environment.
+      - name: Bootstrap Preview Worker and install its encrypted secret
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: "4.136.3"
+          command: deploy --config wrangler.expiry.preview.staged.toml
+          secrets: |
+            RECONCILIATION_SECRET
+        env:
+          RECONCILIATION_SECRET: ${{ secrets.RECONCILIATION_SECRET }}
+
+      - name: Validate scheduled config after installing secret
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: "4.136.3"
+          command: deploy --dry-run --config wrangler.expiry.preview.toml
+
+      # Only after the secret upload step succeeds do we deploy the config
+      # that attaches the five-minute Cron Trigger.
+      - name: Activate the Preview Cron Trigger
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: "4.136.3"
+          command: deploy --config wrangler.expiry.preview.toml
+
+      - name: Verify deployed Preview Worker, D1 binding and Cron Trigger
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          base="https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/pelargo-expiry-sweeper-preview"
+          schedules="$(curl --fail --silent --show-error -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "$base/schedules")"
+          settings="$(curl --fail --silent --show-error -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "$base/settings")"
+          echo "$schedules" | jq -e '.success == true and any(.result.schedules[]?; .cron == "*/5 * * * *")'
+          echo "$settings" | jq -e '.success == true and any(.result.bindings[]?; .type == "d1" and .name == "DB" and .id == "0335acdc-f0e0-42f6-ba87-e3448fb91728")'
+          echo "Preview Worker exists, has the isolated Preview D1 binding, and has the expected five-minute Cron Trigger."
