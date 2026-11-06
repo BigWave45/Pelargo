@@ -1,0 +1,19 @@
+# Staging config for safe Preview Worker bootstrap.
+# Deploy this first to create the script without a Cron Trigger, then set
+# RECONCILIATION_SECRET. The scheduled config is deployed only afterwards.
+name = "pelargo-expiry-sweeper-preview"
+main = "workers/expiry-sweeper.ts"
+compatibility_date = "2026-11-04"
+workers_dev = false
+
+[vars]
+INTENTS_API_BASE_URL = "https://www.usetidepool.tech"
+ALLOW_TESTNET_DEPOSITS = "true"
+NEAR_TX_HASH = "vif8EKtCAzHcaihLNuC6XaRMhCzEDxUiHbAJJRQVUVE"
+NEAR_TX_SIGNER_ID = "maker.tidepool-sandbox.testnet"
+NEAR_TX_ORDER_ID = "ORDER-83587591"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "pelargo-preview-db"
+database_id = "0335acdc-f0e0-42f6-ba87-e3448fb91728"
