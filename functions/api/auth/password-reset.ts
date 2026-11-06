@@ -86,8 +86,8 @@ export async function onRequest({ request, env }: { request: Request; env: Env }
     ).bind(tokenHash, usedMarker, tokenHash),
   ]);
 
-  const consumed = results[0]?.meta?.changes ?? 0;
-  const updated = results[1]?.meta?.changes ?? 0;
+  const consumed = (results[0] as { meta?: { changes?: number } } | undefined)?.meta?.changes ?? 0;
+  const updated = (results[1] as { meta?: { changes?: number } } | undefined)?.meta?.changes ?? 0;
   if (consumed !== 1 || updated !== 1) {
     return json({ error: "This reset link is invalid, expired, or has already been used. Request a new one." }, 400);
   }
