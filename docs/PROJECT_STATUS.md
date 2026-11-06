@@ -904,3 +904,13 @@ A read-only Preview D1 inspection found three old awaiting-deposit test checkout
 - The one-time backfill inserted exactly one job: internal order 32dc4b6f-0288-4357-b0ee-1f754bf75860 (external order ORDER-83587591), lifecycle processing, attempt_count 0, no lease.
 - Three stale awaiting_deposit test checkouts were excluded from the one-time backfill. Newly eligible orders will still be enqueued by lifecycle triggers.
 - Worker deployment, cron activation and RECONCILIATION_SECRET configuration remain outstanding. No payment was executed; the queued job has not been run.
+
+
+## Preview Worker deployment workflow — 6 November 2026
+
+- Added `.github/workflows/deploy-preview-reconciliation-worker.yml`, manually triggered only, branch-guarded to `reliability/background-reconciliation`, and scoped to GitHub environment `preview`.
+- Added `wrangler.expiry.preview.staged.toml` without a Cron Trigger. Deployment is deliberately staged: validate bootstrap config; deploy script without cron; install encrypted `RECONCILIATION_SECRET`; dry-run the scheduled config with `[secrets].required`; deploy scheduled config; verify the exact five-minute cron and D1 binding through Cloudflare API.
+- Pinned `cloudflare/wrangler-action@v4` and Wrangler `4.136.3`. The workflow validates account ID `6d2eb8839390f9b5c0affff9e8aa3972` and requires a 32-character secret before any deployment step.
+- Required GitHub environment secrets are `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, and `RECONCILIATION_SECRET`. The secret belongs only on the Worker; the status handler is invoked in-process with the same Worker Env. A Pages secret is not required.
+- Important side effect: activating this Worker also activates its existing Preview-only abandoned-checkout expiry and uncertain quote-commit recovery sweeps, not just payment reconciliation. Its D1 binding is pinned to Preview database `0335acdc-f0e0-42f6-ba87-e3448fb91728`.
+- The workflow has not been dispatched. No deployment, secret write, cron activation, Production change or payment execution has occurred.
