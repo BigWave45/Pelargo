@@ -122,7 +122,7 @@ See [docs/INTEGRATION.md](docs/INTEGRATION.md) for merchant request contracts an
 
 ## Database
 
-Migrations `0001` through `0019` are in the current repository branch. Preview D1 was previously confirmed through `0017`; verify whether `0018` and `0019` have been applied before relying on password recovery or background-job backfill. Production migration state has not been checked or changed. Do not apply production migrations as part of ordinary hackathon testing.
+Migrations `0001` through `0019` are in the current repository branch. Successful Preview password recovery confirms the deployed reset path and its required database schema are functioning. Preview migration `0017` was previously applied and read back; migration `0019` application remains unverified and must be checked before relying on its background-job backfill. Production migration state has not been checked or changed. Do not apply production migrations as part of ordinary hackathon testing.
 
 ## Safety boundaries
 
