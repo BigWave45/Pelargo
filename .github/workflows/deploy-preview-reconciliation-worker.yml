@@ -54,13 +54,16 @@ jobs:
 
           exit "$failures"
 
+      - name: Install Bun for Wrangler
+        uses: oven-sh/setup-bun@v2
+
       - name: Validate scheduled Worker configuration without deploying
         uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           wranglerVersion: "4.136.3"
-          packageManager: npm
+          packageManager: bun
           command: deploy --dry-run --config wrangler.expiry.preview.staged.toml
 
       # Bootstrap the named script with no cron trigger. The action deploys
@@ -71,7 +74,7 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           wranglerVersion: "4.136.3"
-          packageManager: npm
+          packageManager: bun
           command: deploy --config wrangler.expiry.preview.staged.toml
           secrets: |
             RECONCILIATION_SECRET
@@ -84,7 +87,7 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           wranglerVersion: "4.136.3"
-          packageManager: npm
+          packageManager: bun
           command: deploy --dry-run --config wrangler.expiry.preview.toml
 
       # Only after the secret upload step succeeds do we deploy the config
@@ -95,7 +98,7 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           wranglerVersion: "4.136.3"
-          packageManager: npm
+          packageManager: bun
           command: deploy --config wrangler.expiry.preview.toml
 
       - name: Verify deployed Preview Worker, D1 binding and Cron Trigger
