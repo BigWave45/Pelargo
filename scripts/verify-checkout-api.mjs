@@ -67,8 +67,6 @@ const env = {
   MERCHANT_PROVISIONING_SECRET: "test-provisioning-secret",
   ORDER_SESSION_SECRET: "test-only-order-session-secret-with-32-plus-characters",
   NEARSCANNER_API_KEY: "test-nearscanner-api-key",
-  INTENTS_API_BASE_URL: "https://www.usetidepool.tech",
-  ALLOW_TESTNET_DEPOSITS: "true",
 };
 const responseJson = async (response) => ({ status: response.status, body: await response.json() });
 
@@ -170,7 +168,9 @@ const afterLogout = await merchantSession({
 assert.equal(afterLogout.status, 401, "logout must revoke the server-side session");
 
 // Preview-only password recovery: generic request, one-time token, password update,
-// session revocation, and replay rejection.
+// session revocation, and replay rejection. Keep testnet provider settings isolated
+// from the other payment-status integration cases in this shared test process.
+const recoveryEnv = { ...env, INTENTS_API_BASE_URL: "https://www.usetidepool.tech", ALLOW_TESTNET_DEPOSITS: "true" };
 const originalWarn = console.warn;
 let resetLog = "";
 console.warn = (...args) => { resetLog = args.join(" "); };
@@ -178,7 +178,7 @@ const resetRequestResponse = await requestPasswordReset({
   request: request("https://reliability-background-recon.pelargo.pages.dev/api/auth/password-reset-request", "POST", {
     email: "OWNER@example.test",
   }, { origin: "https://reliability-background-recon.pelargo.pages.dev" }),
-  env,
+  env: recoveryEnv,
 });
 console.warn = originalWarn;
 assert.equal(resetRequestResponse.status, 200, "known account reset request should return generic success");
@@ -191,7 +191,7 @@ const resetResponse = await resetPassword({
   request: request("https://reliability-background-recon.pelargo.pages.dev/api/auth/password-reset", "POST", {
     token: resetToken, password: "new-long-test-password-789",
   }, { origin: "https://reliability-background-recon.pelargo.pages.dev" }),
-  env,
+  env: recoveryEnv,
 });
 assert.equal(resetResponse.status, 200, "valid reset token should update password");
 assert.match((await resetResponse.json()).message, /All previous sessions have been signed out/i);
@@ -206,7 +206,7 @@ const replayResponse = await resetPassword({
   request: request("https://reliability-background-recon.pelargo.pages.dev/api/auth/password-reset", "POST", {
     token: resetToken, password: "another-long-test-password-999",
   }, { origin: "https://reliability-background-recon.pelargo.pages.dev" }),
-  env,
+  env: recoveryEnv,
 });
 assert.equal(replayResponse.status, 400, "reset token must be single-use");
 
@@ -222,7 +222,7 @@ const productionResetDenied = await requestPasswordReset({
   request: request("https://pelargo.pages.dev/api/auth/password-reset-request", "POST", {
     email: "owner@example.test",
   }, { origin: "https://pelargo.pages.dev" }),
-  env,
+  env: recoveryEnv,
 });
 assert.equal(productionResetDenied.status, 404, "password reset must be disabled outside the exact Preview host");
 
