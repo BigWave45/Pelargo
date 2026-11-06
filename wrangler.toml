@@ -31,4 +31,5 @@ database_id = "eae6ecc8-d79d-4d12-8a37-2d38ab84a0b1"
 # separately in Cloudflare for both environments. Add ONECLICK_JWT only if
 # the official 1Click partner account requires JWT authentication.
 # The separate expiry Worker configs are wrangler.expiry.toml (production)
-# and wrangler.expiry.preview.toml (preview). Neither is deployed yet.
+# and wrangler.expiry.preview.toml (preview). The Preview Worker is deployed;
+# do not deploy or modify the Production Worker without explicit approval.
