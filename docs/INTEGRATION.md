@@ -16,7 +16,7 @@ The merchant dashboard uses a separate opaque, server-side session stored in an 
 
 For server integrations, the merchant server owns the merchant API key and decides the trusted order amount, destination asset and receiving address. The browser receives only a short-lived signed checkout-session token and public order claims.
 
-Never expose the merchant API key, `MERCHANT_PROVISIONING_SECRET`, `ORDER_SESSION_SECRET` or `NEAR_INDEXER_API_KEY` to browser code, HTML attributes, public repositories or Vite `VITE_*` variables. Treat the session token as a one-order bearer credential: do not log it unnecessarily or reuse it.
+Never expose the merchant API key, `MERCHANT_PROVISIONING_SECRET`, `ORDER_SESSION_SECRET` or `NEAR_INDEXER_API_KEY` to browser code, HTML attributes, public repositories or Vite `VITE_*` variables. The short-lived signed checkout-session token is the deliberate exception: it is a one-order bearer credential and must be delivered to the buyer widget for quote and status authorization. Do not confuse it with a merchant API key. Keep its lifetime short, avoid logging it, do not put it in URLs, do not reuse it, and avoid exposing it to unrelated third-party scripts. The server validates its signature, stored hash, status, expiry and order binding on every protected operation.
 
 The signed session binds the merchant, order, amount, destination asset and recipient. Do not accept those authorization values from untrusted browser input. The buyer may select a supported source asset and provide a source refund address.
 
@@ -109,12 +109,13 @@ Load the embed bundle from the same Pelargo deployment that serves its API. The 
   checkout.setAttribute("destination-network", session.destinationNetwork);
   checkout.setAttribute("recipient", session.recipient);
   checkout.setAttribute("session-token", token);
+  checkout.setAttribute("session-expires-at", session.expiresAt);
   checkout.setAttribute("button-label", "Pay with crypto");
   document.querySelector("#pelargo-checkout-slot").append(checkout);
 </script>
 ```
 
-The element name is `<pelargo-checkout>`. The React checkout is mounted inside Shadow DOM. It renders a Pay with crypto launcher and opens a modal/bottom sheet. Set attributes before appending the element.
+The element name is `<pelargo-checkout>`. The React checkout is mounted inside Shadow DOM. It renders a Pay with crypto launcher and opens a modal/bottom sheet. Set attributes before appending the element. Pass the server-returned `session.expiresAt` as `session-expires-at` so the buyer UI can warn when the signed session expires. The server remains authoritative and rejects expired sessions regardless of the client display.
 
 The bundle is built from `src/embed.tsx` using `bun run build:embed`; the complete app build is `bun run build`. The package is not currently published as a stable SDK/CDN product. Confirm the actual deployment artifact and URL before using it.
 
