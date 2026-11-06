@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { PelargoCheckout } from "./components/PelargoCheckout.tsx";
+import { PasswordRecovery } from "./components/PasswordRecovery.tsx";
 import {
   ArrowUpRight, Check, Copy, LayoutDashboard, LogOut, Menu, Radio,
   Settings2, ShieldCheck, Wallet, Code2, Link2, RefreshCw
@@ -77,6 +78,9 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (merchant: Merchant)
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [showRecovery, setShowRecovery] = useState(false);
+
+  if (showRecovery) return <PasswordRecovery onBack={() => setShowRecovery(false)} />;
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -104,6 +108,7 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (merchant: Merchant)
         <label className="field-label" htmlFor="auth-password">Password</label>
         <input id="auth-password" className="workspace-input" type="password" value={password} onChange={e => setPassword(e.target.value)} autoComplete={mode === "register" ? "new-password" : "current-password"} required minLength={mode === "register" ? 12 : 1} maxLength={128} />
         {mode === "register" && <p className="field-hint">Use at least 12 characters. This password protects access to your merchant workspace.</p>}
+        {mode === "login" && <p className="auth-switch" style={{ textAlign: "right", margin: "10px 0 0" }}><button type="button" onClick={() => setShowRecovery(true)}>Forgot password?</button></p>}
         {error && <div className="notice-panel auth-error" role="alert">{error}</div>}
         <button className="primary-button auth-submit" disabled={busy}>{busy ? "Please wait…" : mode === "register" ? "Create account" : "Sign in"} <ArrowUpRight size={15} /></button>
       </form>
@@ -140,6 +145,7 @@ function BuyerCheckout({ token }: { token: string }) {
 
 export default function App() {
   const buyerToken = useMemo(() => new URLSearchParams(window.location.search).get("checkout") || "", []);
+  const passwordResetToken = useMemo(() => new URLSearchParams(window.location.search).get("password-reset") || "", []);
   const [merchant, setMerchant] = useState<Merchant | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [section, setSection] = useState<Section>("overview");
@@ -174,12 +180,12 @@ export default function App() {
   }
 
   useEffect(() => {
-    if (buyerToken) return;
+    if (buyerToken || passwordResetToken) return;
     api<{ merchant: Merchant }>("/api/auth/session")
       .then(data => setMerchant(data.merchant))
       .catch(() => setMerchant(null))
       .finally(() => setAuthChecked(true));
-  }, [buyerToken]);
+  }, [buyerToken, passwordResetToken]);
 
   useEffect(() => {
     if (!merchant) return;
@@ -187,6 +193,7 @@ export default function App() {
   }, [merchant]);
 
   if (buyerToken) return <BuyerCheckout token={buyerToken} />;
+  if (passwordResetToken) return <PasswordRecovery resetToken={passwordResetToken} onBack={() => { window.location.href = "/"; }} />;
   if (!authChecked) return <div className="auth-shell"><div className="auth-card">Loading Pelargo…</div></div>;
   if (!merchant) return <AuthScreen onAuthenticated={setMerchant} />;
 
