@@ -24,8 +24,8 @@ binding = "DB"
 database_name = "pelargo-preview-db"
 database_id = "0335acdc-f0e0-42f6-ba87-e3448fb91728"
 
-# Configure RECONCILIATION_SECRET as an encrypted Worker secret and as an
-# encrypted Pages Preview variable. Use the same random value in both places.
+# Configure RECONCILIATION_SECRET only as an encrypted secret on this Worker.
+# The in-process status verifier receives the same Worker Env binding.
 # Never put the secret value in this file or commit it to source control.
 
 [secrets]
