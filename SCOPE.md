@@ -1,69 +1,75 @@
-# Pelargo — Hackathon Project Scope
+# Pelargo — Hackathon Scope and Submission Checklist
 
-A premium, non-custodial checkout widget built on intents. Merchants embed one script tag; buyers pay from any wallet and chain; merchants receive exact settlement without either party managing cross-chain complexity.
+**Current as of 7 November 2026**
 
----
+## Product
 
-## 1. Hackathon Goal & Problem Statement
+Pelargo is an embeddable, non-custodial crypto checkout for merchant websites and applications. The checkout widget is the product. The merchant workspace exists to configure destination settlement and integrate the widget; Pelargo is not a storefront builder.
 
-### The Problem
-Cross-chain commerce today is fragmented:
-- **Merchants** want stable, predictable settlement (typically USDC on their home chain) without managing multi-chain liquidity or custodial risk.
-- **Buyers** hold assets across disparate chains (Ethereum, Base, Solana, NEAR, Arbitrum) and abandon checkout when forced to use bridges, DEXs, or wrap tokens manually.
-- **Existing widgets** feel like noisy crypto trading desks rather than trusted, calm private banking checkout flows.
+A merchant creates an order and checkout session on its server. The buyer selects a supported source asset, previews a dry quote, explicitly confirms a committed quote, and receives provider deposit instructions. The buyer sends the source asset manually from their own wallet. Pelargo tracks provider progress and independently verifies supported destination settlement before marking the order paid.
 
-### The Pelargo Solution
-- **Zero-friction embed**: One script tag and one button for any merchant.
-- **Non-custodial by design**: Pelargo never holds or pools funds. Funds move directly from buyer to intent solvers to merchant.
-- **Calm, private-banking UI**: Zero crypto jargon, strict design token discipline, generous whitespace, and responsive bottom-sheet presentation.
+## Hackathon objective
 
----
+Demonstrate a credible testnet checkout and settlement-verification path. This is not a production payment platform.
 
-## 2. Hackathon Implementation (Stages 1–3 — Complete)
+The implemented destination verifier supports NEAR NEP-141 tokens only. Routing availability through NEAR Intents / 1Click does not imply that Pelargo can verify settlement on every destination chain.
 
-### Stage 1: Design System & Token Architecture
-- [x] Pure CSS custom properties (`src/styles/tokens.css`) as the single source of truth for colors, radii, spacing, and timings.
-- [x] Full Dark (default) and Light theme support with verified 4.5:1 text contrast ratios.
-- [x] Motion-reduced media query compliance (`prefers-reduced-motion`).
-- [x] Minimal inline SVG brand identity (lowercase `pelargo` wordmark with custom bird in flight mark).
+## Implemented and evidenced
 
-### Stage 2: Core Checkout Widget
-- [x] **Modal container**: Centered desktop dialog (`--modal-width: 400px`) transitioning to native bottom sheet under 480px viewport width.
-- [x] **Focus trapping & keyboard access**: Full tab navigation loop, `Escape` key dismissal, visible 2px accent focus rings.
-- [x] **Step 1 (Summary & Choose)**: Top 3 chain routes (USDC/Base, ETH/Ethereum, SOL/Solana) with quick selection.
-- [x] **Step 2 (Token Picker)**: Real-time search across tokens and chains with chain-grouped views and empty search state.
-- [x] **Step 3 (Confirm & Quote)**: Deterministic quote calculation with transparent 0.8% fee breakdown, live 42s countdown timer with <10s warning state.
-- [x] **Step 4 (Settlement Progress)**: Calm 3-stage progress timeline (`Payment sent` → `Confirming` → `Delivered to merchant`) with pulsing indicator, `aria-live` screen reader updates, and an exit confirmation guard.
-- [x] **Step 5 (Receipt)**: Animated success checkmark, order breakdown, and transaction link.
-- [x] **Error & Edge States**:
-  - `Quote expired`: Friendly rate-refresh mechanism.
-  - `Payment failed`: Plain-language confirmation that funds remain in buyer's wallet with retry trigger.
-  - `Skeleton loading`: 600ms shimmer states for route discovery.
+- [x] Merchant registration, login, session handling and merchant dashboard on Preview.
+- [x] Preview password recovery successfully exercised; password updated, previous sessions revoked, and merchant sign-in confirmed. Recovery is operator-assisted through restricted Preview runtime logs; email delivery is not configured.
+- [x] Merchant destination settings and merchant-scoped order APIs.
+- [x] Merchant-authenticated checkout-session creation and short-lived signed buyer sessions.
+- [x] Provider asset discovery, dry quote preview and explicit committed-quote flow.
+- [x] Provider deposit instructions are validated and displayed; buyer sends funds from their own wallet.
+- [x] Base Sepolia source-deposit verification and provider notification.
+- [x] Canonical NEAR RPC verification of an exact NEP-141 destination transfer, with immutable settlement evidence persisted in Preview D1 for `ORDER-83587591`.
+- [x] Merchant dashboard access restored; user reports the latest status read for the existing order displays `settled`.
+- [x] Settled payment status handler changed to return persisted immutable evidence without polling the provider or mutating lifecycle state; regression test added. CI and Preview deployment for these latest commits still require verification.
 
-### Stage 3: Demo Store & Review Panel
-- [x] Realistic mock merchant storefront ("Northwind Goods") selling physical field technical journals in USDC.
-- [x] Developer copyable integration code snippet.
-- [x] Floating dev review panel enabling judges to immediately switch themes, jump to any of the 8 screens/states, and test merchant custom theme overrides.
+## Implemented but not operationally verified
 
----
+- [ ] Migration 0019 backfill applied to Preview D1 and read back.
+- [ ] Preview background reconciliation Worker deployed with the required encrypted secret and five-minute cron.
+- [ ] Scheduled Worker claims and processes an eligible job against Preview D1. Do not infer this from the existing settled order; the settlement has not been attributed to the Worker.
+- [ ] Latest settled-read integrity commits have passing CI and are present in the active Preview deployment.
 
-## 3. Post-Hackathon Roadmap (Stages 4–6)
+The Worker workflow is manual and Preview-only. Dispatching it also activates existing Preview expiry and uncertain quote-commit recovery sweeps. Review that side effect and obtain explicit operational authorization before dispatch.
 
-### Stage 4: Live Intent Solver Integration
-- Connect widget backend to solver aggregation networks (e.g., Across Protocol, UniswapX, 1inch Fusion, or LI.FI).
-- Generate dynamic deposit addresses with deterministic time-locked refunds.
+## Remaining submission work
 
-### Stage 5: Multi-Chain Wallet Connection
-- Embed lightweight wallet connectors (EIP-6963 multi-injected provider discovery, WalletConnect v2, Solana Wallet Adapter).
-- One-click native signing from MetaMask, Phantom, Coinbase Wallet, or Rabby.
+1. Verify CI and Preview deployment for commits `3dc7e973` and `e2d1916d`.
+2. Verify whether migration 0019 is applied to Preview D1. Do not touch Production D1.
+3. Reproduce the complete merchant integration path using the actual embedded widget: merchant creates order/session, widget mounts on a separate merchant page, buyer previews and commits a quote, buyer sends testnet funds, Pelargo verifies settlement, and merchant reads the paid order. Use a fresh test order only when required and keep it on Preview/Tidepool testnet.
+4. Decide whether to deploy the Preview reconciliation Worker. If deployed, verify the exact Worker name, Preview D1 binding, secret presence, cron activation, job claim, and settlement outcome in logs and D1. Do not claim automated reconciliation until those observations exist.
+5. Capture a short, reproducible demo showing merchant integration, buyer checkout, and verified settlement. Avoid exposing credentials, bearer tokens, reset links or secrets.
+6. Finalize README and integration instructions against the verified implementation.
+7. Publish the required public demo post on X and submit the public repository/demo links before the hackathon deadline.
 
-### Stage 6: Merchant Dashboard & Webhooks
-- Merchant portal to configure destination payout token and chain (e.g., auto-settle to Arbitrum USDC).
-- Signed webhook notifications for order fulfillment systems (Shopify, WooCommerce, custom backends).
+## Explicit non-goals
 
----
+- Mainnet payment activation or production customer funds.
+- Production deployment or Production D1 changes.
+- More destination settlement verifiers or additional indexer providers.
+- Building a proprietary transaction indexer.
+- Merchant billing, multi-user organisations, email verification, API-key rotation or enterprise identity management.
+- Production operations, redundancy or monitoring work beyond what is required to demonstrate the testnet flow.
+- A demo storefront such as Northwind Goods.
 
-## 4. Intentional Non-Goals (What We Explicitly Excluded)
-- **No custodial contracts or escrow vaults**: Eliminates smart contract counterparty risk.
-- **No trading terminology in buyer view**: Avoided "slippage", "gas priority", "AMM pools", and "liquidity providers".
-- **No bloat UI libraries**: Zero heavy third-party UI dependencies; pure native CSS tokens for fast 360px–desktop performance.
+## Safety boundaries
+
+- Keep `ALLOW_MAINNET_DEPOSITS` unset.
+- Use Tidepool testnet and verify network alignment across provider, source-deposit verifier and destination NEAR RPC.
+- Never expose merchant API keys, `ORDER_SESSION_SECRET`, `RECONCILIATION_SECRET`, `MERCHANT_PROVISIONING_SECRET`, indexer credentials or one-time reset URLs.
+- A quote, deposit address, detected source deposit or provider `SUCCESS` is not proof of destination settlement.
+- Only persisted, matching canonical settlement evidence can justify the paid state.
+- No merge to `main`, Production deployment, Production D1 mutation, Worker dispatch or new payment without the required explicit authorization.
+
+## Repository and active branch
+
+- Repository: https://github.com/BigWave45/Pelargo
+- Active development branch: `reliability/background-reconciliation`
+- Draft PR #4 remains unmerged.
+- `main` is not the active implementation branch.
+
+See [README.md](README.md), [docs/INTEGRATION.md](docs/INTEGRATION.md), and [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) for product, API and chronological engineering details.
