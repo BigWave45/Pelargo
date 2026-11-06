@@ -941,3 +941,14 @@ A read-only Preview D1 inspection found three old awaiting-deposit test checkout
 - The user has authorized proceeding with another testnet payment. The attempted Preview sign-in was blocked by uncertainty about which environment held the existing merchant account; the user subsequently reported being inside the account and seeing the settled order. No new quote or payment has been created or sent as part of this attempt.
 - Next: use a fresh order ID in Preview, confirm account/environment and merchant-scoped order creation, inspect the committed Tidepool quote and exact deposit instructions before the buyer sends anything, then follow the payment through Preview D1 enqueue, scheduled Worker claim, canonical destination-chain verification, and immutable settlement evidence. The buyer sends the source transfer; do not initiate it on their behalf.
 - Keep the test isolated to Preview D1 and Tidepool testnet. No Production database/configuration changes, merge to `main`, production deployment, or mainnet activation are authorized.
+
+
+## Preview merchant password recovery — 6 November 2026
+
+- Added a Preview-only password reset flow for the existing merchant account. The reset request endpoint returns a generic response and stores only a SHA-256 token hash in D1; a 256-bit random token is emitted as a one-time URL to restricted Cloudflare Pages Preview runtime logs, expires after 30 minutes, and is single-use.
+- The reset redemption endpoint reuses the existing PBKDF2-SHA256 + HMAC password hashing scheme, updates the merchant password, consumes the token transactionally, and revokes all existing merchant sessions.
+- The login screen now exposes “Forgot password?” and the reset URL opens the new-password form. No email delivery provider or SMTP credential is configured; this is an operator-assisted recovery mechanism for testnet testing, not a production-grade customer recovery channel.
+- Both request and redemption are hard-restricted to the exact Preview hostname `reliability-background-recon.pelargo.pages.dev`, HTTPS, Tidepool testnet provider configuration and `ALLOW_TESTNET_DEPOSITS=true`; Production host and all other hostnames return 404. Mutations require an exact Origin match.
+- Added API integration coverage for reset request, one-time token redemption, old-session revocation, replay rejection, successful login with the new password, and denial on the Production hostname.
+- Changes are on `reliability/background-reconciliation`. CI and Pages Preview deployment are pending. Migration `0018_preview_password_reset.sql` must be applied to Preview D1 only after CI passes and before testing the live recovery endpoint.
+- No Production database/configuration change, Production deployment, merge to `main`, new checkout, quote, or payment execution.
