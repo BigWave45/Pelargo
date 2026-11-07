@@ -231,3 +231,14 @@ A read-only Preview D1 audit after the merchant used **Verify source transaction
 The same read-only query confirmed `checkout_orders.status = paid`, `payment_lifecycle.status = settled`, `provider_status = SUCCESS`, and that the lifecycle destination hash matches the immutable settlement-evidence transaction hash. The source-verification endpoint response stated: “Source transaction verified and evidence recorded. Existing destination settlement remains unchanged. The provider was not notified again.” The source and destination evidence rows were then independently read back. No new transfer was made, no provider resubmission occurred, and these checks did not mutate D1.
 
 This closes the source/destination evidence gap for this Preview testnet order. It does not establish mainnet readiness, broad chain coverage, or production operational readiness. Production branch/resources were not changed; keep `ALLOW_MAINNET_DEPOSITS` unset.
+
+
+## Buyer checkout redesign and bearer-token URL hardening (7 November 2026)
+
+The buyer-facing checkout has been redesigned to match the merchant workspace's blue-and-white editorial system. Merchant/order information and destination details are presented separately from the payment controls. The payment component now shows the asset, quote and settlement stages, with an explicit note that provider status or a submitted wallet transaction is not settlement proof. The layout collapses to a single column on smaller screens. The existing quote, wallet, manual deposit and settlement-verification logic was retained.
+
+Checkout-link handling was hardened. Newly generated buyer links use a URL fragment (#checkout=...) instead of a query parameter. The application reads the fragment at initialization and removes it from the visible URL/history before requesting the session. The buyer session is retrieved using an Authorization Bearer header. GET /api/checkout-session now accepts the token only from that header and no longer reads a token query parameter. The frontend reads legacy ?checkout= links only for migration compatibility, strips the query parameter immediately, then sends the token in the Authorization header. The bearer token is not persisted in browser storage.
+
+A URL fragment is not sent in the HTTP request and therefore avoids the ordinary query-string exposure path in server request logs and referrer headers. It remains a bearer credential: anyone with the unexpired link can access that checkout. It must still be handled as private order data.
+
+This is a code change on design/blue-white-premium, not evidence of a completed end-to-end merchant-origin checkout test. The external merchant integration still needs independent acceptance testing. No production branch, production D1 database, mainnet gate or production deployment was changed. Keep ALLOW_MAINNET_DEPOSITS unset.
