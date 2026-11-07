@@ -76,7 +76,7 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
   }>();
   if (!payment) return json({ error: "Order not found" }, 404);
   if (!payment.quote_id || !payment.deposit_address ||
-      !["quote_committed", "awaiting_deposit", "deposit_detected", "processing"].includes(payment.status)) {
+      !["quote_committed", "awaiting_deposit", "deposit_detected", "processing", "settled"].includes(payment.status)) {
     return json({ error: "Order has no recoverable committed deposit instructions", code: "ORDER_NOT_COMMITTED" }, 409);
   }
   if (payment.destination_network.trim().toUpperCase() !== "NEAR") {
@@ -123,6 +123,15 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
     return json({ error: "Provider returned an unrecognized status" }, 502);
   }
   const providerAlreadySuccessful = providerBefore.status === "SUCCESS";
+  // A settled lifecycle may only be used for evidence backfill when the
+  // provider independently still reports SUCCESS. Never reopen or resubmit it.
+  if (payment.status === "settled" && !providerAlreadySuccessful) {
+    return json({
+      error: "The order is settled but the provider no longer reports SUCCESS; operator reconciliation is required",
+      code: "SETTLED_ORDER_PROVIDER_MISMATCH",
+      providerStatus: providerBefore.status,
+    }, 409);
+  }
   if (!providerAlreadySuccessful && !["PENDING_DEPOSIT", "KNOWN_DEPOSIT_TX", "PROCESSING"].includes(providerBefore.status)) {
     return json({
       error: "Provider reports a terminal non-success state; source deposit submission is not permitted",
