@@ -433,7 +433,7 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
               destinationAsset: payment.destination_asset,
               recipient: payment.recipient,
               amountAtomic: payment.amount_atomic,
-            }, hash, (stage, detail) => candidateDiagnostics.push({ hash, stage, ...(detail ? { detail: detail.slice(0, 180) } : {}) }), provider.updatedAt ?? payment.provider_updated_at ?? undefined);
+            }, hash, (stage, detail) => candidateDiagnostics.push({ hash, stage, ...(detail ? { detail: detail.slice(0, 180) } : {}) }), provider.updatedAt ?? payment.provider_updated_at ?? undefined, { db: env.DB, orderId: payment.id });
             if (evidence) break;
           } catch (error) {
             const detail = error instanceof Error ? error.message.slice(0, 240) : "Unknown verifier failure";
