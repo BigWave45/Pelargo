@@ -10,6 +10,7 @@ Pelargo is a merchant-first, non-custodial crypto checkout and settlement-verifi
 - **Release-candidate deployment:** https://release-hackathon-candidate.pelargo.pages.dev
 - **Integrated Preview (development/acceptance):** https://reliability-background-recon.pelargo.pages.dev
 - **Repository:** https://github.com/BigWave45/Pelargo
+- **Vision and development history:** [docs/VISION_AND_DEVELOPMENT_HISTORY.md](docs/VISION_AND_DEVELOPMENT_HISTORY.md) (product direction, parallel development branches and commit-history context)
 - **Testing and acceptance record:** [docs/TESTING.md](docs/TESTING.md)
 - **Merchant integration guide:** [docs/INTEGRATION.md](docs/INTEGRATION.md)
 
