@@ -32,6 +32,8 @@ Use the merged-main Preview deployment: **https://main.pelargo.pages.dev**. It i
 
 **What this walkthrough proves:** merchant registration, destination configuration, signed checkout-session creation, the hosted buyer surface and dry-quote presentation. It does not prove a live transfer, mainnet operation, broad route coverage or production readiness. A full payment is not required to inspect these surfaces.
 
+**Previously recorded end-to-end testnet evidence:** `ORDER-35541967` completed a 1 USDC Base Sepolia ERC-20 to NEAR testnet NEP-141 transfer to `agentg.testnet`. The test record contains both source-deposit evidence and independently verified NEAR destination-settlement evidence. This is a previously completed testnet transaction, not a new payment or a claim of mainnet operation. The detailed acceptance record and evidence limitations are documented in [docs/TESTING.md](docs/TESTING.md#hosted-payment-and-wallet-acceptance).
+
 **Important constraints:** the currently demonstrated route is Base Sepolia ERC-20 to NEAR testnet NEP-141 through the configured Tidepool / NEAR Intents-compatible testnet environment. The evaluator must supply a valid testnet destination asset and recipient. Provider token availability can change. Mainnet committed quotes are disabled. Do not use this Preview to collect customer funds.
 
 If the Preview deployment is unavailable, use the local test commands below to validate the code-level checks. Those tests use mocked provider/RPC responses and do not substitute for hosted payment acceptance.
@@ -188,15 +190,17 @@ Automated tests, hosted merchant acceptance and manual payment evidence are docu
 ## Branch and release status
 
 - GitHub default branch: `main`.
-- Latest merged judge-readiness update: PR #11, merge commit `707b10360dd52c9bd5184610fe817eaa50114160`.
+- Latest merged documentation update: PR #13, merge commit `5410acdca8753b9e32d571b5171de03cce46c811`.
+- PR #12 documents the independent NEAR settlement-verification boundary and adversarial provider-status tests.
+- PR #13 adds the system architecture diagram and clarifies the responsibility boundary between Pelargo, its execution provider, and the NEAR settlement verifier.
 - Integrated non-production branch: `reliability/background-reconciliation`.
 - Cloudflare Pages production branch: `build/live-intents` (unchanged).
 - Cloudflare Pages main-branch Preview alias: `https://main.pelargo.pages.dev`.
 - Cloudflare Pages project: `pelargo`.
 
-PR #11 added the hosted judge walkthrough and aligned the package and application metadata with Pelargo's product positioning. GitHub merged it into `main` at `707b10360dd52c9bd5184610fe817eaa50114160`. GitHub Actions passed for the PR, and Cloudflare Pages successfully built and deployed the merged `main` commit as Preview deployment `231e1a4e-682b-4591-a64a-ef48bbc84735`, with `https://main.pelargo.pages.dev` as its alias. This is a Preview deployment using isolated Preview configuration and Preview D1. A GitHub merge does not change the Cloudflare production branch or production database.
+Cloudflare Pages successfully deployed the merged `main` commit `5410acdca8753b9e32d571b5171de03cce46c811` as Preview deployment `295a6ad3-5d85-4339-8dfd-c17242f68eef`, with `https://main.pelargo.pages.dev` as its alias. The deployment stage reported success. This is a Preview deployment using isolated Preview configuration and Preview D1. A GitHub merge does not change the Cloudflare production branch or production database.
 
-The main-branch Preview is the current hackathon demo URL. The built-in production hostname `pelargo.pages.dev` remains attached to `build/live-intents`; no production promotion or production database change is part of this release.
+The main-branch Preview is the current hackathon demo URL. The built-in production hostname `pelargo.pages.dev` remains attached to `build/live-intents`; no production promotion or production database change is part of this release. Later documentation-only cleanup may produce additional Preview builds without changing the production branch or database.
 
 ## Safety
 
