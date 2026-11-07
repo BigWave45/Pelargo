@@ -694,7 +694,7 @@ export function PelargoCheckout({
           )}
           <div className="pelargo-quote-detail"><span>Provider quote reference</span><strong>{paymentInstructions.quoteId}</strong></div>
           {paymentInstructions.deadline && <div className="pelargo-quote-detail"><span>Deposit deadline</span><strong>{formatExpiry(paymentInstructions.deadline)}</strong></div>}
-          {baseTokenContract && walletAddress && (
+          {baseTokenContract && walletAddress && selectedSource && (
             <div className="pelargo-wallet-payment">
               {walletTxHash ? (
                 <>
