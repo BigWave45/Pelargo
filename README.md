@@ -96,6 +96,71 @@ The repository includes a custom-element embed and integration documentation. Th
 
 ## Architecture
 
+The diagram separates Pelargo's merchant-control plane from the external execution provider and from the independent settlement-verification boundary. The provider can report route progress, but its status does not authorize Pelargo to mark an order paid.
+
+```mermaid
+flowchart TB
+    subgraph Commerce["Merchant and buyer experience"]
+        M["Merchant storefront"]
+        B["Buyer"]
+        UI["Pelargo checkout widget or hosted checkout"]
+        M --> UI
+        B --> UI
+    end
+
+    subgraph Control["Pelargo control plane"]
+        API["Merchant API"]
+        AUTH["Merchant authentication"]
+        SESSION["Short-lived signed checkout session"]
+        ORDER["Order and payment lifecycle"]
+        ORCH["Quote and deposit orchestration"]
+        DB[("Cloudflare D1\nOrders · sessions · lifecycle · evidence")]
+        RECON["Scheduled reconciliation"]
+        API --> AUTH --> SESSION --> ORDER
+        UI --> SESSION
+        ORDER --> ORCH
+        ORDER <--> DB
+        RECON <--> DB
+    end
+
+    subgraph Execution["External cross-chain execution"]
+        PROVIDER["Tidepool / NEAR Intents-compatible testnet provider"]
+        SOURCE["Source network\nCurrently demonstrated: Base Sepolia"]
+        NEAR["NEAR settlement network\nCurrently demonstrated: NEAR testnet"]
+        PROVIDER --> SOURCE
+        PROVIDER --> NEAR
+    end
+
+    subgraph Verification["Pelargo verification"]
+        SRC["Source-deposit verification\nSource-side evidence"]
+        RPC["Canonical NEAR RPC verification"]
+        RULES["Check final execution, NEP-141 token contract,\nrecipient and exact atomic amount"]
+        SRC --> DB
+        RPC --> RULES
+    end
+
+    ORCH --> PROVIDER
+    PROVIDER -. "route and provider status" .-> RECON
+    SOURCE --> SRC
+    NEAR --> RPC
+    RULES -->|"Matching finalized transfer"| PAID["Record settlement evidence\nand mark order paid / settled"]
+    RULES -->|"Missing, mismatched or unverifiable"| HOLD["Keep order unsettled\nReconcile or investigate"]
+    PAID --> DB
+    HOLD --> DB
+    DB --> STATUS["Merchant reads order status"]
+```
+
+### Component responsibilities
+
+- **Merchant interface:** the merchant creates an order and signed checkout session; the buyer pays through the embedded widget or hosted checkout.
+- **Pelargo control plane:** owns merchant authentication, order/session binding, lifecycle transitions, persistence and reconciliation.
+- **Execution provider:** supplies route discovery, quotes, deposit instructions and provider-side status. It is an execution dependency, not the authority for the merchant's final paid state.
+- **Source verification:** records source-side deposit evidence for supported routes. It is distinct from destination settlement verification and should not be read as a universal prerequisite for every currently implemented settlement path.
+- **NEAR settlement verification:** independently checks finalized NEAR execution and the expected NEP-141 token contract, recipient and exact atomic amount. A matching destination transfer is the decisive settlement condition.
+- **Persistence and recovery:** Cloudflare D1 stores order lifecycle and evidence; scheduled reconciliation revisits recoverable or incomplete states.
+
+The currently demonstrated route is Base Sepolia ERC-20 to NEAR testnet NEP-141 through the configured Tidepool / NEAR Intents-compatible testnet environment. The diagram describes the system boundaries, not a claim of arbitrary-chain support or mainnet readiness.
+
 - Frontend: React, TypeScript and Vite.
 - Application/API: Cloudflare Pages Functions.
 - Persistence: Cloudflare D1.
