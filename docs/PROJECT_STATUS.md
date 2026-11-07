@@ -138,3 +138,10 @@ The adapter boundary should be extended for additional compatible providers only
 - `functions/api/payment-status.ts` now retains a bounded/sanitized Tidepool `tidepool.explorer` evidence list and prioritizes a transaction URL labelled `execute_intents` when its final path segment is a valid NEAR hash. It passes the provider's `updatedAt` timestamp to the verifier as the scan anchor.
 - This is source implementation only. The RPC block/chunk response contract, scan hit rate and performance have not yet been live-tested against `ORDER-35541967`. It has not been deployed to Cloudflare Preview. Do not claim the order is settled; its status remains `processing` until the existing canonical verifier commits immutable evidence.
 - FastNear paid Transactions API is not a dependency. No paid key was provisioned. No D1 row, secret, production deployment, main branch, or payment was changed.
+
+
+### Follow-up implementation notes
+
+- Added a mocked regression case in `scripts/verify-checkout-api.mjs` for the no-key path: NearBlocks returns HTTP 429, the canonical RPC block/chunk scan locates a unique signer, and the verifier still requires `EXPERIMENTAL_tx_status` plus the exact NEP-141 receipt transfer.
+- Fixed timestamp extraction to read `timestamp_nanosec` from the resolved block object. Payment status now passes the live provider `updatedAt`, falling back to the previously persisted `provider_updated_at` when the current response omits it.
+- The regression script has been committed but has not been executed in this environment. GitHub reports no workflow runs or commit statuses for the latest head. Cloudflare Pages Preview builds are being triggered by branch pushes; a successful Pages build is not a substitute for the API integration test or live transaction recovery.
