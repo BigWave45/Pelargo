@@ -243,8 +243,8 @@ The custom-element embed exists in the repository, but no stable versioned SDK/C
 
 ## 8. Current Preview route and release safeguards
 
-The current Preview URL is https://design-blue-white-premium.pelargo.pages.dev. Verify that the latest successful Cloudflare Pages deployment corresponds to the intended branch head before using the URL for acceptance testing.
+The current integrated Preview URL is https://reliability-background-recon.pelargo.pages.dev. Verify that the latest successful Cloudflare Pages deployment corresponds to the intended branch head before using the URL for acceptance testing.
 
-The current development branch is design/blue-white-premium. The existing Cloudflare Pages production branch is build/live-intents; GitHub main contains an older generated version. Do not merge, change the production branch, configure a public domain, deploy Production, modify Production D1 or enable mainnet without explicit approval.
+The current integrated non-production branch is `reliability/background-reconciliation`. The existing Cloudflare Pages production branch is `build/live-intents`; GitHub `main` still contains an older generated version. The Preview reconciliation Worker workflow is manual-only, guarded to this integration branch, and targets the isolated Preview D1 binding. The external merchant acceptance workflow checks out this integration branch and targets its Preview alias. Do not merge, change the production branch, configure a public domain, deploy Production, modify Production D1 or enable mainnet without explicit approval.
 
 Keep ALLOW_MAINNET_DEPOSITS unset. Do not use Preview to collect real customer funds. Do not initiate another test payment solely to repeat the route already demonstrated.
