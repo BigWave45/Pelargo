@@ -52,7 +52,7 @@ The active redesign uses a blue-and-white foundation with modern financial-infra
 
 - Repository: [BigWave45/Pelargo](https://github.com/BigWave45/Pelargo)
 - Integrated non-production branch: reliability/background-reconciliation
-- Current external merchant acceptance branch: test/external-merchant-integration (PR #6)
+- External merchant acceptance test: merged via PR #6 into reliability/background-reconciliation
 - Existing Cloudflare Pages production branch: build/live-intents
 - main contains an older Google AI Studio-generated version and is not the current product source.
 - Cloudflare Pages project: pelargo
@@ -60,7 +60,7 @@ The active redesign uses a blue-and-white foundation with modern financial-infra
 
 Do not merge, change the Cloudflare production branch, deploy Production, change domain routing, modify Production D1, enable mainnet or initiate payments without explicit approval. Merging to GitHub main alone does not change the Cloudflare Pages production branch.
 
-The release sequence is: finish the design and wallet work; run acceptance tests; freeze a release candidate; reconcile it against the existing production baseline; update main to the approved release; then, with explicit approval, configure the production branch and domain. A free custom domain has not yet been selected or configured. Keep the Preview URL separate from the eventual public domain.
+PR #6 is merged into reliability/background-reconciliation. The release sequence is: finish the design and wallet work; run acceptance tests; freeze a release candidate; reconcile it against the existing production baseline; update main to the approved release; then, with explicit approval, configure the production branch and domain. A free custom domain has not yet been selected or configured. Keep the Preview URL separate from the eventual public domain.
 
 ## Development
 
