@@ -143,9 +143,15 @@ export function PelargoCheckout({
   const { address: appKitAddress, isConnected: appKitConnected } = useAppKitAccount({ namespace: "eip155" });
   const { walletProvider } = useAppKitProvider<Eip1193Provider>("eip155");
   const { chainId: appKitChainId } = useAppKitNetwork();
-  // Use the provider supplied by the active Reown connection. Falling back to
-  // window.ethereum can silently query a different wallet session/network.
-  const activeWalletProvider = walletProvider as Eip1193Provider | undefined;
+  // Prefer MetaMask's injected provider when the checkout is running inside
+  // MetaMask Mobile. This avoids routing a native in-app connection through
+  // WalletConnect's relay. Outside MetaMask, use the active Reown provider.
+  const injectedMetaMask = typeof window !== "undefined"
+    ? (window as Window & { ethereum?: Eip1193Provider & { isMetaMask?: boolean } }).ethereum
+    : undefined;
+  const activeWalletProvider = injectedMetaMask?.isMetaMask
+    ? injectedMetaMask
+    : walletProvider as Eip1193Provider | undefined;
   const recoveryKey = `pelargo:checkout-recovery:v1:${orderId}:${sessionExpiresAt}:${recipient}`;
   type RecoveryState = {
     version: 1;
@@ -347,6 +353,18 @@ export function PelargoCheckout({
     setError("");
     setWalletBusy(true);
     try {
+      if (injectedMetaMask?.isMetaMask) {
+        const accounts = await injectedMetaMask.request({ method: "eth_requestAccounts" });
+        if (!Array.isArray(accounts) || typeof accounts[0] !== "string") {
+          throw new Error("MetaMask did not return an account. Approve the connection in MetaMask and retry.");
+        }
+        const address = accounts[0];
+        const chainId = await injectedMetaMask.request({ method: "eth_chainId" });
+        setWalletAddress(address);
+        setWalletChainId(normalizeChainId(chainId));
+        if (!refundTo.trim()) setRefundTo(address);
+        return;
+      }
       await openWalletModal({ view: "Connect", namespace: "eip155" });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Wallet connection was not completed.");
@@ -504,15 +522,15 @@ export function PelargoCheckout({
 
   useEffect(() => {
     let cancelled = false;
-    if (!appKitConnected || !appKitAddress || !activeWalletProvider) {
+    const usingInjectedMetaMask = Boolean(injectedMetaMask?.isMetaMask);
+    if (!activeWalletProvider || (!usingInjectedMetaMask && (!appKitConnected || !appKitAddress))) {
       setWalletAddress("");
       setWalletChainId("");
       setWalletBalance("");
       return;
     }
 
-    // Hydrate state from the same EIP-1193 provider that will submit the transfer.
-    // AppKit's displayed network is not used as a substitute for this RPC check.
+    // Read account and chain from the exact provider that will submit transfers.
     void Promise.all([
       activeWalletProvider.request({ method: "eth_chainId" }),
       activeWalletProvider.request({ method: "eth_accounts" }),
@@ -520,18 +538,19 @@ export function PelargoCheckout({
       if (cancelled) return;
       setWalletChainId(normalizeChainId(chainId));
       const address = Array.isArray(accounts) && typeof accounts[0] === "string" ? accounts[0] : "";
-      if (address && address.toLowerCase() === appKitAddress.toLowerCase()) {
+      const matchesAppKit = usingInjectedMetaMask || (appKitAddress && address.toLowerCase() === appKitAddress.toLowerCase());
+      if (address && matchesAppKit) {
         setWalletAddress(address);
         if (!refundTo.trim()) setRefundTo(address);
       } else {
         setWalletAddress("");
       }
     }).catch(() => {
-      if (!cancelled) setError("Reown connected the wallet, but Pelargo could not read its active account and network. Reconnect the wallet and retry.");
+      if (!cancelled) setError("Pelargo could not read the connected wallet account and network. Reconnect the wallet and retry.");
     });
 
     return () => { cancelled = true; };
-  }, [appKitConnected, appKitAddress, activeWalletProvider]);
+  }, [appKitConnected, appKitAddress, activeWalletProvider, injectedMetaMask]);
 
   async function requestDryQuote() {
     setError("");
