@@ -7,7 +7,6 @@ type Eip1193Provider = {
   on?: (event: string, listener: (...args: unknown[]) => void) => void;
   removeListener?: (event: string, listener: (...args: unknown[]) => void) => void;
 };
-declare global { interface Window { ethereum?: Eip1193Provider } }
 
 const BASE_SEPOLIA_CHAIN_ID = "0x14a34";
 
