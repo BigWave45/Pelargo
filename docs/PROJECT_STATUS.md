@@ -44,6 +44,7 @@ This file records the current product/design decision and implementation state. 
 - Supported scope is injected EVM wallets on Base Sepolia for recognized Base Sepolia ERC-20 asset IDs. WalletConnect, mobile deep links, Solana/NEAR wallet signing, arbitrary chain support and universal asset discovery are not implemented.
 - CI run `42325932624` on code commit `08dec058aba78c934a37e7ec44d0f783a007925d` passed type-check, checkout-session security tests, checkout API integration tests and frontend build.
 - Live Preview browser acceptance and a fresh end-to-end testnet payment through independently verified NEAR settlement remain outstanding. This code change did not initiate a payment.
+- Mobile provider detection was hardened in commit `afce17bb4ad9a85567380e25b6a6d93ca3342641`: the widget waits for MetaMask's asynchronous `ethereum#initialized` injection event, rechecks `window.ethereum`, and attaches account/network listeners after provider initialization. Cloudflare Pages Preview deployment `53a9a3b9-7f3c-4348-855d-a4356f0b20a5` built and deployed this exact commit successfully; the `design-blue-white-premium.pelargo.pages.dev` alias points to it. GitHub returned no PR workflow runs or combined status checks for this SHA, so CI is not verified for this patch. Retry MetaMask in-app browser connection before quote commitment or transfer.
 
 ## Next acceptance sequence
 
