@@ -54,7 +54,7 @@ The branches below remain public and can be inspected directly. The number is Gi
 | External merchant acceptance | [test/external-merchant-integration](https://github.com/BigWave45/Pelargo/tree/test/external-merchant-integration) | 504 |
 | Earlier live-intents implementation | [build/live-intents](https://github.com/BigWave45/Pelargo/tree/build/live-intents) | 163 |
 
-The curated release and documentation changes are visible in [PR #7](https://github.com/BigWave45/Pelargo/pull/7) and [PR #8](https://github.com/BigWave45/Pelargo/pull/8). The [main commit history](https://github.com/BigWave45/Pelargo/commits/main/) shows the current release line; the branch links above expose the parallel work.
+The curated release is visible in [PR #7](https://github.com/BigWave45/Pelargo/pull/7). Subsequent documentation and release hygiene updates are visible in [PRs #8–#15](https://github.com/BigWave45/Pelargo/pulls?q=is%3Apr+is%3Amerged). The [main commit history](https://github.com/BigWave45/Pelargo/commits/main/) shows the current release line; the branch links above expose the parallel work.
 
 ### How to read this history
 

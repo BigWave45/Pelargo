@@ -172,7 +172,7 @@ Validates a signed session and returns public order claims. Send the short-lived
 
 ### `GET /api/tokens`
 
-Proxies supported-token discovery from NEAR Intents / 1Click. Provider availability is dynamic; it is not a guarantee that every token/network pair will remain routable.
+Proxies supported-token discovery from the provider selected by the configured environment. The current Preview configuration selects Tidepool testnet (`https://www.usetidepool.tech`). The official 1Click adapter is a separate mainnet adapter and is not the testnet provider. Provider availability is dynamic; a token listed by discovery is not a guarantee that every token/network pair will remain routable.
 
 ### `POST /api/quote`
 
@@ -180,7 +180,7 @@ Accepts a signed checkout session and a quote request. Pelargo validates the ses
 
 The widget requests a dry quote first. A dry quote is a preview; it does not create deposit instructions or prove payment. After explicit buyer confirmation, the widget can request a committed quote, which can create real deposit instructions and potentially irreversible transfers. Keep committed mainnet quotes disabled.
 
-For committed quote handling, Pelargo consumes the session before contacting 1Click, overwrites the provider `sessionId` with the server-issued session JTI, and requires a provider correlation ID and deposit details before persisting the quote. An ambiguous upstream response leaves the session consumed; never retry automatically.
+For committed quote handling, Pelargo consumes the session before contacting the configured provider adapter, overwrites the provider `sessionId` with the server-issued session JTI, and requires a provider correlation ID and deposit details before persisting the quote. Preview uses Tidepool testnet. The official 1Click adapter is mainnet-only in this implementation and mainnet committed quotes remain disabled. An ambiguous upstream response leaves the session consumed; never retry automatically.
 
 ### `GET /api/orders`
 
@@ -228,7 +228,7 @@ Do not copy secret values into this guide, browser code, Vite VITE_* variables o
 
 The supported destination settlement verifier is NEAR NEP-141. The direct wallet transfer path is limited to eligible provider-listed Base Sepolia ERC-20 source assets. Provider route availability is dynamic. Pelargo does not currently provide arbitrary-chain settlement verification, automatic provider failover, route comparison or a Pelargo-operated liquidity engine.
 
-The testnet route demonstrated on ORDER-35541967 has both source and destination evidence. ORDER-45723806 has destination evidence but no source-evidence row. These are distinct records and must not be conflated. A successful scheduled reconciliation run and independent external merchant-origin acceptance are separate checks; do not infer either from the successful payment record.
+`ORDER-35541967` is the complete dual-chain evidence record: source and destination evidence both match the same merchant order, with exactly 1 USDC delivered to `agentg.testnet`. `ORDER-83587591` is a separate order with both source and destination evidence; its source amount is 1,012,633 atomic units and destination amount is 1,000,000 atomic units. Its provider status remained `PROCESSING` when Pelargo marked the order settled after independent NEAR verification. `ORDER-45723806` has destination evidence but no source-evidence row. These are distinct records and must not be conflated. Scheduled Worker configuration is verified separately; successful scheduled processing of a due payment remains unverified.
 
 ## 6. Wallet connection status
 
@@ -248,7 +248,7 @@ The custom-element embed exists in the repository, but no stable versioned SDK/C
 
 ## 8. Current Preview route and release safeguards
 
-The recommended public hackathon demo is **https://main.pelargo.pages.dev**. It serves the merged `main` release as a Cloudflare Pages Preview deployment and uses the isolated Preview environment and Preview D1 database. It is a testnet demo, not a production endpoint; do not use it to collect customer funds.
+The recommended public hackathon demo is **https://main.pelargo.pages.dev**. It serves the merged `main` release as a Cloudflare Pages Preview deployment and uses the isolated Preview environment and Preview D1 database. It is a testnet demo, not a production endpoint; do not use it to collect customer funds. The integrated acceptance URL `https://reliability-background-recon.pelargo.pages.dev` targets the separate development branch and is not the judge-facing public demo.
 
 Other Preview aliases have narrower purposes:
 - `https://release-hackathon-candidate.pelargo.pages.dev` is the earlier candidate deployment.
@@ -256,6 +256,6 @@ Other Preview aliases have narrower purposes:
 
 The GitHub default branch is `main`. PR #7 merged the curated release candidate into `main`; the historical integration branch was not merged wholesale. Cloudflare Pages production remains on branch `build/live-intents`, and `https://pelargo.pages.dev` continues to serve that separate production deployment. No production branch switch, Production D1 migration, mainnet activation or custom-domain change is part of the hackathon Preview release.
 
-The Preview reconciliation Worker workflow is manual-only, guarded to the integration branch, and targets the isolated Preview D1 binding. Keep that operational workflow distinct from the public `main` demo. Before relying on any Preview URL, confirm its current deployment commit and environment configuration.
+The Preview reconciliation Worker deployment workflow is manual-only and guarded to the `reliability/background-reconciliation` branch. The deployed Worker is `pelargo-expiry-sweeper-preview`, uses the isolated Preview D1 binding `0335acdc-f0e0-42f6-ba87-e3448fb91728`, has an encrypted `RECONCILIATION_SECRET`, and has a five-minute Cron Trigger. Read-only configuration inspection confirmed these settings on 7 November 2026. A configured Cron Trigger does not prove that a scheduled invocation has claimed and processed an eligible payment; run-level evidence is still required. Keep this operational Worker distinct from the public `main` demo. Before relying on any Preview URL, confirm its current deployment commit and environment configuration.
 
 Keep ALLOW_MAINNET_DEPOSITS unset. Do not use Preview to collect real customer funds. Do not initiate another test payment solely to repeat the route already demonstrated.

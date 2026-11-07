@@ -1,3 +1,6 @@
+# Production Worker configuration only; this Worker is not deployed.
+# Do not deploy or bind it to Production without explicit authorization and a
+# reviewed production migration, secret, and rollback plan.
 name = "pelargo-expiry-sweeper"
 main = "workers/expiry-sweeper.ts"
 compatibility_date = "2026-11-04"
