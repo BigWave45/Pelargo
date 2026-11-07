@@ -185,8 +185,7 @@ export async function reconcileDuePayments(
             code?: string;
             verificationDiagnostics?: Array<{ stage?: string }>;
           };
-        } }
-        catch { return {}; }
+        } catch { return {}; }
       })();
 
       const latest = await env.DB.prepare(
