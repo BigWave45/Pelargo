@@ -47,16 +47,23 @@ async function api<T>(url: string, init: RequestInit = {}): Promise<T> {
     const detail = diagnostic && typeof diagnostic === "object"
       ? ` (${String(diagnostic.name || "Error")}: ${String(diagnostic.message || "No diagnostic message")})`
       : "";
-    // Keep bounded provider hash evidence visible when settlement verification
-    // fails. This is needed to distinguish provider hash selection from RPC
-    // verification failures without exposing credentials or raw provider data.
+    // Surface bounded verifier stages in the workspace. A 503 without these
+    // stages is not actionable for a merchant or operator.
+    const verificationDiagnostics = Array.isArray(data.verificationDiagnostics)
+      ? data.verificationDiagnostics.slice(0, 12).map((item: any) =>
+          `${String(item.hash || "candidate")}: ${String(item.stage || "unknown")}${item.detail ? ` (${String(item.detail).slice(0, 180)})` : ""}`
+        ).join(" | ")
+      : "";
     const providerEvidence = data.providerEvidence && typeof data.providerEvidence === "object"
-      ? JSON.stringify(data.providerEvidence)
+      ? JSON.stringify(data.providerEvidence).slice(0, 900)
       : "";
     const candidate = typeof data.candidateHash === "string" ? data.candidateHash : "";
-    const evidenceDetail = providerEvidence || candidate
-      ? ` [candidate=${candidate || "none"}; providerEvidence=${providerEvidence || "{}"}]`
-      : "";
+    const evidenceParts = [
+      candidate ? `candidate=${candidate}` : "",
+      verificationDiagnostics ? `verification=${verificationDiagnostics}` : "",
+      providerEvidence ? `providerEvidence=${providerEvidence}` : "",
+    ].filter(Boolean);
+    const evidenceDetail = evidenceParts.length ? ` [${evidenceParts.join("; ")}]` : "";
     throw new Error(`${data.error || `Request failed (${response.status})`}${detail}${evidenceDetail}`);
   }
   return data as T;
