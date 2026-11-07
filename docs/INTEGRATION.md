@@ -239,7 +239,7 @@ The hosted checkout receives the short-lived buyer token in the URL fragment (fo
 
 The fragment reduces exposure through ordinary HTTP request logs and referrer headers. It does not make the link private: anyone who obtains an unexpired checkout URL can use that bearer token. Do not publish checkout links or send them to analytics.
 
-The custom-element embed exists in the repository, but no stable versioned SDK/CDN package, Shopify/WooCommerce plugin or merchant webhook delivery is released. Confirm the actual deployed pelargo.js artifact before using it. The external merchant-origin flow still requires a separate acceptance test.
+The custom-element embed exists in the repository, but no stable versioned SDK/CDN package, Shopify/WooCommerce plugin or merchant webhook delivery is released. Confirm the actual deployed pelargo.js artifact before using it. The external merchant-origin acceptance test passed all seven checks on 7 November 2026. See [docs/EXTERNAL_MERCHANT_TEST.md](EXTERNAL_MERCHANT_TEST.md) for the procedure and [docs/TESTING.md](TESTING.md) for the recorded result and limitations.
 
 ## 8. Current Preview route and release safeguards
 
