@@ -341,3 +341,20 @@ A URL fragment is not included in the HTTP request target and is not ordinarily 
 The buyer session token is also supplied to the quote API in its request body and to payment-status polling through the Authorization header. Do not expose the merchant API key to buyer-side code.
 
 The embedded checkout currently has no stable published SDK/CDN package or official platform plugins. Treat existing embed examples as implementation guidance for the current Preview build, not as a versioned production distribution. The complete external merchant-origin flow still requires an independent acceptance test.
+
+
+## Current developer integration pattern (Preview)
+
+The supported Preview integration is server-to-server session creation followed by a redirect to Pelargo-hosted buyer checkout:
+
+1. Create the order in the merchant's own backend.
+2. From that backend, call `POST /api/checkout-session` with the merchant API key in `x-pelargo-merchant-key`. Never expose the merchant key in browser code or a mobile app.
+3. Return a buyer checkout URL using the signed session token in the URL fragment: `https://design-blue-white-premium.pelargo.pages.dev/#checkout=<token>`.
+4. Redirect the authenticated buyer to that URL.
+5. After checkout, retrieve the merchant-scoped order/payment status from the merchant backend and fulfil only after independently verified destination settlement.
+
+The frontend's buyer checkout reads the fragment and strips it from the visible URL/history before requesting the session. The session endpoint accepts the buyer token in an Authorization Bearer header, not a query parameter.
+
+There is no stable published JavaScript SDK, CDN bundle, custom-element package, Shopify/WooCommerce plugin, or merchant webhook delivery in this Preview. Do not copy or deploy a guessed `pelargo.js` script tag. An external merchant integration must implement its own authenticated backend route for creating the Pelargo session and returning the checkout URL to the buyer.
+
+The currently implemented and independently verified route is Base Sepolia source to NEAR testnet destination. Do not infer support for arbitrary networks or tokens. The Preview is testnet-only and must not be used to collect real customer funds.
