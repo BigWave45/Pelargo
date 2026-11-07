@@ -1,15 +1,15 @@
 # Product direction and wallet-first checkout plan — 7 November 2026
 
-This entry records the current product/design decision. It is a plan and scope update, not evidence that wallet connection or direct wallet execution is implemented.
+This file records the current product/design decision and implementation state. The Base Sepolia wallet path is implemented in the draft branch, but a live end-to-end wallet payment remains unverified.
 
 - Continue the UI, UX and copy redesign in parallel with wallet technical validation. The redesign is not paused or superseded by wallet work.
 - Preserve the existing merchant account/API-key model, merchant-created checkout sessions, widget contract, Tidepool/1Click quote integration, order state machine, provider polling and independent NEAR settlement verifier.
 - Universal checkout is the long-term product direction: one merchant integration, buyer pays from a wallet/network/asset they already use where supported, and the merchant receives its configured settlement asset. Do not claim universal wallet or chain support in the current build.
-- Hackathon wallet target is Base-first: connect wallet, detect address and chain, inspect balances for assets supported by the active provider route, obtain the existing Pelargo quote, then establish whether the provider supports a directly signable/broadcastable transaction for the chosen wallet. Direct signing is conditional on provider compatibility.
-- The current deposit-address flow remains the working fallback: buyer receives instructions and sends funds manually. Keep it intact until the connected-wallet flow passes an end-to-end test.
-- Separate the work into three capabilities: (1) wallet connection, (2) network/token balance discovery, and (3) transaction construction/signing/broadcast. Completing (1) does not prove (3).
+- Hackathon wallet implementation is Base Sepolia-first: injected EIP-1193 connection, account/network detection, supported ERC-20 balance lookup, exact provider quote amount and deposit-address transfer signed by the connected wallet.
+- The current manual deposit-address flow remains available as a fallback. Wallet transaction submission does not mark an order paid; provider detection and independent NEAR settlement verification remain authoritative.
+- Wallet connection, token balance discovery and transaction signing/broadcast are implemented as separate steps. Only injected EVM wallets on Base Sepolia are currently supported by this draft.
 - Design direction remains blue/white, modern financial infrastructure plus editorial minimalism. Remove generic AI decoration. Use product UI states, precise diagrams and restrained geometric elements only where they explain the payment journey. Design copy around simplicity, with separate messaging for buyers, merchants and developers.
-- Recommended order: journey/screen-state definition; early provider compatibility spike; wallet connection and balance discovery; direct execution only if confirmed; integrate and polish checkout; finish merchant/developer/public-site redesign; mobile and end-to-end acceptance; update demo and submission docs.
+- Remaining order: Cloudflare Pages Preview browser acceptance, fresh Base Sepolia testnet payment, confirmation that provider polling detects the transfer, and independent NEAR settlement verification. Continue the broader public-site, merchant workspace and developer copy/UI redesign in parallel.
 - No production deployment, merge, mainnet activation or payment initiation without explicit approval.
 
 ---
@@ -24,7 +24,7 @@ This entry records the current product/design decision. It is a plan and scope u
 - Provider lifecycle documentation describes the deposit-address model: the buyer sends the source token to the quote's unique deposit address; 1Click detects the deposit and progresses through status polling. The optional `deposit/submit` notification can accelerate detection but is not the wallet execution mechanism. Keep Pelargo's independent destination settlement verification as the final paid-state authority.
 - Important API boundary: current `POST /api/deposit-submit` authenticates a merchant session or merchant API key, not the buyer's signed checkout session. Do not expose a merchant credential to the buyer widget. A wallet-first flow can initially rely on provider deposit detection and existing status polling; if explicit transaction notification is needed, add a buyer-session-authorized route that binds the transaction to the committed quote and independently verifies it before notifying the provider.
 - Technical direction: Base Sepolia first, injected EIP-1193 wallet provider, request chain `0x14a34`, read connected account, check exact ERC-20 balance, build standard ERC-20 `transfer(address,uint256)` calldata to the committed deposit address for the committed `amountIn`, request wallet signature/broadcast, then track provider status and existing destination settlement verification. Handle wrong network, missing wallet, insufficient balance, rejected signature, duplicate click, expired quote and uncertain broadcast. Keep manual instructions as fallback.
-- This finding narrows the technical risk: we do not need a provider-specific transaction builder for this Base ERC-20 deposit. Wallet integration and transaction lifecycle handling remain to be implemented and tested. No wallet code, quote behavior, database, deployment or payment was changed during this inspection.
+- This finding narrowed the technical risk: a standard ERC-20 transfer is sufficient for the supported Base Sepolia quote deposit. The wallet implementation now exists in the draft branch; live payment and settlement acceptance remain outstanding.
 
 
 - Read-only Cloudflare Pages deployment inspection confirms the latest active-branch Preview deployment is `bf42d182-f628-4073-b7b2-e4f8f7847475`, commit `3acdaa917dd796f3a9c652defbcd97361fb82e91`, with build and deploy stages successful. The stable Preview alias remains `https://reliability-background-recon.pelargo.pages.dev`. This is a deployment check, not an independent merchant-origin checkout acceptance test.
@@ -35,6 +35,15 @@ This entry records the current product/design decision. It is a plan and scope u
 - Merchant API-key issuance/rotation and the Developers integration screen are implemented on `reliability/background-reconciliation`. The standalone embed's `process.env.NODE_ENV` browser-runtime reference was fixed, and the latest Preview deployment includes that commit. The actual merchant flow remains unaccepted: issue/rotate a key, create a real merchant order/session server-side, load the widget from a separate merchant origin, preview a dry quote, and verify the buyer confirmation boundary. Do not commit a quote or send funds during this acceptance pass without explicit approval.
 - A visual-only redesign is in progress on `design/blue-white-premium`, with draft PR #5 targeting `reliability/background-reconciliation`. It adds isolated checkout/workspace CSS and stylesheet imports; it does not intentionally change payment, quote, deposit, session, authentication, or settlement logic. The branch has not been deployed or merged. No CI run is currently reported for the PR head SHA `2cc147af80c8ab8ccd75f33c4cf2873032f801fc`; visual browser acceptance and build verification remain outstanding.
 - No Production resources were queried or changed, no merge occurred, and no branch was deleted.
+
+## Base Sepolia wallet implementation — 7 November 2026
+
+- Implemented in `src/components/PelargoCheckout.tsx` on `design/blue-white-premium`: injected EIP-1193 wallet connect, Base Sepolia chain switch (84532 / `0x14a34`), connected account display, exact provider-token balance lookup, and standard ERC-20 transfer to the committed quote's deposit address using the exact atomic `amountIn`.
+- The selected source token contract is parsed from the provider asset ID. The connected wallet must match the quote refund address. Source asset selection locks after committed deposit instructions exist. Quotes with a provider memo cannot use direct wallet transfer and stay on the manual path.
+- Existing quote creation, commit behavior, provider status polling and independent destination settlement verifier were not replaced. The manual deposit-address path remains available. A wallet transaction hash is presented as submitted only, never as paid.
+- Supported scope is injected EVM wallets on Base Sepolia for recognized Base Sepolia ERC-20 asset IDs. WalletConnect, mobile deep links, Solana/NEAR wallet signing, arbitrary chain support and universal asset discovery are not implemented.
+- CI run `42325932624` on code commit `08dec058aba78c934a37e7ec44d0f783a007925d` passed type-check, checkout-session security tests, checkout API integration tests and frontend build.
+- Live Preview browser acceptance and a fresh end-to-end testnet payment through independently verified NEAR settlement remain outstanding. This code change did not initiate a payment.
 
 ## Next acceptance sequence
 
