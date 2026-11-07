@@ -144,113 +144,180 @@ async function mapWithConcurrency<T, R>(
  * signer is only a hint; EXPERIMENTAL_tx_status and receipt verification below
  * remain mandatory.
  */
+type RecoveryStore = { db: NonNullable<Env["DB"]>; orderId: string };
+
+type RecoveryCursor = {
+  scan_candidate_hash: string | null;
+  scan_observed_at: string | null;
+  scan_first_height: string | null;
+  scan_last_height: string | null;
+  scan_next_height: string | null;
+  scan_chunk_hashes: string | null;
+  scan_chunk_offset: number;
+};
+
+/**
+ * Testnet fallback. When a D1 recovery store is supplied, one call performs
+ * at most one eight-block batch or one four-chunk batch and persists its
+ * cursor. The next scheduled/browser poll resumes from that exact position.
+ * Signer discovery remains a hint; canonical tx status and receipt checks
+ * below are always required before settlement.
+ */
 async function signerFromCanonicalRpcBlockWindow(
   rpcUrl: string,
   expectedHash: string,
   observedAt: string | undefined,
   configuredWindowBlocks: string | undefined,
   onDiagnostic?: (stage: string, detail?: string) => void,
+  recoveryStore?: RecoveryStore,
 ): Promise<string | null> {
   if (!observedAt || !Number.isFinite(Date.parse(observedAt))) return null;
   const targetNs = BigInt(Date.parse(observedAt)) * 1_000_000n;
-  const latestPayload = await postJson(rpcUrl, {
-    jsonrpc: "2.0", id: "pelargo-near-block-scan-head", method: "block",
-    params: { finality: "final" },
-  });
-  const latestHeader = blockHeader(latestPayload);
-  if (!latestHeader || (typeof latestHeader.height !== "number" && typeof latestHeader.height !== "string") ||
-      (typeof latestHeader.timestamp_nanosec !== "string" && typeof latestHeader.timestamp_nanosec !== "number")) {
-    throw new Error("NEAR RPC returned an incomplete finalized head for signer recovery");
-  }
-  const headHeight = BigInt(latestHeader.height);
-  const headTimestampNs = BigInt(latestHeader.timestamp_nanosec);
-  const ageNs = headTimestampNs - targetNs;
-  // Provider status timestamps are not guaranteed to be transaction timestamps.
-  // Keep this recovery deliberately bounded to recent testnet activity.
-  if (ageNs < -60_000_000_000n || ageNs > 7_200_000_000_000n) return null;
-
-  const lowerBound = headHeight > 10_000n ? headHeight - 10_000n : 1n;
-  let low = lowerBound;
-  let high = headHeight;
-  // Find the first finalized block whose timestamp is at or after observedAt.
-  while (low < high) {
-    const middle = (low + high) / 2n;
-    const block = await rpcBlockByHeight(rpcUrl, middle);
-    const timestamp = blockTimestampNs(block);
-    if (timestamp === null) throw new Error("NEAR RPC block omitted timestamp_nanosec");
-    if (timestamp < targetNs) low = middle + 1n;
-    else high = middle;
-  }
-
-  // Provider updatedAt commonly trails the destination transaction. Search
-  // mostly backwards from that timestamp, while retaining a small forward
-  // allowance for clock skew. The range is configurable but strictly capped.
-  const requestedWindow = configuredWindowBlocks?.trim()
-    ? Number(configuredWindowBlocks)
-    : 120;
+  const requestedWindow = configuredWindowBlocks?.trim() ? Number(configuredWindowBlocks) : 120;
   if (!Number.isInteger(requestedWindow) || requestedWindow < 8 || requestedWindow > 600) {
     throw new Error("NEAR_TX_RECOVERY_WINDOW_BLOCKS must be an integer from 8 to 600");
   }
-  const windowBlocks = BigInt(requestedWindow);
-  const scanStart = low - (windowBlocks - 8n);
-  const scanEnd = low + 8n;
-  const firstHeight = scanStart < lowerBound ? lowerBound : scanStart;
-  const lastHeight = scanEnd > headHeight ? headHeight : scanEnd;
-  const scanHeights: bigint[] = [];
-  // Search nearest-to-timestamp blocks first. Fetch and inspect small batches
-  // so a match does not require downloading the entire recovery window.
-  for (let height = lastHeight; height >= firstHeight; height--) scanHeights.push(height);
-  onDiagnostic?.("testnet_rpc_block_scan_window", `heights=${firstHeight}-${lastHeight}; max_blocks=${scanHeights.length}; target=${observedAt}`);
-  const matchingSigners = new Set<string>();
-  let inspectedBlocks = 0;
-  let inspectedChunks = 0;
-  const blockBatchSize = 8;
-  const chunkBatchSize = 4;
 
-  for (let offset = 0; offset < scanHeights.length; offset += blockBatchSize) {
-    const heights = scanHeights.slice(offset, offset + blockBatchSize);
-    const blocks = await mapWithConcurrency(heights, 4, (height) => rpcBlockByHeight(rpcUrl, height));
-    inspectedBlocks += blocks.length;
-    const chunkRefs: string[] = [];
-    for (const block of blocks) {
-      const chunks = Array.isArray(block.chunks) ? block.chunks : [];
-      for (const rawChunk of chunks) {
-        const chunk = record(rawChunk);
-        if (!chunk || typeof chunk.chunk_hash !== "string" ||
-            chunk.tx_root === EMPTY_NEAR_TX_ROOT) continue;
-        if (!chunkRefs.includes(chunk.chunk_hash)) chunkRefs.push(chunk.chunk_hash);
-      }
+  let cursor: RecoveryCursor | null = null;
+  if (recoveryStore) {
+    cursor = await recoveryStore.db.prepare(
+      `SELECT scan_candidate_hash, scan_observed_at, scan_first_height, scan_last_height,
+              scan_next_height, scan_chunk_hashes, scan_chunk_offset
+         FROM payment_reconciliation_jobs WHERE order_id = ?`
+    ).bind(recoveryStore.orderId).first<RecoveryCursor>();
+    if (cursor?.scan_candidate_hash !== expectedHash || cursor.scan_observed_at !== observedAt ||
+        !cursor.scan_first_height || !cursor.scan_last_height || !cursor.scan_next_height) {
+      cursor = null;
     }
-
-    for (let chunkOffset = 0; chunkOffset < chunkRefs.length; chunkOffset += chunkBatchSize) {
-      const batch = chunkRefs.slice(chunkOffset, chunkOffset + chunkBatchSize);
-      await mapWithConcurrency(batch, chunkBatchSize, async (chunkHash) => {
-        const chunkPayload = await postJson(rpcUrl, {
-          jsonrpc: "2.0", id: "pelargo-near-chunk-scan", method: "chunk",
-          params: { chunk_id: chunkHash },
-        });
-        if (chunkPayload.error) throw new Error("NEAR RPC chunk lookup failed during signer recovery");
-        const chunk = record(chunkPayload.result);
-        const transactions = Array.isArray(chunk?.transactions) ? chunk.transactions : [];
-        for (const rawTransaction of transactions) {
-          const transaction = record(rawTransaction);
-          if (transaction?.hash === expectedHash && typeof transaction.signer_id === "string" &&
-              /^[a-z0-9._-]{2,64}$/.test(transaction.signer_id)) {
-            matchingSigners.add(transaction.signer_id);
-          }
-        }
-        return null;
-      });
-      inspectedChunks += batch.length;
-      if (matchingSigners.size > 1) break;
-    }
-    onDiagnostic?.("testnet_rpc_block_scan_progress", `blocks=${inspectedBlocks}; chunks=${inspectedChunks}; matching_signers=${matchingSigners.size}`);
-    // A NEAR transaction hash is unique. Once a full nearest block batch has
-    // been checked, older batches cannot add a legitimate second occurrence.
-    if (matchingSigners.size > 0) break;
   }
-  // Ambiguous signer data is not safe to resolve automatically.
-  return matchingSigners.size === 1 ? [...matchingSigners][0] : null;
+
+  if (!cursor) {
+    const latestPayload = await postJson(rpcUrl, {
+      jsonrpc: "2.0", id: "pelargo-near-block-scan-head", method: "block",
+      params: { finality: "final" },
+    });
+    const latestHeader = blockHeader(latestPayload);
+    if (!latestHeader || (typeof latestHeader.height !== "number" && typeof latestHeader.height !== "string") ||
+        (typeof latestHeader.timestamp_nanosec !== "string" && typeof latestHeader.timestamp_nanosec !== "number")) {
+      throw new Error("NEAR RPC returned an incomplete finalized head for signer recovery");
+    }
+    const headHeight = BigInt(latestHeader.height);
+    const headTimestampNs = BigInt(latestHeader.timestamp_nanosec);
+    const ageNs = headTimestampNs - targetNs;
+    if (ageNs < -60_000_000_000n || ageNs > 7_200_000_000_000n) return null;
+
+    const lowerBound = headHeight > 10_000n ? headHeight - 10_000n : 1n;
+    let low = lowerBound;
+    let high = headHeight;
+    while (low < high) {
+      const middle = (low + high) / 2n;
+      const block = await rpcBlockByHeight(rpcUrl, middle);
+      const timestamp = blockTimestampNs(block);
+      if (timestamp === null) throw new Error("NEAR RPC block omitted timestamp_nanosec");
+      if (timestamp < targetNs) low = middle + 1n;
+      else high = middle;
+    }
+
+    const width = BigInt(requestedWindow);
+    const first = low - (width - 8n) < lowerBound ? lowerBound : low - (width - 8n);
+    const last = low + 8n > headHeight ? headHeight : low + 8n;
+    cursor = {
+      scan_candidate_hash: expectedHash,
+      scan_observed_at: observedAt,
+      scan_first_height: first.toString(),
+      scan_last_height: last.toString(),
+      scan_next_height: last.toString(),
+      scan_chunk_hashes: null,
+      scan_chunk_offset: 0,
+    };
+    if (recoveryStore) {
+      await recoveryStore.db.prepare(
+        `UPDATE payment_reconciliation_jobs
+            SET scan_candidate_hash = ?, scan_observed_at = ?, scan_first_height = ?,
+                scan_last_height = ?, scan_next_height = ?, scan_chunk_hashes = NULL,
+                scan_chunk_offset = 0, updated_at = ?
+          WHERE order_id = ?`
+      ).bind(expectedHash, observedAt, first.toString(), last.toString(), last.toString(),
+        new Date().toISOString(), recoveryStore.orderId).run();
+    }
+  }
+
+  const firstHeight = BigInt(cursor.scan_first_height!);
+  const nextHeight = BigInt(cursor.scan_next_height!);
+  const chunkHashes: string[] = cursor.scan_chunk_hashes
+    ? JSON.parse(cursor.scan_chunk_hashes) as string[] : [];
+  let chunkOffset = Number(cursor.scan_chunk_offset ?? 0);
+  const persist = async (patch: {
+    nextHeight?: bigint; hashes?: string[] | null; offset?: number;
+  }) => {
+    if (!recoveryStore) return;
+    await recoveryStore.db.prepare(
+      `UPDATE payment_reconciliation_jobs
+          SET scan_next_height = ?, scan_chunk_hashes = ?, scan_chunk_offset = ?, updated_at = ?
+        WHERE order_id = ? AND scan_candidate_hash = ?`
+    ).bind(
+      (patch.nextHeight ?? nextHeight).toString(),
+      patch.hashes === undefined ? (chunkHashes.length ? JSON.stringify(chunkHashes) : null) :
+        (patch.hashes?.length ? JSON.stringify(patch.hashes) : null),
+      patch.offset ?? chunkOffset, new Date().toISOString(), recoveryStore.orderId, expectedHash,
+    ).run();
+  };
+
+  if (chunkHashes.length > 0 && chunkOffset < chunkHashes.length) {
+    const batch = chunkHashes.slice(chunkOffset, chunkOffset + 4);
+    const signers = new Set<string>();
+    await mapWithConcurrency(batch, 4, async (chunkHash) => {
+      const payload = await postJson(rpcUrl, {
+        jsonrpc: "2.0", id: "pelargo-near-chunk-scan", method: "chunk",
+        params: { chunk_id: chunkHash },
+      });
+      if (payload.error) throw new Error("NEAR RPC chunk lookup failed during signer recovery");
+      const transactions = Array.isArray(record(payload.result)?.transactions)
+        ? record(payload.result)!.transactions as unknown[] : [];
+      for (const raw of transactions) {
+        const tx = record(raw);
+        if (tx?.hash === expectedHash && typeof tx.signer_id === "string" &&
+            /^[a-z0-9._-]{2,64}$/.test(tx.signer_id)) signers.add(tx.signer_id);
+      }
+      return null;
+    });
+    if (signers.size === 1) {
+      await persist({ hashes: null, offset: 0 });
+      onDiagnostic?.("signer_resolved_from_canonical_rpc_block_scan");
+      return [...signers][0];
+    }
+    if (signers.size > 1) throw new Error("NEAR signer recovery returned ambiguous matching signers");
+    chunkOffset += batch.length;
+    if (chunkOffset >= chunkHashes.length) await persist({ hashes: null, offset: 0 });
+    else await persist({ offset: chunkOffset });
+    onDiagnostic?.("testnet_rpc_block_scan_progress",
+      `chunks=${Math.min(chunkOffset, chunkHashes.length)}/${chunkHashes.length}; blocks_before=${nextHeight}`);
+    return null;
+  }
+
+  if (nextHeight < firstHeight) {
+    onDiagnostic?.("testnet_rpc_block_scan_exhausted",
+      `heights=${firstHeight}-${cursor.scan_last_height}; candidate=${expectedHash}`);
+    return null;
+  }
+
+  const heights: bigint[] = [];
+  for (let h = nextHeight; h >= firstHeight && heights.length < 8; h--) heights.push(h);
+  const blocks = await mapWithConcurrency(heights, 4, (height) => rpcBlockByHeight(rpcUrl, height));
+  const refs: string[] = [];
+  for (const block of blocks) {
+    const chunks = Array.isArray(block.chunks) ? block.chunks : [];
+    for (const raw of chunks) {
+      const chunk = record(raw);
+      if (!chunk || typeof chunk.chunk_hash !== "string" || chunk.tx_root === EMPTY_NEAR_TX_ROOT) continue;
+      if (!refs.includes(chunk.chunk_hash)) refs.push(chunk.chunk_hash);
+    }
+  }
+  const next = heights[heights.length - 1] - 1n;
+  await persist({ nextHeight: next, hashes: refs, offset: 0 });
+  onDiagnostic?.("testnet_rpc_block_scan_progress",
+    `blocks=${heights.length}; chunks_found=${refs.length}; next_height=${next}`);
+  return null;
 }
 
 /**
