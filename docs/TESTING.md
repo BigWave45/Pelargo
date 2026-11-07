@@ -14,7 +14,7 @@ The GitHub Actions CI workflow runs on pushes and pull requests. Its required ch
 - Syntax validation of the external merchant smoke-test script.
 - Frontend production build via `bun run build`.
 
-The release-candidate head before the latest documentation alignment, `dc742880b4d41f8bf4a2234d7fe18852673195f0`, passed CI run 799. The run completed dependency installation, type-checking, checkout-session security tests, checkout/API integration tests, external merchant smoke-test syntax validation and frontend build: https://github.com/BigWave45/Pelargo/actions/runs/42394397895. The Cloudflare Pages candidate deployment for that same head also succeeded. Documentation-only commits have since been added to `release/hackathon-candidate`; their checks must complete before merge. CI success is not a substitute for hosted end-to-end acceptance.
+The exact release-candidate head `c1ad819331f2c037496f7253b09e94cb483c604c` passed GitHub Actions CI run 809 before merge. All nine workflow steps passed, including dependency installation, type-check/lint, checkout-session security tests, checkout/API integration tests, external merchant smoke-test syntax validation and frontend production build: https://github.com/BigWave45/Pelargo/actions/runs/42396665675. PR #7 then merged that exact head into `main` at `d18ae93a3eda3263eadc420cb951f4ebe52b2764`. Cloudflare Pages successfully built and deployed that merge commit as a Preview deployment using the isolated Preview D1 binding. README and release-status documentation were subsequently updated on `main`; those documentation commits trigger additional Preview builds but do not change application code. CI success is not a substitute for hosted end-to-end acceptance.
 
 ## Automated security and API coverage
 
