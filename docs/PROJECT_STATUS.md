@@ -1,24 +1,46 @@
-# Pelargo release candidate status
+# Pelargo release status
 
 **Updated:** 7 November 2026  
 **Repository:** https://github.com/BigWave45/Pelargo  
-**Release candidate:** `release/hackathon-candidate`  
+**Default branch:** `main`  
+**Merged release candidate:** `release/hackathon-candidate` via PR #7  
 **Integrated Preview:** `reliability/background-reconciliation`  
 **Cloudflare Pages production branch:** `build/live-intents`
 
-## Canonical branch strategy
+## Canonical release state
 
-Use one release path. Do not merge the historical feature branches independently into `main`.
+- PR #7, "Release candidate: consolidate verified Pelargo checkout", was merged into `main`.
+- Merge commit: `d18ae93a3eda3263eadc420cb951f4ebe52b2764`.
+- The merged release includes the verified MetaMask Connect SDK handoff for external mobile browsers, the injected EIP-1193 provider path inside MetaMask Mobile, Reown AppKit for other supported wallet sessions, matching package/lock files, and aligned README, integration, testing and status documentation.
+- The historical integrated branch's 500+ commit history was not merged wholesale. PR #4 remains closed and unused.
+- The GitHub repository's default branch is `main`.
 
-- `main` is the current release base. It contains the integrated Pelargo application tree, but predates the final MetaMask Connect SDK integration and the latest supporting documentation.
-- `reliability/background-reconciliation` is the integrated non-production Preview source. It includes the accepted blue-white design, external merchant acceptance work, MetaMask Connect SDK handoff and subsequent provider/lifecycle documentation.
-- `release/hackathon-candidate` is the clean release branch created from `main`. It selectively carries the verified differences from the integrated Preview branch: package manifest and lockfile, MetaMask Connect checkout implementation, Preview AppKit metadata, README and acceptance/integration/status documentation. It deliberately does not import the old integration branch's 500+ commit history.
-- `build/live-intents` is the existing Cloudflare Pages production branch. It is not the release base and must not be overwritten.
-- `design/blue-white-premium` (PR #5) and `test/external-merchant-integration` (PR #6) were already merged into `reliability/background-reconciliation`.
-- `design/premium-ui`, `design/premium-checkout-widget`, `ops/*` and `reliability/near-verifier-diagnostics` are historical or superseded work branches. Their changes are not to be merged separately without identifying a concrete missing change first.
-- PR #4 is closed and unmerged. It targets `main` from the old integration branch and contains a very large historical commit range. Do not reopen or merge it as the release mechanism.
+## Cloudflare deployment state
 
-The release candidate is currently a fast-forward extension of `main`, with fourteen commits and no divergence (14 ahead, 0 behind `main`). At candidate head `dc742880b4d41f8bf4a2234d7fe18852673195f0`, type-checking, checkout-session security tests, checkout/API integration tests, external merchant smoke-test syntax validation and frontend build all passed in CI: https://github.com/BigWave45/Pelargo/actions/runs/42394397895. Cloudflare Pages also completed the candidate Preview deployment successfully: https://release-hackathon-candidate.pelargo.pages.dev.
+Cloudflare Pages project: `pelargo`.
+
+- Production branch remains `build/live-intents`.
+- The stable built-in hostname `https://pelargo.pages.dev` remains attached to the existing production deployment. It has not been switched.
+- The merge commit `d18ae93a3eda3263eadc420cb951f4ebe52b2764` automatically produced a successful Preview deployment at `https://main.pelargo.pages.dev`.
+- That deployment is a Preview environment and uses Preview D1 database `0335acdc-f0e0-42f6-ba87-e3448fb91728`.
+- The older candidate alias remains `https://release-hackathon-candidate.pelargo.pages.dev`.
+- The integrated acceptance Preview remains `https://reliability-background-recon.pelargo.pages.dev`.
+
+**Recommended public demo URL:** https://main.pelargo.pages.dev
+
+This URL is short, serves the exact merged `main` commit, and does not require a paid domain. It is still a Preview/testnet deployment, not production. Do not direct real customer funds to it.
+
+## Production promotion is separate
+
+The Pages production branch is still `build/live-intents`, with its own production D1 binding. The old production branch has a divergent history from the merged release candidate. Do not simply change the production branch to `main` or assume the production D1 schema/data is compatible.
+
+Before any production promotion, inspect and reconcile:
+1. The production branch's code and migrations against merged `main`.
+2. Production D1 schema and data compatibility, using a reviewed migration plan.
+3. Required production secrets and provider/RPC configuration.
+4. A rollback plan for code and database changes.
+
+No production branch change, production D1 read/write, production deployment, mainnet activation, paid domain purchase or custom-domain change was performed as part of PR #7 or this status update.
 
 ## Product and supported scope
 
@@ -35,17 +57,8 @@ The demonstrated Preview route is a provider-supported Base Sepolia ERC-20 sourc
 
 See [TESTING.md](TESTING.md) for the full evidence record and limitations.
 
-## Remaining release work
-
-1. Keep the README, integration guide and testing record aligned with the implemented MetaMask Connect SDK handoff, injected MetaMask path, Reown fallback and exact evidence limitations.
-2. Reconcile the candidate against the existing Cloudflare production baseline before any production promotion. Do not overwrite `build/live-intents` blindly.
-3. The free candidate Preview alias is available at `https://release-hackathon-candidate.pelargo.pages.dev`. The built-in `pelargo.pages.dev` address still serves the existing production branch; no custom domain is required.
-4. After explicit approval, merge the reviewed release candidate into GitHub `main`.
-5. Only after separate explicit approval, change Cloudflare Pages production branch configuration so `pelargo.pages.dev` serves the approved release.
-6. Verify the resulting public deployment without using real customer funds or enabling mainnet.
-
 ## Safety and limitations
 
-All demonstrated payment activity is testnet activity. Keep `ALLOW_MAINNET_DEPOSITS` unset. Do not use Preview to collect customer funds. Provider status, a quote, a deposit address or a submitted wallet transaction hash is not settlement proof. Do not claim production readiness, arbitrary-chain verification, automatic provider failover, merchant webhook delivery or guaranteed settlement times.
+All demonstrated payment activity is testnet activity. Keep `ALLOW_MAINNET_DEPOSITS` unset. Do not use Preview to collect customer funds. Provider status, a quote, a deposit address or a submitted wallet transaction hash is not settlement proof. Do not claim universal chain/token support, production readiness, automatic provider failover, merchant webhook delivery or guaranteed settlement times.
 
 No additional payment is needed merely to repeat the demonstrated route.
