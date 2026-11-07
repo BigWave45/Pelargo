@@ -104,27 +104,34 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (merchant: Merchant)
     finally { setBusy(false); }
   }
 
-  return <div className="auth-shell">
-    <div className="auth-card">
-      <a className="workspace-brand auth-brand" href="/"><span className="workspace-brand-mark">P</span><span>pelargo</span></a>
-      <div className="eyebrow">MERCHANT WORKSPACE</div>
-      <h1>{mode === "register" ? "Create your merchant account" : "Sign in"}</h1>
-      <p className="workspace-subtitle">{mode === "register" ? "Set up your checkout workspace. Buyers do not need Pelargo accounts." : "Access your merchant account."}</p>
-      <form onSubmit={submit}>
-        {mode === "register" && <><label className="field-label" htmlFor="auth-name">Business name</label><input id="auth-name" className="workspace-input" value={name} onChange={e => setName(e.target.value)} autoComplete="organization" required maxLength={120} /></>}
-        <label className="field-label" htmlFor="auth-email">Email address</label>
-        <input id="auth-email" className="workspace-input" type="email" value={email} onChange={e => setEmail(e.target.value)} autoComplete="email" required maxLength={254} />
-        <label className="field-label" htmlFor="auth-password">Password</label>
-        <input id="auth-password" className="workspace-input" type="password" value={password} onChange={e => setPassword(e.target.value)} autoComplete={mode === "register" ? "new-password" : "current-password"} required minLength={mode === "register" ? 12 : 1} maxLength={128} />
-        {mode === "register" && <p className="field-hint">Use at least 12 characters. This password protects access to your merchant workspace.</p>}
-        {mode === "login" && <p className="auth-switch" style={{ textAlign: "right", margin: "10px 0 0" }}><button type="button" onClick={() => setShowRecovery(true)}>Forgot password?</button></p>}
-        {error && <div className="notice-panel auth-error" role="alert">{error}</div>}
-        <button className="primary-button auth-submit" disabled={busy}>{busy ? (mode === "register" ? "Creating account…" : "Signing in…") : mode === "register" ? "Create account" : "Sign in"} {busy ? <RefreshCw size={15} className="auth-submit-spinner" /> : <ArrowUpRight size={15} />}</button>
-      </form>
-      <p className="auth-switch">{mode === "register" ? "Already have an account?" : "New to Pelargo?"} <button type="button" onClick={() => { setMode(mode === "register" ? "login" : "register"); setError(""); }}>{mode === "register" ? "Sign in" : "Create an account"}</button></p>
-      <p className="auth-footnote">Merchant accounts are for configuring checkout. Payment execution remains subject to network and settlement controls.</p>
-    </div>
-  </div>;
+  return <main className="auth-shell">
+    <section className="auth-panel" aria-labelledby="auth-heading">
+      <a className="auth-brand" href="/" aria-label="Pelargo home">
+        <span className="auth-brand-mark">P</span>
+        <span className="auth-brand-word">Pelargo</span>
+      </a>
+      <div className="auth-content">
+        <h1 id="auth-heading">{mode === "register" ? "Create your merchant account" : "Sign in"}</h1>
+        <p className="auth-description">{mode === "register" ? "Set up your checkout workspace. Buyers do not need Pelargo accounts." : "Access your merchant account."}</p>
+        <form className="auth-form" onSubmit={submit}>
+          {mode === "register" && <div className="auth-field"><label className="field-label" htmlFor="auth-name">Business name</label><input id="auth-name" className="workspace-input" value={name} onChange={e => setName(e.target.value)} autoComplete="organization" required maxLength={120} /></div>}
+          <div className="auth-field">
+            <label className="field-label" htmlFor="auth-email">Email address</label>
+            <input id="auth-email" className="workspace-input" type="email" value={email} onChange={e => setEmail(e.target.value)} autoComplete="email" placeholder="name@company.com" required maxLength={254} />
+          </div>
+          <div className="auth-field">
+            <label className="field-label" htmlFor="auth-password">Password</label>
+            <input id="auth-password" className="workspace-input" type="password" value={password} onChange={e => setPassword(e.target.value)} autoComplete={mode === "register" ? "new-password" : "current-password"} placeholder="Enter your password" required minLength={mode === "register" ? 12 : 1} maxLength={128} />
+          </div>
+          {mode === "register" && <p className="field-hint">Use at least 12 characters. This password protects access to your merchant workspace.</p>}
+          {mode === "login" && <div className="auth-forgot"><button type="button" onClick={() => setShowRecovery(true)}>Forgot password?</button></div>}
+          {error && <div className="notice-panel auth-error" role="alert">{error}</div>}
+          <button className="primary-button auth-submit" disabled={busy}>{busy ? (mode === "register" ? "Creating account…" : "Signing in…") : mode === "register" ? "Create account" : "Sign in"} {busy ? <RefreshCw size={15} className="auth-submit-spinner" /> : null}</button>
+        </form>
+        <p className="auth-switch">{mode === "register" ? "Already have an account?" : "Don't have an account?"} <button type="button" onClick={() => { setMode(mode === "register" ? "login" : "register"); setError(""); }}>{mode === "register" ? "Sign in" : "Create account"}</button></p>
+      </div>
+    </section>
+  </main>;
 }
 
 function BuyerCheckout({ token }: { token: string }) {
