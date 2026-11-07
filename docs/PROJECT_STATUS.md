@@ -1,17 +1,17 @@
 # Pelargo release status
 
-**Updated:** 7 November 2026 (judge-readiness audit)  
+**Updated:** 8 November 2026 (final testnet evidence and reconciliation audit)  
 **Repository:** https://github.com/BigWave45/Pelargo  
 **Default branch:** `main`  
-**Merged release baseline:** `main` (PR #7 release consolidation; documentation updates through PR #16)  
+**Merged release baseline:** `main` (PR #7 release consolidation; documentation updates through PR #17)  
 **Integrated Preview:** `reliability/background-reconciliation`  
 **Cloudflare Pages production branch:** `build/live-intents`
 
 ## Canonical release state
 
 - PR #7, "Release candidate: consolidate verified Pelargo checkout", was merged into `main`.
-- Documentation and metadata PRs #8–#16 are merged. PR #16 added the Cascade-benchmarked judge guide, hackathon mapping, architecture, threat model, verification matrix and documentation consistency updates.
-- Latest documentation merge commit: `9885756e05563572f68d53a0ae3b4874edac4073`.
+- Documentation and metadata PRs #8–#17 are merged. PR #16 added the Cascade-benchmarked judge guide, hackathon mapping, architecture, threat model and verification matrix. PR #17 clarified merchant reconciliation actions and the source refund address.
+- Latest documentation merge commit before this evidence update: `14a49411a7ecb145a0d8b32fa22044270bcd31d1`.
 - The merged release includes the verified MetaMask Connect SDK handoff for external mobile browsers, the injected EIP-1193 provider path inside MetaMask Mobile, Reown AppKit for other supported wallet sessions, matching package/lock files, and aligned README, integration, testing and status documentation.
 - The historical integrated branch's 500+ commit history was not merged wholesale. PR #4 remains closed and unused.
 - The GitHub repository's default branch is `main`.
@@ -22,7 +22,7 @@ Cloudflare Pages project: `pelargo`.
 
 - Production branch remains `build/live-intents`.
 - The stable built-in hostname `https://pelargo.pages.dev` remains attached to the existing production deployment. It has not been switched.
-- The curated release merge and subsequent documentation-only updates have produced Preview deployments at `https://main.pelargo.pages.dev`. The post-PR #16 deployment has not yet been verified.
+- The curated release and subsequent documentation-only updates have produced Preview deployments at `https://main.pelargo.pages.dev`. The latest deployment corresponding to the pending final evidence documentation update has not yet been verified.
 - That deployment is a Preview environment and uses Preview D1 database `0335acdc-f0e0-42f6-ba87-e3448fb91728`.
 - The older candidate alias remains `https://release-hackathon-candidate.pelargo.pages.dev`.
 - The integrated acceptance Preview remains `https://reliability-background-recon.pelargo.pages.dev`; it is not the recommended judge-facing demo.
@@ -53,10 +53,12 @@ The demonstrated Preview route is a provider-supported Base Sepolia ERC-20 sourc
 ## Verified acceptance
 
 - `ORDER-35541967`: complete dual-chain evidence for 1 USDC delivered to `agentg.testnet`, including Base Sepolia source-deposit evidence and independently verified NEAR destination-settlement evidence. Preview D1 read-back confirms order `paid`, lifecycle `settled`, provider `SUCCESS`, and matching destination candidate/evidence transaction `9myMAuSbY4NAcCWDkhZUWqQLGTW47Z2dkrxjhGgtJspS` for 1,000,000 atomic destination units.
+- `ORDER-71455096`: complete dual-chain evidence for 5 USDC delivered to `agentg.testnet`. Base Sepolia source transaction `0xbbccf1b245af1932f8feacb755d8574c6dd276965661123354f829ffb9f2ffd4` (5,063,164 atomic units) and NEAR destination transaction `EhTBbho5ZWgEUL2G8X36AizRWRKWcsJTzXzV3CvxVQbm` (5,000,000 atomic units) are now persisted against the same order ID. Source evidence was verified after destination settlement; the paid/settled state remained unchanged. The merchant verification response stated that the provider was not notified again.
 - `ORDER-83587591`: separate destination settlement evidence for 1 USDC to `agentg.testnet`, verified through canonical NEAR RPC. It also has a Base Sepolia source-deposit evidence record; the source amount is 1,012,633 atomic units while destination settlement is 1,000,000 atomic units. It is a separate record and not a contradiction of `ORDER-35541967`.
 - `ORDER-68886375`: user-confirmed external iPhone browser to MetaMask app handoff and completed Preview checkout. Preview confirms paid/settled, provider SUCCESS and independently verified NEAR destination evidence for 1 USDC to `agentg.testnet`. No source-deposit evidence row is recorded for this order; do not describe it as complete dual-chain evidence.
 - External merchant acceptance passed all seven hosted checks, including invalid-key rejection, session validation, merchant-scoped retrieval, duplicate reference rejection, pre-quote payment boundary and cross-merchant isolation. The smoke test creates a pending Preview order only and does not initiate a payment.
 - Automated CI covers type-checking, checkout-session security, API/lifecycle behavior, provider SUCCESS versus settlement evidence, Base Sepolia source-deposit verification, NEAR destination verification, reconciliation job concurrency and frontend build.
+- Latest merchant workspace snapshot: 10 orders, 0 in progress, 4 settled and 6 expired/needs attention. Read-only Preview D1 inspection confirmed four paid/settled orders and six expired orders. These are point-in-time counts, not fixed acceptance-test expectations.
 
 ## Preview reconciliation Worker
 
