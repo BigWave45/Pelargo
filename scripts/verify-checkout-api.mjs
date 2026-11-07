@@ -360,7 +360,7 @@ assert.equal(revokedOrder.status, 201, "revocation test order should be created"
 const revokedJti = JSON.parse(atob(revokedOrder.body.token.split(".")[0].replace(/-/g, "+").replace(/_/g, "/"))).jti;
 sqlite.query("UPDATE checkout_sessions SET status = 'revoked' WHERE jti = ?").run(revokedJti);
 const revokedLookup = await checkoutSession({
-  request: new Request("https://pelargo.test/api/checkout-session?token=" + encodeURIComponent(revokedOrder.body.token)),
+  request: new Request("https://pelargo.test/api/checkout-session", { headers: { authorization: `Bearer ${revokedOrder.body.token}` } }),
   env,
 });
 assert.equal(revokedLookup.status, 410, "revoked sessions must not be retrievable");
@@ -1088,7 +1088,7 @@ const duplicate = await checkoutSession({
 assert.equal(duplicate.status, 409, "duplicate merchant order IDs must be rejected");
 
 const inspected = await responseJson(await checkoutSession({
-  request: new Request("https://pelargo.test/api/checkout-session?token=" + encodeURIComponent(issued.body.token)),
+  request: new Request("https://pelargo.test/api/checkout-session", { headers: { authorization: `Bearer ${issued.body.token}` } }),
   env,
 }));
 assert.equal(inspected.status, 200, "active signed session should be retrievable");
