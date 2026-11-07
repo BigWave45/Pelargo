@@ -201,14 +201,14 @@ export async function reconcileDuePayments(
 
       const detail = `HTTP ${response.status}; ${statusResult.code ?? statusResult.settlement ?? "status_unavailable"}`;
       // A resumable RPC scan makes bounded progress on each invocation.
-      // Keep it on the five-minute cron cadence instead of exponential backoff.
+      // Schedule it before the next five-minute cron tick; a full five-minute delay can miss the next tick by a small amount and defer progress for another cycle.
       const scanProgress = statusResult.verificationDiagnostics?.some((item) =>
         item.stage === "testnet_rpc_block_scan_started" ||
         item.stage === "testnet_rpc_block_scan_progress" ||
         item.stage === "signer_resolved_from_canonical_rpc_block_scan" ||
         item.stage === "signer_reused_from_persisted_rpc_scan"
       ) ?? false;
-      await retryOrReleaseJob(env.DB, job, now, detail, scanProgress ? 5 * 60_000 : undefined);
+      await retryOrReleaseJob(env.DB, job, now, detail, scanProgress ? 4 * 60_000 : undefined);
       stats.deferred++;
       console.log("[pelargo] payment_reconciliation_deferred", {
         orderId: order.external_order_id,
