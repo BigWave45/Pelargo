@@ -142,9 +142,30 @@ export function PelargoCheckout({
   sessionToken = "",
   sessionExpiresAt = "",
 }: PelargoCheckoutProps) {
+  const recoveryKey = `pelargo:checkout-recovery:v1:${orderId}:${sessionExpiresAt}:${recipient}`;
+  type RecoveryState = {
+    version: 1;
+    orderId: string;
+    sessionExpiresAt: string;
+    recipient: string;
+    sourceAssetId?: string;
+    refundTo?: string;
+    paymentInstructions?: { address: string; memo?: string | null; quoteId: string; amountIn: string; amountInFormatted?: string; deadline?: string };
+    walletTxHash?: string;
+  };
+  function readRecovery(): RecoveryState | null {
+    try {
+      const raw = window.localStorage.getItem(recoveryKey);
+      if (!raw) return null;
+      const saved = JSON.parse(raw) as RecoveryState;
+      if (saved.version !== 1 || saved.orderId !== orderId || saved.sessionExpiresAt !== sessionExpiresAt || saved.recipient !== recipient) return null;
+      return saved;
+    } catch { return null; }
+  }
+  const [recovery] = useState<RecoveryState | null>(readRecovery);
   const [tokens, setTokens] = useState<Token[]>([]);
-  const [sourceAssetId, setSourceAssetId] = useState("");
-  const [refundTo, setRefundTo] = useState("");
+  const [sourceAssetId, setSourceAssetId] = useState(recovery?.sourceAssetId ?? "");
+  const [refundTo, setRefundTo] = useState(recovery?.refundTo ?? "");
   const [amount, setAmount] = useState(initialAmount);
 
   useEffect(() => {
@@ -158,19 +179,21 @@ export function PelargoCheckout({
   const [quoteId, setQuoteId] = useState("");
   const [requestedAt, setRequestedAt] = useState("");
   const [committing, setCommitting] = useState(false);
-  const [paymentInstructions, setPaymentInstructions] = useState<{ address: string; memo?: string | null; quoteId: string; amountIn: string; amountInFormatted?: string; deadline?: string } | null>(null);
+  const [paymentInstructions, setPaymentInstructions] = useState<RecoveryState["paymentInstructions"]>(recovery?.paymentInstructions ?? null);
   const [paymentStatus, setPaymentStatus] = useState<{ paymentStatus: string; providerStatus?: string; settlement?: string } | null>(null);
   const [walletAddress, setWalletAddress] = useState("");
   const [walletChainId, setWalletChainId] = useState("");
   const [walletBusy, setWalletBusy] = useState(false);
   const [walletBalance, setWalletBalance] = useState("");
   const [walletBalanceLoading, setWalletBalanceLoading] = useState(false);
-  const [walletTxHash, setWalletTxHash] = useState("");
+  const [walletTxHash, setWalletTxHash] = useState(recovery?.walletTxHash ?? "");
   const [statusError, setStatusError] = useState("");
   const quoteRequestRef = useRef(0);
   const [clockNow, setClockNow] = useState(Date.now());
   const sessionExpiryMs = sessionExpiresAt ? Date.parse(sessionExpiresAt) : Number.NaN;
   const sessionExpired = Number.isFinite(sessionExpiryMs) && clockNow >= sessionExpiryMs;
+  const quoteExpiryMs = paymentInstructions?.deadline ? Date.parse(paymentInstructions.deadline) : Number.NaN;
+  const quoteExpired = Number.isFinite(quoteExpiryMs) && clockNow >= quoteExpiryMs;
 
   useEffect(() => {
     if (!Number.isFinite(sessionExpiryMs)) return;
@@ -194,6 +217,24 @@ export function PelargoCheckout({
   useEffect(() => {
     clearQuote();
   }, [destinationSymbol, destinationNetwork, recipient, orderId]);
+
+  // Persist only the buyer's non-secret recovery state. Never store the signed
+  // checkout bearer token or wallet credentials in browser storage.
+  useEffect(() => {
+    try {
+      if (!paymentInstructions) {
+        window.localStorage.removeItem(recoveryKey);
+        return;
+      }
+      const saved: RecoveryState = {
+        version: 1, orderId, sessionExpiresAt, recipient,
+        sourceAssetId, refundTo, paymentInstructions, walletTxHash,
+      };
+      window.localStorage.setItem(recoveryKey, JSON.stringify(saved));
+    } catch {
+      // Storage can be unavailable in private browsing; the active checkout remains usable.
+    }
+  }, [recoveryKey, orderId, sessionExpiresAt, recipient, sourceAssetId, refundTo, paymentInstructions, walletTxHash]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -315,7 +356,7 @@ export function PelargoCheckout({
 
   async function payFromWallet() {
     if (!window.ethereum || !selectedSource || !baseTokenContract || !paymentInstructions || !walletAddress) return;
-    if (sessionExpired || (paymentInstructions.deadline && Date.parse(paymentInstructions.deadline) <= Date.now())) {
+    if (sessionExpired || quoteExpired) {
       setError("This checkout or quote has expired. Do not send funds. Ask the merchant for a new checkout link.");
       return;
     }
@@ -730,12 +771,13 @@ export function PelargoCheckout({
                   <button type="button" className="pelargo-text-button" onClick={() => copyValue(walletTxHash)}>Copy transaction hash</button>
                 </>
               ) : (
-                <button type="button" className="pelargo-quote-button" onClick={payFromWallet} disabled={!walletCanPay || walletBusy || walletBalanceLoading || walletBalance === "Unavailable"}>
+                <button type="button" className="pelargo-quote-button" onClick={payFromWallet} disabled={!walletCanPay || walletBusy || walletBalanceLoading || walletBalance === "Unavailable" || quoteExpired || sessionExpired}>
                   {walletBusy ? <><LoaderCircle size={15} className="pelargo-spin" /> Waiting for wallet…</> : <>Pay {paymentInstructions.amountInFormatted ?? paymentInstructions.amountIn} {selectedSource.symbol} from wallet <ArrowRight size={15} /></>}
                 </button>
               )}
             </div>
           )}
+          {(quoteExpired || sessionExpired) && <div className="pelargo-error" role="alert">These deposit instructions have expired. Do not send funds. Start a fresh quote from this checkout to continue.</div>}
           <div className="pelargo-payment-status" aria-live="polite">
             <span>Payment status</span>
             <strong>{paymentStatus?.paymentStatus?.replaceAll("_", " ") ?? "Waiting for status"}</strong>
@@ -744,6 +786,7 @@ export function PelargoCheckout({
             {statusError && <small role="alert">{statusError}</small>}
           </div>
           <p>{walletTxHash ? "The wallet transaction hash is not proof of payment. Pelargo waits for provider detection and independently verifies destination-chain settlement before marking this order paid." : "Creating these instructions did not send funds. You can pay from the connected Base Sepolia wallet above or use the deposit address manually. Pelargo checks provider status and independently verifies destination-chain settlement before marking this order paid."}</p>
+          <small>Your checkout details are saved on this device so you can return after switching to your wallet. Wallet approval is never saved.</small>
         </div>
       )}
       <div className="pelargo-checkout-foot">Merchant destination: {destinationToken?.symbol ?? destinationSymbol} · {recipient ? `${recipient.slice(0, 7)}…${recipient.slice(-5)}` : "Not configured"}</div>
