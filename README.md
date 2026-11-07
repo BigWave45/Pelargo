@@ -18,6 +18,24 @@ The widget is the global payment interface. NEAR is the settlement home. Other n
 
 The main and candidate URLs are non-production Preview deployments using the isolated Preview environment and Preview D1 database. They are testnet demonstrations. Do not use them to collect customer funds. The built-in production hostname, https://pelargo.pages.dev, remains on the separately configured production branch.
 
+
+## Judge walkthrough: hosted testnet checkout
+
+Use the merged-main Preview deployment: **https://main.pelargo.pages.dev**. It is an isolated testnet demonstration, not a production payment endpoint.
+
+1. **Open the merchant workspace.** Select **Create an account**. Enter a business name, an email address you control and a password of at least 12 characters. Registration creates a merchant workspace; buyers do not need Pelargo accounts.
+2. **Configure the NEAR destination.** Open **Payment destination**. Enter the exact NEAR testnet NEP-141 asset ID and decimals supported by the active Tidepool testnet catalogue, plus a NEAR testnet recipient account. The form's example asset ID is illustrative, not a guarantee that the asset is currently routable. Use a public receiving address only. Save the destination.
+3. **Create an order.** Open **Create checkout**, enter a unique order reference and an amount, then select **Create checkout link**. Creating a link creates a short-lived signed session; it does not move funds.
+4. **Open the buyer experience.** Copy the generated link and open it in a separate browser tab or private window. The buyer sees the merchant, requested amount, NEAR destination and source-asset selection. No buyer account is required.
+5. **Inspect a quote preview.** Select a currently supported Base Sepolia source asset and request the quote preview. The dry quote displays the source amount and route details; it does not create committed deposit instructions or send funds. Do not proceed to a committed quote or transfer for a documentation-only review.
+6. **Inspect the merchant lifecycle.** Return to the merchant workspace. The order should be visible as a newly created order, not as paid or settled. A checkout link or quote preview is not payment evidence. The order is marked paid only after Pelargo verifies matching NEAR destination settlement evidence.
+
+**What this walkthrough proves:** merchant registration, destination configuration, signed checkout-session creation, the hosted buyer surface and dry-quote presentation. It does not prove a live transfer, mainnet operation, broad route coverage or production readiness. A full payment is not required to inspect these surfaces.
+
+**Important constraints:** the currently demonstrated route is Base Sepolia ERC-20 to NEAR testnet NEP-141 through the configured Tidepool / NEAR Intents-compatible testnet environment. The evaluator must supply a valid testnet destination asset and recipient. Provider token availability can change. Mainnet committed quotes are disabled. Do not use this Preview to collect customer funds.
+
+If the Preview deployment is unavailable, use the local test commands below to validate the code-level checks. Those tests use mocked provider/RPC responses and do not substitute for hosted payment acceptance.
+
 ## The problem Pelargo addresses
 
 Merchants need one checkout they can place inside an existing storefront, without having to build payment orchestration across networks or independently reconcile settlement. Pelargo is designed to let customers pay from supported networks while merchants receive settlement on NEAR. A submitted wallet transaction, source-chain deposit, or provider success response is not proof that the merchant received the expected asset. Pelargo owns the order lifecycle and verifies the expected NEAR destination transfer before an order is marked paid.
