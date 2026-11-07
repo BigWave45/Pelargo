@@ -4,9 +4,9 @@
 
 Pelargo is an embeddable, non-custodial crypto checkout layer. Its long-term direction is universal checkout: merchants integrate once, while buyers can pay from supported wallets, networks and assets they already hold, with merchants receiving their configured settlement asset.
 
-**Provider strategy:** Pelargo is not Tidepool-only. The code supports official NEAR 1Click on mainnet and Tidepool's community testnet sandbox. Preview currently uses Tidepool; official 1Click is the default when `INTENTS_API_BASE_URL` is unset. These are different network environments, not interchangeable failover endpoints. Provider selection is currently one server-side configuration choice; automatic multi-provider failover is not implemented.
+**Provider strategy:** Pelargo uses an explicit provider-adapter registry for official NEAR 1Click (mainnet) and Tidepool (testnet). Preview currently uses Tidepool; official 1Click is the default when `INTENTS_API_BASE_URL` is unset. These are different network environments, not interchangeable failover endpoints. One provider is selected per environment. Automatic multi-provider failover, quote comparison and provider health routing are not implemented. Additional providers must receive an adapter and pass contract, auth, lifecycle and settlement-compatibility tests.
 
-**Current wallet limitation:** the connected-wallet path is currently limited to injected EIP-1193 wallets on Base Sepolia for provider-listed Base Sepolia ERC-20 assets. WalletConnect and other mobile connection methods are not implemented. Supporting additional wallets does not expand the provider's supported assets or routes.
+**Current wallet limitation:** the connected-wallet path is currently limited to injected EIP-1193 wallets on Base Sepolia for provider-listed Base Sepolia ERC-20 assets. MetaMask's asynchronous provider-injection detection is implemented; WalletConnect and other mobile connection methods are not implemented. Wallet connection is independent of provider selection and does not expand supported assets or routes.
 
 **What Pelargo owns:** merchant accounts and API credentials, signed checkout sessions, order binding and lifecycle, checkout UI, provider integration boundary, and independent NEAR NEP-141 destination settlement verification. The configured 1Click-compatible provider supplies source-asset discovery, quote/routing and deposit instructions. Pelargo's only implemented destination settlement verifier is NEAR NEP-141; a source route being offered does not imply that Pelargo can verify every possible destination.
 
@@ -38,7 +38,7 @@ Keep the implementation focused on this path. Do not add more chains, more index
 2. Pelargo returns a short-lived signed session token. The merchant passes it to the browser widget; the merchant API key stays server-side.
 3. The widget discovers provider-supported assets and requests a dry quote.
 4. A committed quote requests real deposit instructions. This is a payment action, not a preview.
-5. Pelargo polls 1Click and treats provider `SUCCESS` only as a signal to verify the destination transaction.
+5. Pelargo polls the selected 1Click-compatible provider and treats provider `SUCCESS` only as a signal to verify the destination transaction.
 6. The NEAR verifier resolves the transaction signer through a network-matched indexer, then asks canonical NEAR RPC to verify final execution and the exact token transfer.
 7. Only a matching verified transfer can mark the order paid.
 
