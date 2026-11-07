@@ -55,6 +55,8 @@ sqlite.exec(readFileSync(new URL("../migrations/0015_auth_rate_limits.sql", impo
 sqlite.exec(readFileSync(new URL("../migrations/0016_origin_deposit_evidence.sql", import.meta.url), "utf8"));
 sqlite.exec(readFileSync(new URL("../migrations/0017_payment_reconciliation_jobs.sql", import.meta.url), "utf8"));
 sqlite.exec(readFileSync(new URL("../migrations/0018_preview_password_reset.sql", import.meta.url), "utf8"));
+sqlite.exec(readFileSync(new URL("../migrations/0019_reconciliation_backfill_eligible_states.sql", import.meta.url), "utf8"));
+sqlite.exec(readFileSync(new URL("../migrations/0020_persisted_near_signer_scan.sql", import.meta.url), "utf8"));
 const db = {
   prepare(sql) { return new Statement(sqlite, sql); },
   batch(statements) {
