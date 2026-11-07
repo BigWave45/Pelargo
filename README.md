@@ -287,3 +287,14 @@ The Preview testnet order `ORDER-35541967` now has both source-deposit and desti
 The destination record verifies NEAR testnet transaction `9myMAuSbY4NAcCWDkhZUWqQLGTW47Z2dkrxjhGgtJspS`, token contract `usdc.tidepool-sandbox.testnet`, recipient `agentg.testnet`, amount `1000000` atomic units (1 USDC), block `276599398`, and 10,063 confirmations. Its verification source is also `chain_rpc`. Preview D1 reads back `checkout_orders.status = paid`, `payment_lifecycle.status = settled`, and provider status `SUCCESS`.
 
 The source-evidence backfill ran after provider success. The endpoint response confirmed that it recorded source evidence, left the existing destination settlement unchanged, and did not notify the provider again. Both evidence records were subsequently confirmed with read-only Preview D1 queries. This is a completed testnet verification record, not evidence of mainnet readiness or universal route support. No production resources were changed and mainnet deposits remain disabled.
+
+
+## Buyer checkout experience and checkout-link handling
+
+The buyer checkout now presents the merchant's order and destination details separately from the payment controls. The payment panel communicates the asset-selection, quote-preview and settlement stages, and distinguishes a submitted wallet transaction from independently verified destination settlement. The layout is responsive and uses the blue-and-white workspace design system. Payment APIs, quote commitment rules and settlement-verification requirements remain unchanged.
+
+New checkout links place the signed, short-lived buyer token in the URL fragment (for example, #checkout=...) rather than the query string. The browser reads the fragment and immediately removes it from the visible URL/history before making the session request. The session is then retrieved with an Authorization: Bearer header. The checkout-session GET endpoint no longer accepts bearer tokens in query parameters. The frontend retains compatibility with older query-based links by reading and stripping the token before sending it in the Authorization header; newly generated links use fragments. The token is not written to browser storage.
+
+This change reduces exposure through HTTP request URLs, access logs and referrer propagation. It does not make a checkout link non-transferable: anyone possessing the still-valid bearer link can use it, so merchants must treat it as a private, order-scoped credential.
+
+The merchant-to-buyer flow still requires an independent merchant-origin acceptance test. No stable public SDK/CDN package or platform-specific plugins are claimed by this implementation.
