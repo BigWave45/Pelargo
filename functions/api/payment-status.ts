@@ -528,6 +528,7 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
         orderId, message: error instanceof Error ? error.message : "unknown",
       });
       return json({
+        error: "NEAR destination settlement verification is temporarily unavailable",
         orderId, paymentStatus: verificationStatus, providerStatus: provider.status,
         settlement: "verification_unavailable_or_mismatched",
         code: "NEAR_SETTLEMENT_VERIFICATION_FAILED",
@@ -535,6 +536,7 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
           name: error instanceof Error ? error.name : "UnknownError",
           message: error instanceof Error ? error.message.slice(0, 240) : "Unknown verifier failure",
         },
+        verificationDiagnostics: candidateDiagnostics.slice(0, 24),
         providerEvidence,
         candidateHash: effectiveCandidateHash,
         depositInstructions,
