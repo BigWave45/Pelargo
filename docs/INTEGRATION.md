@@ -326,3 +326,18 @@ The source record is for Base Sepolia transaction `0x886ff617f13d6eddb23d376eaf2
 The destination record is for NEAR testnet transaction `9myMAuSbY4NAcCWDkhZUWqQLGTW47Z2dkrxjhGgtJspS`, token contract `usdc.tidepool-sandbox.testnet`, recipient `agentg.testnet`, amount `1000000` atomic units (1 USDC), block `276599398`, with 10,063 confirmations and `chain_rpc` verification. The order reads back as `paid` in `checkout_orders` and `settled` in `payment_lifecycle`.
 
 The post-success source-evidence recovery request is non-submitting: when the provider already reports `SUCCESS`, it verifies and records the original source transaction but does not call `deposit/submit`, re-run destination settlement, or change the existing destination evidence. For this order, the UI confirmed that the provider was not notified again. These values are a verified Preview testnet example, not a guarantee of future route availability or mainnet behavior.
+
+
+## Buyer checkout link and browser integration security
+
+Create a checkout session server-to-server with POST /api/checkout-session, authenticated using the merchant API key in the x-pelargo-merchant-key header. Keep that merchant key exclusively in the merchant backend. The response includes a signed, short-lived buyer session token and public order details.
+
+For a buyer-facing Pelargo-hosted link, place the buyer token in the URL fragment, not the query string. The browser application reads the fragment and removes it from the visible URL/history before making the session request. It then retrieves the public session with GET /api/checkout-session and an Authorization: Bearer header.
+
+The GET endpoint does not accept the token in a query parameter. The frontend currently supports older ?checkout= links for migration compatibility, but immediately removes the query parameter and sends the token in the Authorization header. New integrations should generate fragment-based links only.
+
+A URL fragment is not included in the HTTP request target and is not ordinarily sent as a referrer. This reduces accidental credential exposure in server access logs and referrer propagation; it does not make the link non-transferable. The signed token is a bearer credential scoped to one merchant order and expires. Anyone who obtains the active link can use it. Do not publish it, log it, place it in analytics events, or store it in persistent browser storage.
+
+The buyer session token is also supplied to the quote API in its request body and to payment-status polling through the Authorization header. Do not expose the merchant API key to buyer-side code.
+
+The embedded checkout currently has no stable published SDK/CDN package or official platform plugins. Treat existing embed examples as implementation guidance for the current Preview build, not as a versioned production distribution. The complete external merchant-origin flow still requires an independent acceptance test.
