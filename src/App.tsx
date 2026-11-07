@@ -421,29 +421,55 @@ export default function App() {
         </>}
         {section === "destination" && <>
           <div className="workspace-heading-row"><div><div className="eyebrow">MERCHANT CONFIGURATION</div><h1>Payment destination</h1><p className="workspace-subtitle">Set the asset and NEAR address your business wants to receive.</p></div></div>
-          <form className="form-panel" onSubmit={saveSettings}>
-            <div className="form-panel-heading"><span className="form-icon"><Wallet size={18} /></span><div><h2>Settlement details</h2><p>These values are saved to your merchant account and used when issuing checkout sessions.</p></div></div>
-            <label className="field-label" htmlFor="merchant-name">Business name</label><input id="merchant-name" className="workspace-input" value={settings.name || ""} onChange={e => setSettings({ ...settings, name: e.target.value })} required maxLength={120} />
-            <label className="field-label" htmlFor="destination-asset">NEAR Intents destination asset ID</label><input id="destination-asset" className="workspace-input mono-input" value={settings.destinationAsset || ""} onChange={e => setSettings({ ...settings, destinationAsset: e.target.value })} placeholder="e.g. nep141:usdc.omft.near" required maxLength={256} />
-            <div className="field-grid">
-              <div><label className="field-label" htmlFor="destination-symbol">Asset symbol</label><input id="destination-symbol" className="workspace-input" value={settings.destinationSymbol || ""} onChange={e => setSettings({ ...settings, destinationSymbol: e.target.value })} placeholder="USDC" required maxLength={32} /></div>
-              <div><label className="field-label" htmlFor="destination-decimals">Token decimals</label><input id="destination-decimals" className="workspace-input" type="number" min="0" max="30" value={settings.destinationDecimals} onChange={e => setSettings({ ...settings, destinationDecimals: Number(e.target.value) })} required /></div>
-            </div>
-            <label className="field-label" htmlFor="destination-network">Settlement network</label><select id="destination-network" className="workspace-input" value={settings.destinationNetwork || "NEAR"} onChange={e => setSettings({ ...settings, destinationNetwork: e.target.value })} required><option value="NEAR">NEAR · Tidepool testnet</option></select>
-            <label className="field-label" htmlFor="recipient">NEAR recipient address</label><input id="recipient" className="workspace-input mono-input" value={settings.recipient || ""} onChange={e => setSettings({ ...settings, recipient: e.target.value })} placeholder="account.near or supported token receiver" required maxLength={256} />
-            <div className="field-hint"><ShieldCheck size={14} /> Use a public recipient address only. Never enter a seed phrase or private key. Confirm the token ID and decimal precision against the provider catalogue before accepting payments.</div>
-            <div className="form-footer"><span>Changes are saved to your account.</span><button className="primary-button" disabled={busy}>{busy ? "Saving…" : "Save destination"} <ArrowUpRight size={15} /></button></div>
-          </form>
+          <div className="configuration-layout">
+            <form className="form-panel configuration-form" onSubmit={saveSettings}>
+              <div className="form-panel-heading"><span className="form-icon"><Wallet size={18} /></span><div><h2>Settlement destination</h2><p>Where Pelargo should deliver completed payments for this merchant.</p></div></div>
+              <div className="form-section-label">BUSINESS</div>
+              <label className="field-label" htmlFor="merchant-name">Business name</label><input id="merchant-name" className="workspace-input" value={settings.name || ""} onChange={e => setSettings({ ...settings, name: e.target.value })} required maxLength={120} />
+              <div className="form-section-label">RECEIVING ASSET</div>
+              <label className="field-label" htmlFor="destination-asset">NEAR Intents asset ID</label><input id="destination-asset" className="workspace-input mono-input" value={settings.destinationAsset || ""} onChange={e => setSettings({ ...settings, destinationAsset: e.target.value })} placeholder="nep141:usdc.omft.near" required maxLength={256} />
+              <div className="field-grid">
+                <div><label className="field-label" htmlFor="destination-symbol">Token symbol</label><input id="destination-symbol" className="workspace-input" value={settings.destinationSymbol || ""} onChange={e => setSettings({ ...settings, destinationSymbol: e.target.value })} placeholder="USDC" required maxLength={32} /></div>
+                <div><label className="field-label" htmlFor="destination-decimals">Token decimals</label><input id="destination-decimals" className="workspace-input" type="number" min="0" max="30" value={settings.destinationDecimals} onChange={e => setSettings({ ...settings, destinationDecimals: Number(e.target.value) })} required /></div>
+              </div>
+              <div className="form-section-label">SETTLEMENT ACCOUNT</div>
+              <label className="field-label" htmlFor="destination-network">Network</label><select id="destination-network" className="workspace-input" value={settings.destinationNetwork || "NEAR"} onChange={e => setSettings({ ...settings, destinationNetwork: e.target.value })} required><option value="NEAR">NEAR · Tidepool testnet</option></select>
+              <label className="field-label" htmlFor="recipient">Recipient address</label><input id="recipient" className="workspace-input mono-input" value={settings.recipient || ""} onChange={e => setSettings({ ...settings, recipient: e.target.value })} placeholder="account.near or supported token receiver" required maxLength={256} />
+              <div className="field-hint"><ShieldCheck size={14} /> Public address only. Never enter a seed phrase or private key. Verify the asset ID and decimals against the provider catalogue.</div>
+              <div className="form-footer"><span>Changes apply to newly created checkout sessions.</span><button className="primary-button" disabled={busy}>{busy ? "Saving…" : "Save destination"} <ArrowUpRight size={15} /></button></div>
+            </form>
+            <aside className="configuration-aside">
+              <span className="eyebrow">DESTINATION PREVIEW</span>
+              <h2>Where payments arrive</h2>
+              <p>Buyers pay with a supported source asset. Pelargo routes the transfer and verifies the destination settlement independently.</p>
+              <div className="destination-preview-row"><span>Business</span><strong>{settings.name || "Your business"}</strong></div>
+              <div className="destination-preview-row"><span>Receiving asset</span><strong>{settings.destinationSymbol || "Not configured"}</strong></div>
+              <div className="destination-preview-row"><span>Network</span><strong>{settings.destinationNetwork || "NEAR"}</strong></div>
+              <div className="destination-preview-row destination-address"><span>Recipient</span><code>{settings.recipient || "Add a recipient address"}</code></div>
+              <div className="configuration-note"><ShieldCheck size={15}/><span>Destination changes do not alter existing orders or completed settlements.</span></div>
+            </aside>
+          </div>
         </>}
         {section === "checkout" && <>
           <div className="workspace-heading-row"><div><div className="eyebrow">BUYER PAYMENT LINK</div><h1>Create checkout</h1><p className="workspace-subtitle">Generate a short-lived, signed checkout session for a specific order.</p></div></div>
-          <form className="form-panel" onSubmit={createCheckout}>
-            <div className="form-panel-heading"><span className="form-icon"><Link2 size={18} /></span><div><h2>New checkout</h2><p>Checkout sessions expire after 15 minutes. Creating a link does not move funds.</p></div></div>
-            <label className="field-label" htmlFor="order-id">Order reference</label><input id="order-id" className="workspace-input" value={orderId} onChange={e => setOrderId(e.target.value)} required maxLength={256} />
-            <label className="field-label" htmlFor="order-amount">Amount ({settings.destinationSymbol || "destination asset"})</label><input id="order-amount" className="workspace-input" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} required />
-            <div className="field-hint">Destination: {settings.destinationSymbol || "Not configured"} · {settings.destinationNetwork || "NEAR"}. Configure and save your destination before creating a link.</div>
-            <div className="form-footer"><span>Buyer does not need a Pelargo account.</span><button className="primary-button" disabled={busy}>{busy ? "Creating…" : "Create checkout link"} <ArrowUpRight size={15} /></button></div>
-          </form>
+          <div className="checkout-create-layout">
+            <form className="form-panel checkout-create-form" onSubmit={createCheckout}>
+              <div className="form-panel-heading"><span className="form-icon"><Link2 size={18} /></span><div><h2>Order details</h2><p>Create a private, time-limited payment link for one order.</p></div></div>
+              <label className="field-label" htmlFor="order-id">Order reference</label><input id="order-id" className="workspace-input" value={orderId} onChange={e => setOrderId(e.target.value)} required maxLength={256} />
+              <label className="field-label" htmlFor="order-amount">Amount to receive ({settings.destinationSymbol || "destination asset"})</label><div className="amount-input-wrap"><input id="order-amount" className="workspace-input" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} required /><span>{settings.destinationSymbol || "—"}</span></div>
+              <div className="checkout-create-meta"><span><ShieldCheck size={14}/> Signed checkout session</span><span><span className="meta-dot"/> Expires in 15 minutes</span></div>
+              <div className="form-footer"><span>Creating a link does not move funds.</span><button className="primary-button" disabled={busy || !settings.destinationAsset || !settings.recipient}>{busy ? "Creating…" : "Create checkout link"} <ArrowUpRight size={15} /></button></div>
+            </form>
+            <aside className="checkout-summary-panel">
+              <span className="eyebrow">CHECKOUT SUMMARY</span>
+              <h2>What your buyer will see</h2>
+              <div className="checkout-summary-amount"><small>Requested payment</small><strong>{amount || "0"} <i>{settings.destinationSymbol || "TOKEN"}</i></strong></div>
+              <div className="destination-preview-row"><span>Order</span><strong>{orderId || "—"}</strong></div>
+              <div className="destination-preview-row"><span>Settles to</span><strong>{settings.name || merchant.name}</strong></div>
+              <div className="destination-preview-row"><span>Destination</span><strong>{settings.destinationNetwork || "NEAR"} · {settings.destinationSymbol || "Not configured"}</strong></div>
+              {!settings.destinationAsset || !settings.recipient ? <div className="configuration-note"><Wallet size={15}/><span>Set a payment destination before creating a checkout.</span><button type="button" onClick={()=>setSection("destination")}>Configure</button></div> : <div className="configuration-note"><ShieldCheck size={15}/><span>Buyer can pay without creating a Pelargo account.</span></div>}
+            </aside>
+          </div>
           {createdLink && <section className="workspace-card generated-link"><div className="card-heading"><div><h3>Checkout link created</h3><p>Share this URL with the buyer. It is a bearer link and should be treated as private to this order.</p></div><Check size={18} /></div><div className="generated-link-value">{createdLink}</div><button className="quiet-button" onClick={async () => { await navigator.clipboard.writeText(createdLink); setCopied(true); }}><Copy size={14} /> {copied ? "Copied" : "Copy checkout link"}</button></section>}
         </>}
         {section === "developers" && <>
