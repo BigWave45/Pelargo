@@ -8,3 +8,4 @@ ALTER TABLE payment_reconciliation_jobs ADD COLUMN scan_last_height TEXT;
 ALTER TABLE payment_reconciliation_jobs ADD COLUMN scan_next_height TEXT;
 ALTER TABLE payment_reconciliation_jobs ADD COLUMN scan_chunk_hashes TEXT;
 ALTER TABLE payment_reconciliation_jobs ADD COLUMN scan_chunk_offset INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE payment_reconciliation_jobs ADD COLUMN scan_signer_id TEXT;
