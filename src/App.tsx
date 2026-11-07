@@ -3,7 +3,8 @@ import { PelargoCheckout } from "./components/PelargoCheckout.tsx";
 import { PasswordRecovery } from "./components/PasswordRecovery.tsx";
 import {
   ArrowUpRight, Check, Copy, LayoutDashboard, LogOut, Menu, Radio,
-  Settings2, ShieldCheck, Wallet, Code2, Link2, RefreshCw
+  Settings2, ShieldCheck, Wallet, Code2, Link2, RefreshCw,
+  UserRound, CreditCard, ChevronDown, Building2, Mail, SlidersHorizontal
 } from "lucide-react";
 import "./styles/workspace.css";
 import "./styles/workspace-premium.css";
