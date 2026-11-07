@@ -1,5 +1,33 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { AlertCircle, ArrowRight, Clock3, LoaderCircle, RefreshCw } from "lucide-react";
+import { AlertCircle, ArrowRight, Clock3, LoaderCircle, RefreshCw, Wallet, CheckCircle2 } from "lucide-react";
+
+type Eip1193Provider = {
+  request(args: { method: string; params?: unknown[] | Record<string, unknown> }): Promise<unknown>;
+  on?: (event: string, listener: (...args: unknown[]) => void) => void;
+  removeListener?: (event: string, listener: (...args: unknown[]) => void) => void;
+};
+declare global { interface Window { ethereum?: Eip1193Provider } }
+
+const BASE_SEPOLIA_CHAIN_ID = "0x14a34";
+const BASE_SEPOLIA_CHAIN = {
+  chainId: BASE_SEPOLIA_CHAIN_ID,
+  chainName: "Base Sepolia",
+  nativeCurrency: { name: "Sepolia Ether", symbol: "ETH", decimals: 18 },
+  rpcUrls: ["https://sepolia.base.org"],
+  blockExplorerUrls: ["https://sepolia-sepolia.blockscout.com"],
+};
+
+function baseSepoliaTokenContract(assetId: string): string | null {
+  const match = /^nep141:base-(0x[a-fA-F0-9]{40})\\.tp-omft\\.testnet$/i.exec(assetId);
+  return match?.[1] ?? null;
+}
+
+function formatUnits(value: bigint, decimals: number): string {
+  const base = 10n ** BigInt(decimals);
+  const whole = value / base;
+  const fraction = (value % base).toString().padStart(decimals, "0").replace(/0+$/, "");
+  return fraction ? `${whole}.${fraction}` : whole.toString();
+}
 
 type Token = {
   assetId: string;
@@ -113,6 +141,12 @@ export function PelargoCheckout({
   const [committing, setCommitting] = useState(false);
   const [paymentInstructions, setPaymentInstructions] = useState<{ address: string; memo?: string | null; quoteId: string; amountIn: string; amountInFormatted?: string; deadline?: string } | null>(null);
   const [paymentStatus, setPaymentStatus] = useState<{ paymentStatus: string; providerStatus?: string; settlement?: string } | null>(null);
+  const [walletAddress, setWalletAddress] = useState("");
+  const [walletChainId, setWalletChainId] = useState("");
+  const [walletBusy, setWalletBusy] = useState(false);
+  const [walletBalance, setWalletBalance] = useState("");
+  const [walletBalanceLoading, setWalletBalanceLoading] = useState(false);
+  const [walletTxHash, setWalletTxHash] = useState("");
   const [statusError, setStatusError] = useState("");
   const quoteRequestRef = useRef(0);
   const [clockNow, setClockNow] = useState(Date.now());
@@ -132,6 +166,7 @@ export function PelargoCheckout({
     setRequestedAt("");
     setPaymentInstructions(null);
     setPaymentStatus(null);
+    setWalletTxHash("");
     setStatusError("");
     setQuoting(false);
     setCommitting(false);
@@ -204,6 +239,155 @@ export function PelargoCheckout({
   }, [sourceTokens, sourceAssetId]);
 
   const selectedSource = sourceTokens.find((token) => token.assetId === sourceAssetId);
+  const baseTokenContract = selectedSource ? baseSepoliaTokenContract(selectedSource.assetId) : null;
+  const walletOnBaseSepolia = walletChainId.toLowerCase() === BASE_SEPOLIA_CHAIN_ID;
+  const walletCanPay = Boolean(walletAddress && walletOnBaseSepolia && baseTokenContract && paymentInstructions && !walletTxHash);
+
+  async function connectWallet() {
+    setError("");
+    if (!window.ethereum) {
+      setError("No injected EVM wallet was detected. Open this checkout in a browser with MetaMask or another EIP-1193 wallet.");
+      return;
+    }
+    setWalletBusy(true);
+    try {
+      const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
+      if (!Array.isArray(accounts) || typeof accounts[0] !== "string" || !/^0x[a-fA-F0-9]{40}$/.test(accounts[0])) {
+        throw new Error("The wallet did not return a valid EVM account.");
+      }
+      const chainId = await window.ethereum.request({ method: "eth_chainId" });
+      if (typeof chainId !== "string") throw new Error("The wallet did not return its active network.");
+      setWalletAddress(accounts[0]);
+      setWalletChainId(chainId);
+      setWalletTxHash("");
+      if (!refundTo.trim()) setRefundTo(accounts[0]);
+      if (chainId.toLowerCase() !== BASE_SEPOLIA_CHAIN_ID) {
+        setError("Wallet connected. Switch it to Base Sepolia before requesting a wallet payment.");
+      }
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Wallet connection was not completed.");
+    } finally {
+      setWalletBusy(false);
+    }
+  }
+
+  async function switchToBaseSepolia() {
+    if (!window.ethereum) return;
+    setError("");
+    setWalletBusy(true);
+    try {
+      try {
+        await window.ethereum.request({ method: "wallet_switchEthereumChain", params: [{ chainId: BASE_SEPOLIA_CHAIN_ID }] });
+      } catch (cause) {
+        const code = (cause as { code?: number })?.code;
+        if (code !== 4902) throw cause;
+        await window.ethereum.request({ method: "wallet_addEthereumChain", params: [BASE_SEPOLIA_CHAIN] });
+      }
+      const chainId = await window.ethereum.request({ method: "eth_chainId" });
+      if (typeof chainId !== "string") throw new Error("Unable to confirm the wallet network.");
+      setWalletChainId(chainId);
+      if (chainId.toLowerCase() !== BASE_SEPOLIA_CHAIN_ID) throw new Error("Wallet did not switch to Base Sepolia.");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to switch wallet to Base Sepolia.");
+    } finally {
+      setWalletBusy(false);
+    }
+  }
+
+  async function payFromWallet() {
+    if (!window.ethereum || !selectedSource || !baseTokenContract || !paymentInstructions || !walletAddress) return;
+    if (sessionExpired || (paymentInstructions.deadline && Date.parse(paymentInstructions.deadline) <= Date.now())) {
+      setError("This checkout or quote has expired. Do not send funds. Ask the merchant for a new checkout link.");
+      return;
+    }
+    if (!walletOnBaseSepolia) {
+      setError("Switch your wallet to Base Sepolia before paying.");
+      return;
+    }
+    if (!/^0x[a-fA-F0-9]{40}$/.test(paymentInstructions.address)) {
+      setError("The provider returned a deposit address that is not a valid Base EVM address. Use the manual instructions only after checking with the merchant.");
+      return;
+    }
+    if (!/^\\d+$/.test(paymentInstructions.amountIn) || BigInt(paymentInstructions.amountIn) <= 0n) {
+      setError("The committed quote does not contain a valid exact source amount.");
+      return;
+    }
+    const tokenAddress = baseTokenContract;
+    const amountAtomic = BigInt(paymentInstructions.amountIn);
+    const transferData = "0xa9059cbb" + paymentInstructions.address.slice(2).toLowerCase().padStart(64, "0") + amountAtomic.toString(16).padStart(64, "0");
+    const confirmed = window.confirm(
+      "Send the exact quoted testnet amount from your connected wallet?\\n\\nNetwork: Base Sepolia\\nToken contract: " + tokenAddress + "\\nDeposit address: " + paymentInstructions.address + "\\nAmount (atomic units): " + paymentInstructions.amountIn + "\\n\\nOnly approve the matching ERC-20 transfer in your wallet. This testnet transfer cannot be reversed."
+    );
+    if (!confirmed) return;
+    setError("");
+    setWalletBusy(true);
+    try {
+      const currentChain = await window.ethereum.request({ method: "eth_chainId" });
+      if (typeof currentChain !== "string" || currentChain.toLowerCase() !== BASE_SEPOLIA_CHAIN_ID) {
+        throw new Error("Wallet network changed. Switch back to Base Sepolia and retry.");
+      }
+      const accounts = await window.ethereum.request({ method: "eth_accounts" });
+      if (!Array.isArray(accounts) || typeof accounts[0] !== "string" || accounts[0].toLowerCase() !== walletAddress.toLowerCase()) {
+        throw new Error("The connected wallet account changed. Reconnect before paying.");
+      }
+      const balanceData = "0x70a08231" + walletAddress.slice(2).toLowerCase().padStart(64, "0");
+      const rawBalance = await window.ethereum.request({ method: "eth_call", params: [{ to: tokenAddress, data: balanceData }, "latest"] });
+      if (typeof rawBalance !== "string" || !/^0x[0-9a-fA-F]+$/.test(rawBalance)) throw new Error("Unable to verify the token balance in your wallet.");
+      if (BigInt(rawBalance) < amountAtomic) throw new Error("Insufficient token balance for this exact quote amount.");
+      const hash = await window.ethereum.request({
+        method: "eth_sendTransaction",
+        params: [{ from: walletAddress, to: tokenAddress, data: transferData, value: "0x0" }],
+      });
+      if (typeof hash !== "string" || !/^0x[a-fA-F0-9]{64}$/.test(hash)) throw new Error("The wallet did not return a valid transaction hash.");
+      setWalletTxHash(hash);
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : "Wallet transaction was not submitted.";
+      setError(message);
+    } finally {
+      setWalletBusy(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!walletAddress || !baseTokenContract || !window.ethereum || !walletOnBaseSepolia) {
+      setWalletBalance("");
+      return;
+    }
+    let cancelled = false;
+    setWalletBalanceLoading(true);
+    const data = "0x70a08231" + walletAddress.slice(2).toLowerCase().padStart(64, "0");
+    window.ethereum.request({ method: "eth_call", params: [{ to: baseTokenContract, data }, "latest"] })
+      .then((result) => {
+        if (cancelled) return;
+        if (typeof result !== "string" || !/^0x[0-9a-fA-F]+$/.test(result)) throw new Error("Invalid token balance response.");
+        setWalletBalance(formatUnits(BigInt(result), selectedSource?.decimals ?? 6));
+      })
+      .catch(() => { if (!cancelled) setWalletBalance("Unavailable"); })
+      .finally(() => { if (!cancelled) setWalletBalanceLoading(false); });
+    return () => { cancelled = true; };
+  }, [walletAddress, walletChainId, baseTokenContract, selectedSource?.decimals]);
+
+  useEffect(() => {
+    const provider = window.ethereum;
+    if (!provider?.on) return;
+    const handleAccounts = (...args: unknown[]) => {
+      const accounts = args[0];
+      const address = Array.isArray(accounts) && typeof accounts[0] === "string" ? accounts[0] : "";
+      setWalletAddress(address);
+      setWalletTxHash("");
+      if (address) setRefundTo(address);
+    };
+    const handleChain = (...args: unknown[]) => {
+      const chainId = args[0];
+      if (typeof chainId === "string") setWalletChainId(chainId);
+    };
+    provider.on("accountsChanged", handleAccounts);
+    provider.on("chainChanged", handleChain);
+    return () => {
+      provider.removeListener?.("accountsChanged", handleAccounts);
+      provider.removeListener?.("chainChanged", handleChain);
+    };
+  }, []);
 
   async function requestDryQuote() {
     setError("");
@@ -438,6 +622,26 @@ export function PelargoCheckout({
         </div>
       )}
 
+      {selectedSource && baseTokenContract && (
+        <div className="pelargo-wallet-panel">
+          <div className="pelargo-wallet-heading"><Wallet size={17} /><strong>Pay from your Base wallet</strong></div>
+          <p>Connect an EVM wallet to pay the exact quoted USDC amount on Base Sepolia. Pelargo never receives your private key.</p>
+          {!walletAddress ? (
+            <button type="button" className="pelargo-quote-button" onClick={connectWallet} disabled={walletBusy || sessionExpired}>
+              {walletBusy ? <><LoaderCircle size={15} className="pelargo-spin" /> Connecting…</> : <>Connect wallet <ArrowRight size={15} /></>}
+            </button>
+          ) : (
+            <>
+              <div className="pelargo-quote-detail"><span>Connected account</span><code>{walletAddress.slice(0, 8)}…{walletAddress.slice(-6)}</code></div>
+              <div className="pelargo-quote-detail"><span>Network</span><strong>{walletOnBaseSepolia ? "Base Sepolia" : `Wrong network (${walletChainId})`}</strong></div>
+              {walletOnBaseSepolia && <div className="pelargo-quote-detail"><span>{selectedSource.symbol} balance</span><strong>{walletBalanceLoading ? "Checking…" : walletBalance || "Unavailable"}</strong></div>}
+              {!walletOnBaseSepolia && <button type="button" className="pelargo-quote-button" onClick={switchToBaseSepolia} disabled={walletBusy}>Switch to Base Sepolia</button>}
+              <button type="button" className="pelargo-text-button" onClick={connectWallet} disabled={walletBusy}>Reconnect wallet</button>
+            </>
+          )}
+        </div>
+      )}
+
       <label className="pelargo-field-label" htmlFor="pelargo-refund">Your refund address on {selectedSource?.blockchain ?? "the source network"}</label>
       <input id="pelargo-refund" className="pelargo-text-input" value={refundTo} onChange={(event) => { setRefundTo(event.target.value); clearQuote(); }} placeholder="Wallet address for refunds" autoComplete="off" />
 
@@ -482,6 +686,22 @@ export function PelargoCheckout({
           )}
           <div className="pelargo-quote-detail"><span>Provider quote reference</span><strong>{paymentInstructions.quoteId}</strong></div>
           {paymentInstructions.deadline && <div className="pelargo-quote-detail"><span>Deposit deadline</span><strong>{formatExpiry(paymentInstructions.deadline)}</strong></div>}
+          {baseTokenContract && walletAddress && (
+            <div className="pelargo-wallet-payment">
+              {walletTxHash ? (
+                <>
+                  <div className="pelargo-wallet-heading"><CheckCircle2 size={17} /><strong>Transaction submitted</strong></div>
+                  <p>Your wallet submitted the source transfer. Pelargo is waiting for provider detection and independent settlement verification.</p>
+                  <div className="pelargo-deposit-address">{walletTxHash}</div>
+                  <button type="button" className="pelargo-text-button" onClick={() => copyValue(walletTxHash)}>Copy transaction hash</button>
+                </>
+              ) : (
+                <button type="button" className="pelargo-quote-button" onClick={payFromWallet} disabled={!walletCanPay || walletBusy || walletBalanceLoading || walletBalance === "Unavailable"}>
+                  {walletBusy ? <><LoaderCircle size={15} className="pelargo-spin" /> Waiting for wallet…</> : <>Pay {paymentInstructions.amountInFormatted ?? paymentInstructions.amountIn} {selectedSource.symbol} from wallet <ArrowRight size={15} /></>}
+                </button>
+              )}
+            </div>
+          )}
           <div className="pelargo-payment-status" aria-live="polite">
             <span>Payment status</span>
             <strong>{paymentStatus?.paymentStatus?.replaceAll("_", " ") ?? "Waiting for status"}</strong>
@@ -489,7 +709,7 @@ export function PelargoCheckout({
             {paymentStatus?.settlement && <small>Settlement check: {paymentStatus.settlement.replaceAll("_", " ")}</small>}
             {statusError && <small role="alert">{statusError}</small>}
           </div>
-          <p>Creating these instructions did not send funds. After you send the testnet deposit, Pelargo checks provider status and independently verifies destination-chain settlement. Provider success or a wallet send alone does not mean the order is paid.</p>
+          <p>{walletTxHash ? "The wallet transaction hash is not proof of payment. Pelargo waits for provider detection and independently verifies destination-chain settlement before marking this order paid." : "Creating these instructions did not send funds. You can pay from the connected Base Sepolia wallet above or use the deposit address manually. Pelargo checks provider status and independently verifies destination-chain settlement before marking this order paid."}</p>
         </div>
       )}
       <div className="pelargo-checkout-foot">Merchant destination: {destinationToken?.symbol ?? destinationSymbol} · {recipient ? `${recipient.slice(0, 7)}…${recipient.slice(-5)}` : "Not configured"}</div>
