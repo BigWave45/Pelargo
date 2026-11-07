@@ -22,6 +22,10 @@ Pelargo owns merchant accounts and API-key boundaries, signed checkout sessions,
 
 A provider SUCCESS, a source-chain transfer or a submitted wallet transaction hash is not sufficient to mark an order paid. Settlement requires canonical destination-chain verification and matching persisted evidence.
 
+## Testing
+
+See [docs/TESTING.md](docs/TESTING.md) for the consolidated automated, hosted and manual acceptance record, including explicit limitations and outstanding checks.
+
 ## Verified Preview test
 
 ORDER-35541967 completed the Base Sepolia → NEAR testnet route. Preview records both immutable source-deposit evidence and independently verified destination-settlement evidence. The merchant received exactly 1 USDC on agentg.testnet.
