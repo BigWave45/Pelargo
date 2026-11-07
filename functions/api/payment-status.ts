@@ -440,6 +440,14 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
             candidateDiagnostics.push({ hash, stage: "verifier_exception", detail });
             candidateErrors.push(`${hash}: ${detail}`);
           }
+          // A bounded RPC block scan is deliberately limited to one candidate
+          // per poll. Repeating a multi-block scan for every intermediate NEAR
+          // hash can multiply public-RPC load without improving safety.
+          if (candidateDiagnostics.some((item) =>
+            item.hash === hash && (
+              item.stage === "testnet_indexer_unavailable_rpc_block_scan" ||
+              item.stage === "signer_resolved_from_canonical_rpc_block_scan"
+            ))) break;
         }
         // Keep every candidate failure visible. A later candidate may still
         // verify successfully; if none does, return the complete bounded
