@@ -22,6 +22,7 @@ import { expireAbandonedCheckouts, recordUncertainQuoteCommits, reconcileDuePaym
 import { onRequest as operatorRecoveryCases } from "../functions/api/operator/recovery-cases.ts";
 import { signCheckoutSession } from "../functions/_lib/checkout-session.ts";
 import { sha256Hex } from "../functions/_lib/database.ts";
+import { intentsProviderAdapter, intentsProvider } from "../functions/_lib/intents.ts";
 
 class Statement {
   constructor(db, sql, values = []) { this.db = db; this.sql = sql; this.values = values; }
@@ -69,6 +70,32 @@ const env = {
   NEARSCANNER_API_KEY: "test-nearscanner-api-key",
 };
 const responseJson = async (response) => ({ status: response.status, body: await response.json() });
+
+// Provider adapter registry: explicit endpoints, network separation and auth isolation.
+const mainnetAdapter = intentsProviderAdapter({});
+assert.equal(mainnetAdapter.id, "near-1click");
+assert.equal(mainnetAdapter.network, "mainnet");
+assert.equal(mainnetAdapter.baseUrl, "https://1click.chaindefuser.com");
+const mainnetHeaders = new Headers();
+mainnetAdapter.applyAuthentication(mainnetHeaders, { ONECLICK_JWT: "test-jwt" });
+assert.equal(mainnetHeaders.get("authorization"), "Bearer test-jwt");
+
+const tidepoolAdapter = intentsProviderAdapter({ INTENTS_API_BASE_URL: "https://www.usetidepool.tech" });
+assert.equal(tidepoolAdapter.id, "tidepool");
+assert.equal(tidepoolAdapter.network, "testnet");
+const tidepoolHeaders = new Headers();
+tidepoolAdapter.applyAuthentication(tidepoolHeaders, { ONECLICK_JWT: "must-not-leak" });
+assert.equal(tidepoolHeaders.has("authorization"), false, "mainnet JWT must never reach Tidepool");
+
+assert.throws(
+  () => intentsProviderAdapter({ INTENTS_API_BASE_URL: "https://unregistered-provider.example" }),
+  /Unsupported NEAR Intents provider origin/,
+  "unregistered provider origins must fail closed",
+);
+assert.deepEqual(intentsProvider({ INTENTS_API_BASE_URL: "https://www.usetidepool.tech" }), {
+  baseUrl: "https://www.usetidepool.tech", network: "testnet",
+});
+
 
 const request = (url, method, body, headers = {}) => new Request(url, {
   method,
