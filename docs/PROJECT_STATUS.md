@@ -31,7 +31,7 @@ This proves one supported testnet route. It does not establish mainnet readiness
 - Injected EIP-1193 wallet support for eligible Base Sepolia ERC-20 source assets.
 - Exact provider-quoted deposit address and atomic amount are used for the wallet transfer.
 - Manual deposit instructions remain the fallback.
-- Reown AppKit / WalletConnect is pending. It is not currently enabled in Preview.
+- Reown AppKit is initialized in Preview using the user-provided Project ID, Ethers adapter and Base Sepolia-only network. Checkout wallet connection now uses AppKit hooks and its EIP-1193 provider. Cloudflare Pages build passed for commit `f95404888e8183c3b9ba031f9a28e1ed89419acf`; wallet interaction acceptance tests remain pending.
 
 **Frontend**
 - The active branch contains the redesigned merchant Overview, destination settings, checkout creation, hosted buyer checkout, Developers and account views.
