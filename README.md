@@ -12,7 +12,11 @@ The widget is the global payment interface. NEAR is the settlement home. Other n
 - **Release-candidate deployment:** https://release-hackathon-candidate.pelargo.pages.dev
 - **Integrated Preview (development/acceptance):** https://reliability-background-recon.pelargo.pages.dev
 - **Repository:** https://github.com/BigWave45/Pelargo
-- **Vision and development history:** [docs/VISION_AND_DEVELOPMENT_HISTORY.md](docs/VISION_AND_DEVELOPMENT_HISTORY.md) (product direction, parallel development branches and commit-history context)
+- **Vision and development history:** [docs/VISION_AND_DEVELOPMENT_HISTORY.md](docs/VISION_AND_DEVELOPMENT_HISTORY.md) (product direction and parallel development history)
+- **NEAR Hackathon submission map:** [HACKATHON.md](HACKATHON.md)
+- **Architecture:** [docs/architecture.md](docs/architecture.md)
+- **Threat model:** [docs/threat-model.md](docs/threat-model.md)
+- **Verification matrix:** [docs/verification-matrix.md](docs/verification-matrix.md)
 - **Judge guide and reproducible evidence:** [docs/JUDGE_GUIDE.md](docs/JUDGE_GUIDE.md)
 - **Testing and acceptance record:** [docs/TESTING.md](docs/TESTING.md)
 - **Merchant integration guide:** [docs/INTEGRATION.md](docs/INTEGRATION.md)
