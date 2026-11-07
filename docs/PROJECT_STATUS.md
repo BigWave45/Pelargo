@@ -113,3 +113,6 @@ The adapter boundary should be extended for additional compatible providers only
 - The checkout continues to poll the existing authenticated payment-status endpoint after restoring committed instructions. The buyer must request a fresh quote when the old quote expires; the old deposit address must not be reused.
 - Browser storage may be unavailable in private/restricted contexts; the active checkout remains usable in that case, but cross-reload recovery cannot be guaranteed.
 - This is a client-side recovery patch only. It does not yet provide cross-device recovery or a server-side resume endpoint. It has not yet been built, CI-tested, or accepted in MetaMask mobile. No Cloudflare deployment, merge, production change or payment was performed.
+
+- Follow-up hardening: recovery is now read in a client-side effect after mount rather than during the initial render, avoiding direct `localStorage` access during server rendering and preventing server/client hydration mismatch. Commit: `f3ed90881f8266375c6e5ea37a769480d9261e9a`.
+- CI status lookup for the recovery commits returned no reported statuses or PR-triggered workflow runs. Treat build/test status as unknown, not passed. Cloudflare Preview deployment and MetaMask mobile validation remain pending.
