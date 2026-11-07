@@ -72,3 +72,14 @@ Public copy and developer documentation must distinguish:
 - **Product direction:** a universal checkout interface that can add more wallet connectors, providers, source networks and settlement verifiers behind stable merchant and checkout contracts.
 
 No production deployment, provider migration, additional provider integration or payment initiation is authorized by this documentation update.
+
+
+---
+
+## Provider strategy clarification — 7 November 2026
+
+The earlier wording that described Tidepool as Pelargo's only provider option was incomplete. The current `functions/_lib/intents.ts` implementation allowlists both official NEAR 1Click (`https://1click.chaindefuser.com`) and Tidepool (`https://www.usetidepool.tech`). An unset `INTENTS_API_BASE_URL` selects official 1Click and classifies it as mainnet; the Preview environment explicitly selects Tidepool and is classified as testnet. `ONECLICK_JWT` is forwarded only to official mainnet 1Click. Mainnet committed quotes remain separately disabled unless `ALLOW_MAINNET_DEPOSITS=true` is explicitly configured.
+
+This is provider configurability, not multi-provider orchestration. One provider is selected per environment. No runtime health-based selection, quote retry across providers, automatic failover or simultaneous route comparison exists. Tidepool is the current Preview/testnet fallback; it is not a drop-in failover for an official mainnet quote. Once a provider has committed a quote and issued deposit instructions, the order must remain pinned to that provider and quote. Never recreate or reroute a committed order automatically.
+
+The adapter boundary should be extended for additional compatible providers only after validating their token identifiers, quote semantics, deposit/memo requirements, status lifecycle, transaction notification, expiry, fees and network environment. A provider's claim of NEAR Intents compatibility is not sufficient evidence that it matches the current 1Click contract. No provider switch, mainnet activation or payment was performed as part of this documentation correction.
