@@ -340,9 +340,9 @@ export function PelargoCheckout({
       } catch (cause) {
         const code = (cause as { code?: number })?.code;
         if (code !== 4902) throw cause;
-        await window.ethereum.request({ method: "wallet_addEthereumChain", params: [BASE_SEPOLIA_CHAIN] });
+        await activeWalletProvider.request({ method: "wallet_addEthereumChain", params: [BASE_SEPOLIA_CHAIN] });
       }
-      const chainId = await window.ethereum.request({ method: "eth_chainId" });
+      const chainId = await activeWalletProvider.request({ method: "eth_chainId" });
       if (typeof chainId !== "string") throw new Error("Unable to confirm the wallet network.");
       setWalletChainId(chainId);
       if (chainId.toLowerCase() !== BASE_SEPOLIA_CHAIN_ID) throw new Error("Wallet did not switch to Base Sepolia.");
@@ -389,19 +389,19 @@ export function PelargoCheckout({
     setError("");
     setWalletBusy(true);
     try {
-      const currentChain = await window.ethereum.request({ method: "eth_chainId" });
+      const currentChain = await activeWalletProvider.request({ method: "eth_chainId" });
       if (typeof currentChain !== "string" || currentChain.toLowerCase() !== BASE_SEPOLIA_CHAIN_ID) {
         throw new Error("Wallet network changed. Switch back to Base Sepolia and retry.");
       }
-      const accounts = await window.ethereum.request({ method: "eth_accounts" });
+      const accounts = await activeWalletProvider.request({ method: "eth_accounts" });
       if (!Array.isArray(accounts) || typeof accounts[0] !== "string" || accounts[0].toLowerCase() !== walletAddress.toLowerCase()) {
         throw new Error("The connected wallet account changed. Reconnect before paying.");
       }
       const balanceData = "0x70a08231" + walletAddress.slice(2).toLowerCase().padStart(64, "0");
-      const rawBalance = await window.ethereum.request({ method: "eth_call", params: [{ to: tokenAddress, data: balanceData }, "latest"] });
+      const rawBalance = await activeWalletProvider.request({ method: "eth_call", params: [{ to: tokenAddress, data: balanceData }, "latest"] });
       if (typeof rawBalance !== "string" || !/^0x[0-9a-fA-F]+$/.test(rawBalance)) throw new Error("Unable to verify the token balance in your wallet.");
       if (BigInt(rawBalance) < amountAtomic) throw new Error("Insufficient token balance for this exact quote amount.");
-      const hash = await window.ethereum.request({
+      const hash = await activeWalletProvider.request({
         method: "eth_sendTransaction",
         params: [{ from: walletAddress, to: tokenAddress, data: transferData, value: "0x0" }],
       });
@@ -423,7 +423,7 @@ export function PelargoCheckout({
     let cancelled = false;
     setWalletBalanceLoading(true);
     const data = "0x70a08231" + walletAddress.slice(2).toLowerCase().padStart(64, "0");
-    window.ethereum.request({ method: "eth_call", params: [{ to: baseTokenContract, data }, "latest"] })
+    activeWalletProvider.request({ method: "eth_call", params: [{ to: baseTokenContract, data }, "latest"] })
       .then((result) => {
         if (cancelled) return;
         if (typeof result !== "string" || !/^0x[0-9a-fA-F]+$/.test(result)) throw new Error("Invalid token balance response.");
