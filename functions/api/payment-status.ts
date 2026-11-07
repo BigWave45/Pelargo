@@ -446,6 +446,7 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
           if (candidateDiagnostics.some((item) =>
             item.hash === hash && (
               item.stage === "testnet_indexer_unavailable_rpc_block_scan" ||
+              item.stage === "testnet_rpc_block_scan_started" ||
               item.stage === "signer_resolved_from_canonical_rpc_block_scan"
             ))) break;
         }
