@@ -481,9 +481,9 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
           const results = await env.DB.batch([
             env.DB.prepare(
               `UPDATE payment_lifecycle
-                  SET destination_tx_candidate = ?, updated_at = ?
+                  SET destination_tx_candidate = ?, destination_tx_hash = ?, updated_at = ?
                 WHERE order_id = ? AND status = 'processing'`
-            ).bind(evidence.transactionHash, verifiedAt, payment.id),
+            ).bind(evidence.transactionHash, evidence.transactionHash, verifiedAt, payment.id),
             env.DB.prepare(
               `INSERT INTO payment_settlement_evidence
                 (order_id, destination_chain, destination_asset, token_contract, transaction_hash,
