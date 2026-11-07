@@ -65,6 +65,17 @@ This test creates a pending Preview order only. It does not commit a quote, requ
 
 No additional payment is required merely to repeat the demonstrated route.
 
+## Preview merchant workspace status snapshot
+
+Observed on 7 November 2026 at 16:49 UTC in the integrated Preview merchant workspace:
+
+- All orders: **9**
+- In progress: **0**
+- Settled: **3**
+- Needs attention: **6**
+
+The Preview D1 cross-check confirmed that the six needs-attention orders were all terminal: `checkout_orders.status = expired` and `payment_lifecycle.status = expired` for all six. The three settled orders had `checkout_orders.status = paid` and `payment_lifecycle.status = settled`. These are point-in-time workspace counts, not hard-coded CI expectations; future tests should assert lifecycle consistency and derive counts from the fixture/database rather than assume these exact totals.
+
 ## Deployment and scheduled-worker checks
 
 The Preview reconciliation Worker deployment workflow is manual-only and guarded to the `reliability/background-reconciliation` branch. Its workflow validates Preview-only credentials, dry-runs the staged and scheduled configurations, installs the encrypted reconciliation secret, activates the five-minute Cron Trigger, and checks the deployed Worker schedule and isolated Preview D1 binding.
