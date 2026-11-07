@@ -2,6 +2,8 @@ import { createAppKit } from "@reown/appkit/react";
 import { EthersAdapter } from "@reown/appkit-adapter-ethers";
 import { defineChain } from "@reown/appkit/networks";
 
+const previewOrigin = "https://reliability-background-recon.pelargo.pages.dev";
+
 export const pelargoBaseSepolia = defineChain({
   id: 84532,
   caipNetworkId: "eip155:84532",
@@ -24,8 +26,10 @@ export const pelargoAppKit = createAppKit({
   metadata: {
     name: "Pelargo",
     description: "Merchant-controlled crypto checkout with independently verified settlement.",
-    url: "https://design-blue-white-premium.pelargo.pages.dev",
-    icons: ["https://design-blue-white-premium.pelargo.pages.dev/favicon.ico"],
+    url: previewOrigin,
+    icons: [`${previewOrigin}/favicon.ico`],
+    // Tell external wallets where to return after the WalletConnect handoff.
+    redirect: { universal: previewOrigin },
   },
   themeMode: "light",
   features: { analytics: false, email: false, socials: [] },
