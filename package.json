@@ -11,7 +11,8 @@
     "lint": "tsc --noEmit",
     "build:embed": "vite build --config vite.embed.config.ts",
     "test:security": "bun run scripts/verify-checkout-session.ts",
-    "test:api": "bun run scripts/verify-checkout-api.mjs"
+    "test:api": "bun run scripts/verify-checkout-api.mjs",
+    "test:external-merchant": "node scripts/external-merchant-smoke.mjs"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
