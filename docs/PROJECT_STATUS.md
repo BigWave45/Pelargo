@@ -22,7 +22,7 @@ Cloudflare Pages project: `pelargo`.
 
 - Production branch remains `build/live-intents`.
 - The stable built-in hostname `https://pelargo.pages.dev` remains attached to the existing production deployment. It has not been switched.
-- The curated release and subsequent documentation-only updates have produced Preview deployments at `https://main.pelargo.pages.dev`. The latest deployment corresponding to the pending final evidence documentation update has not yet been verified.
+- The curated release and subsequent documentation-only updates have produced Preview deployments at `https://main.pelargo.pages.dev`. The Preview deployment corresponding to the latest main-branch documentation revision has not yet been verified.
 - That deployment is a Preview environment and uses Preview D1 database `0335acdc-f0e0-42f6-ba87-e3448fb91728`.
 - The older candidate alias remains `https://release-hackathon-candidate.pelargo.pages.dev`.
 - The integrated acceptance Preview remains `https://reliability-background-recon.pelargo.pages.dev`; it is not the recommended judge-facing demo.
