@@ -39,6 +39,14 @@ The current Preview demonstration uses a provider-supported **Base Sepolia ERC-2
 
 This is a specific testnet route, not universal cross-chain coverage. Route and asset availability depend on the provider's catalogue and liquidity. Pelargo does not currently provide arbitrary-chain settlement verification, automatic provider failover or route comparison. Mainnet committed quotes remain disabled.
 
+## Why NEAR matters to Pelargo
+
+NEAR is the destination settlement network in the demonstrated cross-chain payment flow, not a decorative wallet or an incidental integration. The current route brings a payment from Base Sepolia to a NEAR testnet NEP-141 asset. Pelargo then checks the destination transfer against the merchant order's expected token, recipient and amount using NEAR chain data before it treats settlement as complete.
+
+This makes NEAR part of the product's core trust boundary: the merchant's paid decision depends on independently verifiable delivery to the NEAR destination, rather than relying only on the routing provider's status. The configured route uses a Tidepool / NEAR Intents-compatible testnet environment. We describe it that way deliberately; this repository does not claim to implement the NEAR Intents protocol itself or to provide general-purpose NEAR routing infrastructure.
+
+The current scope is specific and testnet-only. The demonstrated route and evidence are documented above and in [docs/TESTING.md](docs/TESTING.md). Broader NEAR asset/network coverage should be claimed only when implemented and verified.
+
 ## Wallet connection
 
 - External mobile browsers use the official `@metamask/connect-evm` client to initiate MetaMask app handoff and obtain an EIP-1193 provider.
@@ -68,7 +76,7 @@ The repository includes a custom-element embed and integration documentation. Th
 - Application/API: Cloudflare Pages Functions.
 - Persistence: Cloudflare D1.
 - Provider integration: Tidepool / NEAR Intents-compatible testnet environment.
-- Destination verification: NEAR NEP-141 chain verification.
+- NEAR integration: NEP-141 destination-asset settlement verification using NEAR chain data; the demonstrated cross-chain route uses a Tidepool / NEAR Intents-compatible testnet environment.
 - Background processing: scheduled reconciliation Worker for payment lifecycle recovery and verification.
 
 The implementation includes merchant-scoped API access, signed short-lived checkout sessions, lifecycle transition validation, audit events, provider quote binding, source-deposit verification for the configured Base Sepolia route, destination settlement verification and reconciliation-job concurrency controls.
