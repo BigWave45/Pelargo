@@ -32,9 +32,9 @@ No additional payment is needed merely to repeat the already demonstrated route.
 
 ## Wallet connection
 
-The current direct wallet path supports injected EIP-1193 wallets on Base Sepolia for eligible provider-listed ERC-20 assets. MetaMask asynchronous provider detection is handled, but mobile browser acceptance remains part of the test plan.
+The checkout now initializes Reown AppKit with the Ethers adapter and a Base Sepolia-only network configuration. The buyer wallet selector opens through AppKit, and the checkout reads the EIP-1193 provider, account and network state from AppKit. Existing exact-amount ERC-20 transfer checks and independent settlement verification remain unchanged. An injected EIP-1193 provider remains a fallback, and manual deposit instructions remain available.
 
-**Reown AppKit / WalletConnect is not enabled yet.** Integration is pending the Reown Project ID, matching package and bun.lock updates, a successful Preview build, and mobile connection/transfer tests. Reown adds wallet-connection options; it does not expand route or settlement coverage. Preserve injected-wallet and manual-deposit fallbacks.
+The AppKit integration has passed the Cloudflare Pages Preview build. Mobile acceptance testing is still required for WalletConnect connection, account changes, disconnect/reconnect, network switching and an exact quoted transfer. Reown adds wallet-connection options only; it does not expand route, asset or settlement-verification coverage.
 
 ## Merchant integration
 
