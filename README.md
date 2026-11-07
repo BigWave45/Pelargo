@@ -1,5 +1,16 @@
 # Pelargo
 
+## Current product and design direction — 7 November 2026
+
+- **Hackathon priority:** continue the blue-and-white UI, UX and copy redesign while validating a wallet-first buyer checkout. Wallet work extends the existing checkout; it does not replace the merchant API, checkout sessions, provider quote flow, order lifecycle or independent settlement verification.
+- **Product vision:** a universal checkout layer powered by NEAR Intents. A merchant integrates Pelargo once; a buyer should be able to pay using a wallet, network and supported asset they already have; the merchant receives the configured settlement asset. Long-term universal coverage is a vision, not a claim about current compatibility.
+- **Hackathon implementation target:** start with Base wallet connection, connected-address/network detection and supported-token balance discovery. Then verify whether the current Tidepool/1Click route can be executed directly from the connected wallet. Only implement direct signing and broadcast after confirming the provider's exact transaction/deposit requirements.
+- **Current buyer flow remains implemented:** asset selection, dry quote, explicit confirmation, provider deposit instructions, manual source transfer and order/settlement tracking. Do not describe direct wallet payment as implemented until it passes an end-to-end test.
+- **Fallback:** preserve the current deposit-address/manual-transfer path while wallet execution is being built and tested. Do not break the working quote, deposit, polling or settlement-verification path.
+- **Design system and experience:** blue and white foundation; modern financial infrastructure combined with editorial minimalism; clear hierarchy, confident typography, generous spacing and product-led evidence. The buyer checkout, merchant workspace and developer integration each have distinct jobs and copy. Avoid generic fintech templates, decorative AI-generated 3D art, floating coins, glowing orbs and illustrations that do not explain a product operation. Prefer precise interface states and simple diagrams grounded in the actual payment flow.
+- **Messaging:** simplicity is the primary emotional promise. Public positioning may communicate the universal checkout vision, but feature claims must distinguish implemented functionality from planned capability. Developers and merchants are both primary audiences.
+- **Execution order:** (1) map the revised buyer journey and screen states, (2) validate Base wallet/provider transaction compatibility early, (3) integrate the confirmed wallet path into checkout, (4) complete the UI and copy redesign across public site/workspace/developer surfaces, (5) test mobile layouts and the complete demo, (6) update docs and submission evidence.
+- **Release controls:** keep work on the existing redesign/integration branches and reviewable PRs. Do not merge, deploy Production, enable mainnet, or initiate a payment without explicit approval.
 > **Current project handover — 7 November 2026.** This section supersedes older status statements elsewhere in this README.
 >
 > - **Product:** Pelargo is an embeddable, non-custodial crypto checkout for merchant websites and applications. The checkout widget is the product; the merchant workspace configures and integrates it. There is no Northwind Goods storefront in the current scope.
