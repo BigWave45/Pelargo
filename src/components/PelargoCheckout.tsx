@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { createEVMClient, type MetamaskConnectEVM } from "@metamask/connect-evm";
 import { useAppKit, useAppKitAccount, useAppKitProvider, useAppKitNetwork } from "@reown/appkit/react";
 import { AlertCircle, ArrowRight, Clock3, LoaderCircle, RefreshCw, Wallet, CheckCircle2 } from "lucide-react";
 
@@ -140,12 +141,22 @@ export function PelargoCheckout({
   sessionExpiresAt = "",
 }: PelargoCheckoutProps) {
   const { open: openWalletModal } = useAppKit();
+  const metaMaskClientRef = useRef<MetamaskConnectEVM | null>(null);
+  const metaMaskClientPromiseRef = useRef<Promise<MetamaskConnectEVM> | null>(null);
+  const [metaMaskClientReady, setMetaMaskClientReady] = useState(false);
+  const [metaMaskSdkProvider, setMetaMaskSdkProvider] = useState<Eip1193Provider | undefined>(undefined);
   const { address: appKitAddress, isConnected: appKitConnected } = useAppKitAccount({ namespace: "eip155" });
   const { walletProvider } = useAppKitProvider<Eip1193Provider>("eip155");
   const { chainId: appKitChainId } = useAppKitNetwork();
-  // Use the provider supplied by the active Reown connection. Falling back to
-  // window.ethereum can silently query a different wallet session/network.
-  const activeWalletProvider = walletProvider as Eip1193Provider | undefined;
+  // Prefer MetaMask's injected provider when the checkout is running inside
+  // MetaMask Mobile. This avoids routing a native in-app connection through
+  // WalletConnect's relay. Outside MetaMask, use the active Reown provider.
+  const injectedMetaMask = typeof window !== "undefined"
+    ? (window as Window & { ethereum?: Eip1193Provider & { isMetaMask?: boolean } }).ethereum
+    : undefined;
+  const activeWalletProvider = injectedMetaMask?.isMetaMask
+    ? injectedMetaMask
+    : metaMaskSdkProvider ?? walletProvider as Eip1193Provider | undefined;
   const recoveryKey = `pelargo:checkout-recovery:v1:${orderId}:${sessionExpiresAt}:${recipient}`;
   type RecoveryState = {
     version: 1;
@@ -332,12 +343,73 @@ export function PelargoCheckout({
   const selectedSource = sourceTokens.find((token) => token.assetId === sourceAssetId);
   const baseTokenContract = selectedSource ? baseSepoliaTokenContract(selectedSource.assetId) : null;
   const walletOnBaseSepolia = walletChainId.toLowerCase() === BASE_SEPOLIA_CHAIN_ID;
-  const walletCanPay = Boolean(walletAddress && walletOnBaseSepolia && baseTokenContract && paymentInstructions && !walletTxHash);
+  const walletAccountMatchesQuote = !paymentInstructions || walletAddress.toLowerCase() === refundTo.trim().toLowerCase();
+  const walletCanPay = Boolean(walletAddress && walletOnBaseSepolia && baseTokenContract && paymentInstructions && walletAccountMatchesQuote && !walletTxHash);
+
+  const isMobileExternalBrowser =
+    /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) &&
+    !(window as Window & { ethereum?: { isMetaMask?: boolean } }).ethereum?.isMetaMask;
+  // Pre-initialize MetaMask Connect before the buyer taps Connect. Its
+  // connect() call must run directly from the tap to preserve mobile browser
+  // user activation while the SDK hands off to the MetaMask app.
+  useEffect(() => {
+    if (!isMobileExternalBrowser) return;
+    let cancelled = false;
+    if (!metaMaskClientPromiseRef.current) {
+      metaMaskClientPromiseRef.current = createEVMClient({
+        dapp: { name: "Pelargo", url: window.location.origin },
+        api: {
+          supportedNetworks: {
+            "0x1": "https://cloudflare-eth.com",
+            [BASE_SEPOLIA_CHAIN_ID]: "https://sepolia.base.org",
+          },
+        },
+        analytics: { enabled: false },
+      });
+    }
+    void metaMaskClientPromiseRef.current.then((client) => {
+      if (cancelled) return;
+      metaMaskClientRef.current = client;
+      setMetaMaskClientReady(true);
+    }).catch((cause) => {
+      if (!cancelled) {
+        setMetaMaskClientReady(false);
+        setError(cause instanceof Error ? cause.message : "MetaMask Connect could not initialize.");
+      }
+    });
+    return () => { cancelled = true; };
+  }, [isMobileExternalBrowser]);
 
   async function connectWallet() {
     setError("");
     setWalletBusy(true);
     try {
+      if (injectedMetaMask?.isMetaMask) {
+        const accounts = await injectedMetaMask.request({ method: "eth_requestAccounts" });
+        if (!Array.isArray(accounts) || typeof accounts[0] !== "string") {
+          throw new Error("MetaMask did not return an account. Approve the connection in MetaMask and retry.");
+        }
+        const address = accounts[0];
+        const chainId = await injectedMetaMask.request({ method: "eth_chainId" });
+        setWalletAddress(address);
+        setWalletChainId(normalizeChainId(chainId));
+        if (!refundTo.trim()) setRefundTo(address);
+        return;
+      }
+      if (isMobileExternalBrowser) {
+        const client = metaMaskClientRef.current;
+        if (!client) throw new Error("MetaMask Connect is still initializing. Wait a moment and retry.");
+        const { accounts, chainId } = await client.connect({ chainIds: [BASE_SEPOLIA_CHAIN_ID] });
+        if (!Array.isArray(accounts) || typeof accounts[0] !== "string") {
+          throw new Error("MetaMask did not return an account. Approve the connection in the MetaMask app and retry.");
+        }
+        const provider = client.getProvider() as Eip1193Provider;
+        setMetaMaskSdkProvider(provider);
+        setWalletAddress(accounts[0]);
+        setWalletChainId(normalizeChainId(chainId));
+        if (!refundTo.trim()) setRefundTo(accounts[0]);
+        return;
+      }
       await openWalletModal({ view: "Connect", namespace: "eip155" });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Wallet connection was not completed.");
@@ -466,8 +538,18 @@ export function PelargoCheckout({
         const accounts = args[0];
         const address = Array.isArray(accounts) && typeof accounts[0] === "string" ? accounts[0] : "";
         setWalletAddress(address);
-        setWalletTxHash("");
-        if (address) setRefundTo(address);
+
+        // A committed provider quote is bound to the refund address supplied
+        // when it was created. Never silently rebind that quote to a new wallet.
+        // Preserve a submitted transaction hash across account changes as well.
+        if (!paymentInstructions) {
+          if (address) setRefundTo(address);
+          if (quote) {
+            setQuote(null);
+            setQuoteId("");
+            setRequestedAt("");
+          }
+        }
       };
       const handleChain = (...args: unknown[]) => {
         const chainId = args[0];
@@ -481,19 +563,20 @@ export function PelargoCheckout({
       };
     }
     return () => detach();
-  }, [activeWalletProvider]);
+  }, [activeWalletProvider, paymentInstructions, quote]);
 
   useEffect(() => {
     let cancelled = false;
-    if (!appKitConnected || !appKitAddress || !activeWalletProvider) {
+    const usingInjectedMetaMask = Boolean(injectedMetaMask?.isMetaMask);
+    const usingMetaMaskConnect = Boolean(metaMaskSdkProvider);
+    if (!activeWalletProvider || (!usingInjectedMetaMask && !usingMetaMaskConnect && (!appKitConnected || !appKitAddress))) {
       setWalletAddress("");
       setWalletChainId("");
       setWalletBalance("");
       return;
     }
 
-    // Hydrate state from the same EIP-1193 provider that will submit the transfer.
-    // AppKit's displayed network is not used as a substitute for this RPC check.
+    // Read account and chain from the exact provider that will submit transfers.
     void Promise.all([
       activeWalletProvider.request({ method: "eth_chainId" }),
       activeWalletProvider.request({ method: "eth_accounts" }),
@@ -501,18 +584,19 @@ export function PelargoCheckout({
       if (cancelled) return;
       setWalletChainId(normalizeChainId(chainId));
       const address = Array.isArray(accounts) && typeof accounts[0] === "string" ? accounts[0] : "";
-      if (address && address.toLowerCase() === appKitAddress.toLowerCase()) {
+      const matchesAppKit = usingInjectedMetaMask || usingMetaMaskConnect || (appKitAddress && address.toLowerCase() === appKitAddress.toLowerCase());
+      if (address && matchesAppKit) {
         setWalletAddress(address);
         if (!refundTo.trim()) setRefundTo(address);
       } else {
         setWalletAddress("");
       }
     }).catch(() => {
-      if (!cancelled) setError("Reown connected the wallet, but Pelargo could not read its active account and network. Reconnect the wallet and retry.");
+      if (!cancelled) setError("Pelargo could not read the connected wallet account and network. Reconnect the wallet and retry.");
     });
 
     return () => { cancelled = true; };
-  }, [appKitConnected, appKitAddress, activeWalletProvider]);
+  }, [appKitConnected, appKitAddress, activeWalletProvider, injectedMetaMask, metaMaskSdkProvider]);
 
   async function requestDryQuote() {
     setError("");
@@ -760,13 +844,23 @@ export function PelargoCheckout({
           <div className="pelargo-wallet-heading"><Wallet size={17} /><strong>Pay from your Base wallet</strong></div>
           <p>Connect an EVM wallet to pay the exact quoted USDC amount on Base Sepolia. Pelargo never receives your private key.</p>
           {!walletAddress ? (
-            <button type="button" className="pelargo-quote-button" onClick={connectWallet} disabled={walletBusy || sessionExpired}>
-              {walletBusy ? <><LoaderCircle size={15} className="pelargo-spin" /> Connecting…</> : <>Connect wallet <ArrowRight size={15} /></>}
+            <button
+              type="button"
+              className="pelargo-quote-button"
+              onClick={connectWallet}
+              disabled={walletBusy || sessionExpired || (isMobileExternalBrowser && !metaMaskClientReady)}
+            >
+              {walletBusy
+                ? <><LoaderCircle size={15} className="pelargo-spin" /> Connecting…</>
+                : isMobileExternalBrowser && !metaMaskClientReady
+                  ? <><LoaderCircle size={15} className="pelargo-spin" /> Preparing MetaMask…</>
+                  : <>{isMobileExternalBrowser ? "Connect MetaMask" : "Connect wallet"} <ArrowRight size={15} /></>}
             </button>
           ) : (
             <>
               <div className="pelargo-quote-detail"><span>Connected account</span><code>{walletAddress.slice(0, 8)}…{walletAddress.slice(-6)}</code></div>
               <div className="pelargo-quote-detail"><span>Network</span><strong>{walletOnBaseSepolia ? "Base Sepolia" : `Wrong network (${walletChainId})`}</strong></div>
+              {paymentInstructions && !walletAccountMatchesQuote && <div className="pelargo-error" role="alert">This quote is bound to the original refund wallet. Reconnect that wallet to pay, or ask the merchant for a new checkout quote.</div>}
               {walletOnBaseSepolia && <div className="pelargo-quote-detail"><span>{selectedSource.symbol} balance</span><strong>{walletBalanceLoading ? "Checking…" : walletBalance || "Unavailable"}</strong></div>}
               {!walletOnBaseSepolia && <button type="button" className="pelargo-quote-button" onClick={switchToBaseSepolia} disabled={walletBusy}>Switch to Base Sepolia</button>}
               <button type="button" className="pelargo-text-button" onClick={connectWallet} disabled={walletBusy}>Reconnect wallet</button>
