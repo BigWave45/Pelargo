@@ -128,3 +128,13 @@ The adapter boundary should be extended for additional compatible providers only
 - NearScanner's published free API documentation describes its indexed REST API as Nightshade mainnet; it is not currently a verified testnet replacement.
 - No source code, D1 data, secrets, or Cloudflare deployment was changed during this investigation. The buyer must not resubmit the source transfer or create a replacement order. The separate `ORDER-34416645` remains unrelated.
 - Next engineering step: preserve Tidepool's labelled explorer evidence in the payment-status diagnostics, then test a bounded NEAR Data block scan against the three recorded hashes before integrating it as a fallback. Canonical RPC must continue to verify finality, successful execution, exact NEP-141 contract, recipient and net amount.
+ 
+
+## Bounded NEAR RPC signer recovery — 7 November 2026
+
+- Added a testnet-only fallback in `functions/_lib/near-settlement-verifier.ts` for transient NearBlocks failures (HTTP 429/5xx, network and timeout failures) and for successful indexer responses that do not contain a matching signer.
+- The fallback uses the configured canonical NEAR RPC only. It obtains the finalized head, binary-searches block timestamps around the provider status `updatedAt`, inspects a bounded ±8 block window, fetches non-empty chunks with bounded concurrency, and accepts a signer only when exactly one transaction matches the requested hash.
+- The discovered signer is untrusted lookup metadata only. The existing `EXPERIMENTAL_tx_status` FINAL request and exact NEP-141 receipt checks remain mandatory before any settlement write. No signer, provider SUCCESS status, explorer link or hash alone can settle an order.
+- `functions/api/payment-status.ts` now retains a bounded/sanitized Tidepool `tidepool.explorer` evidence list and prioritizes a transaction URL labelled `execute_intents` when its final path segment is a valid NEAR hash. It passes the provider's `updatedAt` timestamp to the verifier as the scan anchor.
+- This is source implementation only. The RPC block/chunk response contract, scan hit rate and performance have not yet been live-tested against `ORDER-35541967`. It has not been deployed to Cloudflare Preview. Do not claim the order is settled; its status remains `processing` until the existing canonical verifier commits immutable evidence.
+- FastNear paid Transactions API is not a dependency. No paid key was provisioned. No D1 row, secret, production deployment, main branch, or payment was changed.
