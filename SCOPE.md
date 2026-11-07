@@ -12,7 +12,7 @@ A merchant creates an order and checkout session on its server. The buyer select
 
 Demonstrate a credible testnet checkout and settlement-verification path. This is not a production payment platform.
 
-The implemented destination verifier supports NEAR NEP-141 tokens only. Routing availability through NEAR Intents / 1Click does not imply that Pelargo can verify settlement on every destination chain.
+The implemented destination verifier supports NEAR NEP-141 tokens only. The current Preview/testnet provider is Tidepool at `https://www.usetidepool.tech`, which is NEAR Intents-compatible. The official 1Click adapter is a separate mainnet adapter; it is not the current testnet route. Routing availability does not imply that Pelargo can verify settlement on every destination chain.
 
 ## Implemented and evidenced
 
@@ -23,28 +23,25 @@ The implemented destination verifier supports NEAR NEP-141 tokens only. Routing 
 - [x] Provider asset discovery, dry quote preview and explicit committed-quote flow.
 - [x] Provider deposit instructions are validated and displayed; buyer sends funds from their own wallet.
 - [x] Base Sepolia source-deposit verification and provider notification.
-- [x] Canonical NEAR RPC verification of an exact NEP-141 destination transfer, with immutable settlement evidence persisted in Preview D1 for `ORDER-83587591`.
+- [x] Complete dual-chain acceptance for `ORDER-35541967`: Base Sepolia source-deposit evidence and independently verified NEAR NEP-141 destination-settlement evidence for exactly 1 USDC delivered to `agentg.testnet`.
+- [x] Separate destination-settlement evidence for `ORDER-83587591`: independently verified NEAR NEP-141 transfer for exactly 1 USDC to `agentg.testnet`. This order also has a source-deposit evidence record, but the source amount differs from the destination amount due to route conversion/fees; do not substitute this record for the explicitly documented `ORDER-35541967` complete dual-chain acceptance example.
 - [x] Merchant dashboard access restored; the 7 November order-history view shows six records: one `settled`, three `awaiting_deposit`, and two `expired`. The three awaiting-deposit records are unpaid checkouts; the two expired records are terminal expiries. This is a dashboard observation, not a fresh D1 reconciliation.
 - [x] Settled payment status handler changed to return persisted immutable evidence without polling the provider or mutating lifecycle state; regression test added. CI and Preview deployment for these latest commits still require verification.
 
 ## Implemented but not operationally verified
 
-- [ ] Migration 0019 backfill applied to Preview D1 and read back.
-- [ ] Preview background reconciliation Worker deployed with the required encrypted secret and five-minute cron.
-- [ ] Scheduled Worker claims and processes an eligible job against Preview D1. Do not infer this from the existing settled order; the settlement has not been attributed to the Worker.
-- [ ] Latest settled-read integrity commits have passing CI and are present in the active Preview deployment.
+- [x] Preview D1 migration history includes migrations 0019 and 0020; read-only schema inspection confirms the persisted signer-scan columns from 0020.
+- [x] Preview reconciliation Worker `pelargo-expiry-sweeper-preview` is deployed with encrypted `RECONCILIATION_SECRET`, the isolated Preview D1 binding `0335acdc-f0e0-42f6-ba87-e3448fb91728`, Tidepool testnet configuration and a five-minute Cron Trigger.
+- [ ] A scheduled Worker invocation claims and processes an eligible job against Preview D1. Deployment, schedule and job-queue presence do not prove a successful scheduled execution.
 
-The Worker workflow is manual and Preview-only. Dispatching it also activates existing Preview expiry and uncertain quote-commit recovery sweeps. Review that side effect and obtain explicit operational authorization before dispatch.
+The Worker deployment workflow is manual and guarded to `reliability/background-reconciliation`. The deployed Worker has a five-minute Cron Trigger. Its runtime also performs Preview expiry and uncertain quote-commit recovery sweeps. Do not dispatch the deployment workflow or trigger operational sweeps merely to satisfy this documentation audit.
 
 ## Remaining submission work
 
-1. Verify CI and Preview deployment for commits `3dc7e973` and `e2d1916d`.
-2. Verify whether migration 0019 is applied to Preview D1. Do not touch Production D1.
-3. Reproduce the complete merchant integration path using the actual embedded widget: merchant creates order/session, widget mounts on a separate merchant page, buyer previews and commits a quote, buyer sends testnet funds, Pelargo verifies settlement, and merchant reads the paid order. Use a fresh test order only when required and keep it on Preview/Tidepool testnet.
-4. Decide whether to deploy the Preview reconciliation Worker. If deployed, verify the exact Worker name, Preview D1 binding, secret presence, cron activation, job claim, and settlement outcome in logs and D1. Do not claim automated reconciliation until those observations exist.
-5. Capture a short, reproducible demo showing merchant integration, buyer checkout, and verified settlement. Avoid exposing credentials, bearer tokens, reset links or secrets.
-6. Finalize README and integration instructions against the verified implementation.
-7. Publish the required public demo post on X and submit the public repository/demo links before the hackathon deadline.
+1. Do not repeat a payment solely to recreate the already recorded `ORDER-35541967` evidence. No additional payment is required for the documentation audit.
+2. If claiming live scheduled reconciliation, obtain run-level evidence that a scheduled invocation claimed and processed an eligible job. Do not infer this from Worker deployment, Cron configuration or queued jobs.
+3. Use the judge guide to inspect the hosted merchant flow, exact asset configuration and previously recorded source/destination transaction evidence.
+4. Confirm the public X demo post and submission form links before the hackathon deadline; the repository state alone does not prove submission.
 
 ## Explicit non-goals
 
@@ -68,8 +65,9 @@ The Worker workflow is manual and Preview-only. Dispatching it also activates ex
 ## Repository and active branch
 
 - Repository: https://github.com/BigWave45/Pelargo
-- Active development branch: `reliability/background-reconciliation`
-- Draft PR #4 remains unmerged.
-- `main` is not the active implementation branch.
+- GitHub default/release branch: `main` (current public judge demo and merged documentation line).
+- Integrated development/acceptance branch: `reliability/background-reconciliation` (diverged from `main`; not merged wholesale).
+- Cloudflare Pages production branch: `build/live-intents` (separate legacy production deployment; not the hackathon demo).
+- PR #4 remains closed and unmerged. Do not use it as the release integration path.
 
 See [README.md](README.md), [docs/INTEGRATION.md](docs/INTEGRATION.md), and [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) for product, API and chronological engineering details.
