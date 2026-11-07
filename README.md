@@ -32,9 +32,9 @@ No additional payment is needed merely to repeat the already demonstrated route.
 
 ## Wallet connection
 
-The checkout now initializes Reown AppKit with the Ethers adapter and a Base Sepolia-only network configuration. The buyer wallet selector opens through AppKit, and the checkout reads the EIP-1193 provider, account and network state from AppKit. Existing exact-amount ERC-20 transfer checks and independent settlement verification remain unchanged. An injected EIP-1193 provider remains a fallback, and manual deposit instructions remain available.
+The checkout initializes Reown AppKit with the Ethers adapter and a Base Sepolia-only network configuration. The buyer connects through AppKit, and the checkout reads the EIP-1193 provider, account and network state from AppKit. A live mobile checkout using Reown and MetaMask completed with the checkout page showing Payment status: Settled, Provider: SUCCESS and Settlement check: verified. Existing exact-amount ERC-20 transfer checks and independent settlement verification remain in place. Manual deposit instructions remain available.
 
-The AppKit integration has passed the Cloudflare Pages Preview build. Mobile acceptance testing is still required for WalletConnect connection, account changes, disconnect/reconnect, network switching and an exact quoted transfer. Reown adds wallet-connection options only; it does not expand route, asset or settlement-verification coverage.
+The AppKit integration has passed a live mobile checkout acceptance test: the user connected MetaMask through Reown on Base Sepolia, completed checkout, and Pelargo displayed Payment status: Settled, Provider: SUCCESS and Settlement check: verified. The user reported that completion was fast; no measured duration or latency guarantee has been established. Account-change, disconnect/reconnect and network-switch edge cases remain separate acceptance tests. Reown adds wallet-connection options only; it does not expand route, asset or settlement-verification coverage.
 
 ## Merchant integration
 
