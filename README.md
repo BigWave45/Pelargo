@@ -85,7 +85,7 @@ This is a manual acceptance result, not exhaustive compatibility testing across 
 
 ## Verified Preview evidence
 
-- **ORDER-35541967:** completed Base Sepolia to NEAR testnet payment. Preview records immutable source-deposit evidence and independently verified NEAR NEP-141 destination-settlement evidence. Exactly 1 USDC was delivered to `agentg.testnet`. This is the strongest complete dual-chain evidence recorded.
+- **ORDER-35541967:** complete Base Sepolia-to-NEAR testnet payment evidence. Preview D1 records source transaction `0x886ff617f13d6eddb23d376eaf2437a90082b610f8c006de743b5df1a5464d5c` and matching canonical NEAR destination evidence transaction `9myMAuSbY4NAcCWDkhZUWqQLGTW47Z2dkrxjhGgtJspS`, delivering exactly 1 USDC to `agentg.testnet`. Full amounts, token identifiers and verification metadata are in [docs/JUDGE_GUIDE.md](docs/JUDGE_GUIDE.md).
 - **ORDER-68886375:** user-confirmed external iPhone browser to MetaMask handoff and successful Preview checkout. Preview records order `paid`, lifecycle `settled`, provider status `SUCCESS`, and independently verified destination evidence for 1 USDC to `agentg.testnet`. No matching source-deposit evidence row is recorded for this order, so it is not described as complete dual-chain evidence.
 - **External merchant acceptance:** the hosted Preview workflow passed seven checks for merchant API authentication, buyer-session validation, merchant-scoped order retrieval, duplicate-order rejection, the pre-quote payment boundary and cross-merchant isolation. It creates a pending Preview order only; it does not initiate a payment.
 
