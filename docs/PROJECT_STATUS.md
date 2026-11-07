@@ -26,7 +26,7 @@ Cloudflare Pages project: `pelargo`.
 - That deployment is a Preview environment and uses Preview D1 database `0335acdc-f0e0-42f6-ba87-e3448fb91728`.
 - The older candidate alias remains `https://release-hackathon-candidate.pelargo.pages.dev`.
 - The integrated acceptance Preview remains `https://reliability-background-recon.pelargo.pages.dev`; it is not the recommended judge-facing demo.
-- Current main Preview deployment checked on 7 November 2026: `aafe4575f17ec45be7ba1deac94b6f3372ac484a`, deployment `e42e77f5-d371-4b86-84f6-e0df473a2b1f`, successful `deploy` stage, alias `https://main.pelargo.pages.dev`.
+- Audit-baseline main Preview deployment checked on 7 November 2026 before PR #16: `aafe4575f17ec45be7ba1deac94b6f3372ac484a`, deployment `e42e77f5-d371-4b86-84f6-e0df473a2b1f`, successful `deploy` stage, alias `https://main.pelargo.pages.dev`. Verify the latest Pages deployment after PR #16 merges.
 
 **Recommended public demo URL:** https://main.pelargo.pages.dev
 
