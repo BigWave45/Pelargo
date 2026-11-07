@@ -50,7 +50,7 @@ This proves one supported testnet route. It does not establish mainnet readiness
 - No stable published SDK/CDN package, Shopify/WooCommerce plugin or merchant webhook delivery is released.
 - A non-payment external merchant smoke test now exists at `scripts/external-merchant-smoke.mjs`; it covers merchant-key auth, signed buyer-session validation, merchant-scoped order lookup, duplicate rejection and the pre-quote boundary.
 - A manually triggered GitHub Actions workflow runs the test from a hosted Node.js runner. It now checks out `reliability/background-reconciliation` and targets that branch's Preview alias. The primary merchant key and a second, independently issued merchant key are stored as GitHub Actions repository secrets; neither key is committed or sent through chat.
-- PR #6 has been merged into `reliability/background-reconciliation`. Its external merchant acceptance workflow passed on 7 November 2026 before merge; a post-merge rerun is still required. All seven checks passed, including the second merchant's attempted lookup of the first merchant's order returning the expected 404. The pre-merge workflow created a pending Preview order only; it did not commit a quote or initiate a payment or transfer. The original acceptance run targeted `https://test-external-merchant-integ.pelargo.pages.dev`; the post-merge rerun is configured for `https://reliability-background-recon.pelargo.pages.dev`.
+- PR #6 has been merged into `reliability/background-reconciliation`. Its external merchant acceptance workflow passed on 7 November 2026 before merge; a post-merge rerun is still required. All seven checks passed, including the second merchant's attempted lookup of the first merchant's order returning the expected 404. The pre-merge workflow created a pending Preview order only; it did not commit a quote or initiate a payment or transfer. The post-merge acceptance rerun also passed all seven checks against `https://reliability-background-recon.pelargo.pages.dev`. The workflow now checks out `reliability/background-reconciliation` and targets this integrated Preview alias.
 
 ## Reown / WalletConnect work
 
@@ -81,7 +81,7 @@ Do not merge, move the production branch, deploy Production or change domain rou
 1. Complete Reown edge-case checks for account changes, disconnect/reconnect and network switching.
 2. Review all redesigned screens on mobile and desktop; verify navigation, real actions, and loading/empty/error/success states.
 3. External merchant acceptance test passed on 7 November 2026: invalid-key rejection, checkout-session creation, buyer bearer validation, own-order retrieval, duplicate-reference rejection, cross-merchant isolation (second merchant receives 404), and the pre-quote payment boundary. No quote or payment was initiated by this test.
-4. Verify the post-merge Cloudflare Pages Preview deployment and rerun the external merchant acceptance test against the integrated branch.
+4. Verify the latest Cloudflare Pages Preview deployment and retain the passing post-merge external merchant acceptance result.
 5. Complete Reown account-change, disconnect/reconnect and network-switch checks, plus full mobile/desktop UI review.
 6. Consolidate submission/demo materials after acceptance.
 
