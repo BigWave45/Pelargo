@@ -289,7 +289,7 @@ export async function verifyNearNep141Settlement(
       signerId = indexedSigner(indexed, transactionHash);
     } catch (error) {
       const detail = error instanceof Error ? error.message : "Unknown indexer failure";
-      const retryableIndexerFailure = /HTTP (429|5\\d\\d)|fetch failed|NetworkError|TimeoutError/i.test(detail);
+      const retryableIndexerFailure = /HTTP (429|5\d\d)|fetch failed|NetworkError|TimeoutError/i.test(detail);
       if (provider.network !== "testnet" || !retryableIndexerFailure) throw error;
       onDiagnostic?.("testnet_indexer_unavailable_rpc_block_scan");
     }
