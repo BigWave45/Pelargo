@@ -75,7 +75,25 @@ A separate order, `ORDER-83587591`, also has persisted source-deposit and destin
 
 The transaction hashes above are the primary evidence identifiers. They can be pasted into the relevant Base Sepolia and NEAR testnet block explorers. Explorer availability and confirmation counts are time-dependent; the counts above are read-back snapshots, not current guarantees.
 
-## 4. What is enforced in code and tested
+## 4. Merchant reconciliation: Check status vs Verify source
+
+The merchant order table exposes two different reconciliation actions. They answer different questions and should not be treated as interchangeable.
+
+### Check status
+
+Use **Check status** to ask Pelargo to reconcile the order's current payment state. Pelargo queries the configured provider for the latest route status and, when destination evidence is available, independently checks the candidate NEAR transaction against the order's configured NEP-141 token, recipient and exact destination amount. A provider `SUCCESS` response by itself does not mark the order paid. A matching finalized NEAR transfer is the settlement condition. For an order already settled, the endpoint returns the persisted immutable settlement evidence rather than polling the provider again.
+
+This action helps the merchant determine what happened to the order: still awaiting a deposit, processing, failed/refunded/incomplete according to provider state, awaiting destination verification, or settled with verified NEAR evidence. Provider status and Pelargo lifecycle status are separate fields; neither should be inferred from the other.
+
+### Verify source
+
+Use **Verify source** when the merchant has the buyer's original Base Sepolia transaction hash and wants to reconcile the source leg. The merchant enters the hash against the relevant order. Pelargo checks that the transaction matches the committed quote, including the expected ERC-20 token contract, provider deposit address and exact quoted source amount, then persists source-deposit evidence and checks/notifies the provider as appropriate.
+
+This is a separate provenance check. It does not initiate another transfer, resubmit a deposit that the provider already marked successful, reopen settlement, or change an existing paid/settled state. It can record missing source evidence after destination settlement has already completed. A source transaction hash supplied by itself is not accepted as evidence; the chain transfer must match the quote.
+
+**The distinction:** NEAR destination verification answers whether the merchant received the required destination funds. Source-hash reconciliation records and verifies the origin of the buyer's payment. The current design does not require a source-evidence row to exist before the NEAR destination settlement path can mark an order settled.
+
+## 5. What is enforced in code and tested
 
 The README architecture and `docs/TESTING.md` describe the details. The key boundary is:
 
@@ -87,7 +105,7 @@ The README architecture and `docs/TESTING.md` describe the details. The key boun
 
 Those adversarial cases are automated tests using mocked provider/RPC responses and an in-memory migrated database. They prove the application's tested decision boundary, not live-provider fault injection.
 
-## 5. Automated checks for Claude Code and Codex
+## 6. Automated checks for Claude Code and Codex
 
 The repository's CI workflow runs these checks:
 
@@ -108,7 +126,7 @@ Expected intent:
 
 The hosted external-merchant smoke test is separate. It requires test merchant API keys supplied through environment variables and creates a pending order on the integrated Preview. It does not commit a quote, request deposit instructions or transfer funds. CI syntax-checks the script; the recorded hosted acceptance run passed seven checks. Do not run it without the required test credentials.
 
-## 6. Deployment and environment boundaries
+## 7. Deployment and environment boundaries
 
 - Judge-facing merged-main Preview: https://main.pelargo.pages.dev
 - Integrated development/acceptance Preview: https://reliability-background-recon.pelargo.pages.dev
@@ -119,7 +137,7 @@ The public judge demo is a Preview deployment with isolated Preview D1. It is no
 
 The Preview reconciliation Worker `pelargo-expiry-sweeper-preview` is deployed with the isolated Preview D1 binding, encrypted reconciliation secret and five-minute Cron Trigger. The Preview migration ledger contains migrations 0001–0020. Six eligible `awaiting_deposit` records with deposit addresses had corresponding reconciliation queue rows at read-back. This proves deployment/configuration and queued work. It does not prove a scheduled invocation has claimed and successfully processed an eligible payment; no live scheduled-job success is claimed.
 
-## 7. Limitations that should not be hidden
+## 8. Limitations that should not be hidden
 
 - The demonstrated route is specific: Base Sepolia ERC-20 to NEAR testnet NEP-141 through Tidepool.
 - Provider token availability and route liquidity are dynamic.
@@ -131,7 +149,7 @@ The Preview reconciliation Worker `pelargo-expiry-sweeper-preview` is deployed w
 - Scheduled Worker configuration is verified; successful scheduled processing of a real eligible job remains unverified.
 - Production/mainnet readiness is not claimed.
 
-## 8. Source-of-truth documents
+## 9. Source-of-truth documents
 
 - [README](../README.md): product positioning, architecture, demo and release state.
 - [Scope](../SCOPE.md): implemented scope, operational status and remaining work.
