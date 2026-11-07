@@ -8,11 +8,13 @@ This document is the current handoff. Historical investigation logs and supersed
 
 ## Verified payment state
 
-The Base Sepolia → NEAR testnet route has been demonstrated on Preview.
+The Base Sepolia → NEAR testnet route has been demonstrated on Preview, including a subsequent live mobile checkout using Reown and MetaMask.
 
 - ORDER-35541967 is paid/settled and has both immutable Base Sepolia source-deposit evidence and independently verified NEAR NEP-141 destination-settlement evidence.
 - The destination transfer delivered exactly 1 USDC to agentg.testnet.
 - ORDER-45723806 is also recorded as paid/settled with destination evidence, but it has no source-deposit evidence row. Do not describe it as fully evidenced on both chains.
+- In the latest user-reported mobile acceptance test, the checkout page itself displayed Payment status: Settled, Provider: SUCCESS and Settlement check: verified after connecting MetaMask through Reown on Base Sepolia. The order ID and transaction hashes for this additional test have not yet been captured in this handoff.
+- The user reported that the latest checkout completed quickly. No measured duration or latency guarantee has been established.
 - Do not initiate another payment solely to repeat the demonstrated route.
 
 This proves one supported testnet route. It does not establish mainnet readiness, production readiness, universal route coverage or a successful scheduled reconciliation run.
@@ -31,7 +33,9 @@ This proves one supported testnet route. It does not establish mainnet readiness
 - Injected EIP-1193 wallet support for eligible Base Sepolia ERC-20 source assets.
 - Exact provider-quoted deposit address and atomic amount are used for the wallet transfer.
 - Manual deposit instructions remain the fallback.
-- Reown AppKit is initialized in Preview using the user-provided Project ID, Ethers adapter and Base Sepolia-only network. Checkout wallet connection now uses AppKit hooks and its EIP-1193 provider. Cloudflare Pages build passed for commit `f95404888e8183c3b9ba031f9a28e1ed89419acf`; wallet interaction acceptance tests remain pending.
+- Reown AppKit is initialized in Preview using the user-provided Project ID, Ethers adapter and Base Sepolia-only network. Checkout wallet connection uses AppKit hooks and its EIP-1193 provider.
+- Live mobile acceptance passed: the user connected MetaMask through Reown on Base Sepolia, completed checkout, and Pelargo itself displayed Settled, Provider SUCCESS and Settlement check verified. The order ID and transaction hashes were not captured in this handoff.
+- Remaining wallet checks: account changes, disconnect/reconnect and network-switch edge cases. No measured checkout duration or latency guarantee has been established.
 
 **Frontend**
 - The active branch contains the redesigned merchant Overview, destination settings, checkout creation, hosted buyer checkout, Developers and account views.
@@ -48,15 +52,14 @@ This proves one supported testnet route. It does not establish mainnet readiness
 
 Reown AppKit is the planned WalletConnect integration to address mobile browsers where no injected EVM wallet is detected.
 
-Required sequence:
-1. Obtain the Reown Project ID from the user.
-2. Add the AppKit, ethers adapter and ethers dependencies.
-3. Regenerate and commit bun.lock with the matching package manifest. Cloudflare Pages uses a frozen Bun install, so changing package.json alone breaks the build.
-4. Restrict the connector configuration to Base Sepolia.
-5. Build and deploy to Preview.
-6. Test mobile connection, network switching, account changes, disconnect, exact quoted ERC-20 transfer and manual fallback.
+Implementation and primary mobile payment acceptance are complete:
+1. Reown Project ID configured in AppKit.
+2. AppKit, Ethers adapter and ethers dependencies installed with matching bun.lock.
+3. Connector restricted to Base Sepolia.
+4. Cloudflare Pages Preview build and deployment completed.
+5. User connected MetaMask through Reown on mobile and completed checkout. Pelargo displayed Settled, Provider SUCCESS and Settlement check verified.
 
-Do not claim WalletConnect is available until all six steps pass. Reown changes wallet connection only; it does not expand token, route or destination-verification support.
+Remaining edge-case checks are account changes, disconnect/reconnect and network switching. Reown changes wallet connection only; it does not expand token, route or destination-verification support.
 
 ## Branch and domain strategy
 
@@ -70,7 +73,7 @@ Do not merge, move the production branch, deploy Production or change domain rou
 
 ## Remaining work
 
-1. Complete Reown setup after the Project ID is available; keep the current injected-wallet and manual-deposit paths working.
+1. Complete Reown edge-case checks for account changes, disconnect/reconnect and network switching.
 2. Review all redesigned screens on mobile and desktop; verify navigation, real actions, and loading/empty/error/success states.
 3. Independently test the merchant-origin integration using a separate merchant backend and browser origin. Do not expose merchant credentials to the buyer.
 4. Verify the latest Preview deployment corresponds to the intended branch head before using it for acceptance.
