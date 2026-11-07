@@ -11,12 +11,27 @@ declare global { interface Window { ethereum?: Eip1193Provider } }
 
 const BASE_SEPOLIA_CHAIN_ID = "0x14a34";
 
+function normalizeChainId(value: unknown): string {
+  try {
+    if (typeof value === "bigint") return `0x${value.toString(16)}`;
+    if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) return `0x${value.toString(16)}`;
+    if (typeof value === "string") {
+      const normalized = value.trim().toLowerCase();
+      if (/^0x[0-9a-f]+$/.test(normalized)) return `0x${BigInt(normalized).toString(16)}`;
+      if (/^[0-9]+$/.test(normalized)) return `0x${BigInt(normalized).toString(16)}`;
+    }
+  } catch {
+    // Invalid provider values are treated as unavailable.
+  }
+  return "";
+}
+
 const BASE_SEPOLIA_CHAIN = {
   chainId: BASE_SEPOLIA_CHAIN_ID,
   chainName: "Base Sepolia",
   nativeCurrency: { name: "Sepolia Ether", symbol: "ETH", decimals: 18 },
   rpcUrls: ["https://sepolia.base.org"],
-  blockExplorerUrls: ["https://sepolia-sepolia.blockscout.com"],
+  blockExplorerUrls: ["https://base-sepolia.blockscout.com"],
 };
 
 function baseSepoliaTokenContract(assetId: string): string | null {
@@ -345,9 +360,10 @@ export function PelargoCheckout({
         await activeWalletProvider.request({ method: "wallet_addEthereumChain", params: [BASE_SEPOLIA_CHAIN] });
       }
       const chainId = await activeWalletProvider.request({ method: "eth_chainId" });
-      if (typeof chainId !== "string") throw new Error("Unable to confirm the wallet network.");
-      setWalletChainId(chainId);
-      if (chainId.toLowerCase() !== BASE_SEPOLIA_CHAIN_ID) throw new Error("Wallet did not switch to Base Sepolia.");
+      const normalizedChainId = normalizeChainId(chainId);
+      if (!normalizedChainId) throw new Error(`Unable to confirm the wallet network. Provider returned: ${String(chainId)}.`);
+      setWalletChainId(normalizedChainId);
+      if (normalizedChainId !== BASE_SEPOLIA_CHAIN_ID) throw new Error(`Wallet reports chain ID ${normalizedChainId} (${BigInt(normalizedChainId).toString(10)}), not Base Sepolia (84532).`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to switch wallet to Base Sepolia.");
     } finally {
@@ -392,13 +408,14 @@ export function PelargoCheckout({
     setWalletBusy(true);
     try {
       const currentChain = await activeWalletProvider.request({ method: "eth_chainId" });
-      if (typeof currentChain !== "string") {
-        throw new Error("MetaMask did not return a readable chain ID. Reconnect the wallet and retry.");
+      const normalizedChainId = normalizeChainId(currentChain);
+      if (!normalizedChainId) {
+        throw new Error(`MetaMask did not return a readable chain ID. Provider returned: ${String(currentChain)}. Reconnect the wallet and retry.`);
       }
-      setWalletChainId(currentChain);
-      if (currentChain.toLowerCase() !== BASE_SEPOLIA_CHAIN_ID) {
-        const numericChain = Number.parseInt(currentChain, 16);
-        const networkLabel = numericChain === 11155111 ? "Ethereum Sepolia" : `chain ID ${currentChain} (${numericChain})`;
+      setWalletChainId(normalizedChainId);
+      if (normalizedChainId !== BASE_SEPOLIA_CHAIN_ID) {
+        const numericChain = BigInt(normalizedChainId).toString(10);
+        const networkLabel = numericChain === "11155111" ? "Ethereum Sepolia" : `chain ID ${normalizedChainId} (${numericChain})`;
         throw new Error(`The connected Reown provider reports ${networkLabel}, while MetaMask should be on Base Sepolia (84532). Reconnect MetaMask through the wallet modal, then check the network again.`);
       }
       const accounts = await activeWalletProvider.request({ method: "eth_accounts" });
@@ -455,7 +472,7 @@ export function PelargoCheckout({
       };
       const handleChain = (...args: unknown[]) => {
         const chainId = args[0];
-        if (typeof chainId === "string") setWalletChainId(chainId);
+        setWalletChainId(normalizeChainId(chainId));
       };
       provider.on("accountsChanged", handleAccounts);
       provider.on("chainChanged", handleChain);
@@ -483,7 +500,7 @@ export function PelargoCheckout({
       activeWalletProvider.request({ method: "eth_accounts" }),
     ]).then(([chainId, accounts]) => {
       if (cancelled) return;
-      if (typeof chainId === "string") setWalletChainId(chainId);
+      setWalletChainId(normalizeChainId(chainId));
       const address = Array.isArray(accounts) && typeof accounts[0] === "string" ? accounts[0] : "";
       if (address && address.toLowerCase() === appKitAddress.toLowerCase()) {
         setWalletAddress(address);
