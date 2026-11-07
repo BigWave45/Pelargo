@@ -294,3 +294,8 @@ Tidepool's labelled `tidepool.explorer` metadata is preserved in bounded provide
 
 
 The block/chunk fallback is capped to one prioritized candidate per payment-status poll to limit public RPC load. If that candidate is not found, the order remains pending verification; later polls may retry. This deliberately avoids scanning every intermediate provider hash in one request.
+
+
+### Bounded testnet signer-recovery diagnostics (7 November 2026)
+
+The testnet fallback now scans a configurable, bounded window ending eight blocks after the first finalized block at or after Tidepool's provider update timestamp. The default is 120 blocks (mostly before the provider timestamp), configurable with the server-side `NEAR_TX_RECOVERY_WINDOW_BLOCKS` setting from 8 to 600. The fallback reports the searched height range, block count, and non-empty chunk count in bounded verification diagnostics. It still requires a unique matching transaction signer followed by canonical `EXPERIMENTAL_tx_status` finality and exact NEP-141 receipt verification. The merchant workspace now displays candidate-specific verification stages and bounded scan details on 503 responses. This is diagnostic and recovery coverage, not proof that the existing stuck payment will settle; the fallback has not yet been live-validated against that order. Do not resubmit its source deposit.
