@@ -458,6 +458,7 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
             orderId, candidateErrors: candidateErrors.slice(0, 8),
           });
           return json({
+            error: "NEAR destination transaction candidates could not be independently verified",
             orderId,
             paymentStatus: verificationStatus,
             providerStatus: provider.status,
