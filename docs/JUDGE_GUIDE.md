@@ -75,6 +75,45 @@ A separate order, `ORDER-83587591`, also has persisted source-deposit and destin
 
 The transaction hashes above are the primary evidence identifiers. They can be pasted into the relevant Base Sepolia and NEAR testnet block explorers. Explorer availability and confirmation counts are time-dependent; the counts above are read-back snapshots, not current guarantees.
 
+### Additional complete payment: ORDER-71455096 (5 USDC)
+
+This order demonstrates destination settlement followed by a later source-evidence reconciliation. The order had already reached `paid` / `settled` after Pelargo independently verified the NEAR destination transfer. The merchant then used **Verify source** to submit the original Base Sepolia transaction hash. Pelargo verified and persisted the source transfer against the committed quote without reopening or changing the existing destination settlement.
+
+**Source leg: Base Sepolia**
+
+- Chain: Base Sepolia (chain ID `84532`)
+- Token contract: `0x38d81431b9f76d9699af7517040d5221d9dea252`
+- Transaction: `0xbbccf1b245af1932f8feacb755d8574c6dd276965661123354f829ffb9f2ffd4`
+- Verified transfer amount: `5,063,164` atomic units (5.063164 USDC)
+- Provider deposit address: `0x3c963cda1663bc10404db6aa8fa01b6ab2367388`
+- Block: `55,749,245`
+- Confirmations at read-back: `112,653`
+- Verification source: `chain_rpc`
+- Source evidence recorded: `2026-11-07T23:30:48.263Z`
+
+**Destination leg: NEAR testnet**
+
+- NEP-141 token contract: `usdc.tidepool-sandbox.testnet`
+- Recipient: `agentg.testnet`
+- Transaction: `EhTBbho5ZWgEUL2G8X36AizRWRKWcsJTzXzV3CvxVQbm`
+- Verified destination amount: `5,000,000` atomic units = **5.000000 USDC**
+- Block: `276,660,519`
+- Confirmations at read-back: `44`
+- Verification source: `chain_rpc`
+- Destination evidence recorded: `2026-11-07T17:16:00.490Z`
+
+**Persisted lifecycle and reconciliation result**
+
+- Merchant order reference: `ORDER-71455096`
+- Internal order ID: `3280f1e0-a24f-4fa4-9171-b54808e9d52a`
+- `checkout_orders.status = paid`; `payment_lifecycle.status = settled`
+- Source and destination evidence now reference the same internal order ID.
+- Destination settlement was recorded before the later source-evidence verification. Source verification did not reopen the order or alter its paid/settled state.
+- The verification response shown by the merchant workspace stated that the provider was not notified again. The persisted order state and evidence were confirmed with read-only Preview D1 queries.
+- Source input (5.063164 USDC) and merchant destination obligation (5.000000 USDC) differ because the route includes conversion and fees. This is not a settlement mismatch.
+
+This record demonstrates that source provenance can be reconciled after destination settlement while the NEAR settlement remains the authoritative paid-state evidence. No additional payment is needed to reproduce it.
+
 ## 4. Merchant reconciliation: Check status vs Verify source
 
 The merchant order table exposes two different reconciliation actions. They answer different questions and should not be treated as interchangeable.
