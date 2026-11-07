@@ -6,6 +6,42 @@
 
 ## System flow
 
+```mermaid
+flowchart TB
+  subgraph Commerce["Merchant and buyer"]
+    Merchant["Merchant storefront"]
+    Buyer["Buyer"]
+    Checkout["Embedded widget / hosted checkout"]
+    Merchant --> Checkout
+    Buyer --> Checkout
+  end
+  subgraph Control["Pelargo control plane"]
+    API["Merchant API and authentication"]
+    Session["Signed checkout session"]
+    Lifecycle["Order and payment lifecycle"]
+    Routing["Quote and deposit orchestration"]
+    D1[("Cloudflare D1")]
+    Worker["Reconciliation Worker"]
+    API --> Session --> Lifecycle --> Routing
+    Checkout --> Session
+    Lifecycle <--> D1
+    Worker <--> D1
+  end
+  Provider["Tidepool testnet provider"]
+  Base["Base Sepolia"]
+  Near["NEAR testnet / NEP-141"]
+  Source["Source-deposit verifier"]
+  Verify["Canonical NEAR RPC verifier"]
+  Evidence["Matching settlement evidence"]
+  Routing --> Provider
+  Provider --> Base
+  Provider --> Near
+  Base --> Source --> D1
+  Near --> Verify --> Evidence --> D1
+  Provider -. "status is a signal, not authority" .-> Worker
+  D1 --> MerchantState["Merchant reads order state"]
+```
+
 Merchant storefront / hosted checkout
 → Pelargo merchant API and authentication
 → short-lived signed buyer checkout session
