@@ -302,6 +302,21 @@ export default function App() {
   }
 
   const title = nav.find(item => item.id === section)?.label ?? "Overview";
+  const settledCount = orders.filter(order => order.status === "settled").length;
+  const activeCount = orders.filter(order => ["quote_committed", "awaiting_deposit", "deposit_detected", "processing"].includes(order.status)).length;
+  const attentionCount = orders.filter(order => ["needs_review", "failed", "expired", "cancelled", "verification_failed"].includes(order.status)).length;
+  const formatOrderAmount = (order: Order) => {
+    try {
+      const raw = BigInt(order.amountAtomic || "0");
+      const decimals = Math.max(0, Math.min(30, settings.destinationDecimals || 6));
+      const scale = 10n ** BigInt(decimals);
+      const whole = raw / scale;
+      const fraction = (raw % scale).toString().padStart(decimals, "0").replace(/0+$/, "");
+      return fraction ? `${whole}.${fraction}` : whole.toString();
+    } catch { return "—"; }
+  };
+  const statusLabel = (status: string) => status.replaceAll("_", " ");
+  const canCheckStatus = (status: string) => ["quote_committed", "awaiting_deposit", "deposit_detected", "processing", "settled"].includes(status);
   return <div className="workspace">
     <aside className={`workspace-sidebar ${mobileNavOpen ? "workspace-sidebar--open" : ""}`}>
       <a className="workspace-brand" href="#" onClick={e => { e.preventDefault(); setSection("overview"); }}><span className="workspace-brand-mark">p</span><span>pelargo</span></a>
@@ -323,18 +338,85 @@ export default function App() {
         {error && <div className="notice-panel auth-error" role="alert">{error}</div>}
         {notice && <div className="notice-panel auth-success" role="status">{notice}</div>}
         {section === "overview" && <>
-          <div className="workspace-heading-row"><div><div className="eyebrow">MERCHANT WORKSPACE</div><h1>Overview</h1><p className="workspace-subtitle">Manage your settlement destination and create buyer checkout links.</p></div><button className="quiet-button" onClick={() => setSection("destination")}><Settings2 size={15} /> Configure payments</button></div>
-          <section className="welcome-panel"><div className="welcome-copy"><div className="eyebrow light">PE LARGO CHECKOUT</div><h2>One checkout. Multiple payment networks.</h2><p>Buyers choose a supported source asset. Your business defines its settlement destination.</p><button className="welcome-link" onClick={() => setSection("checkout")}>Create a checkout <ArrowUpRight size={15} /></button></div><div className="welcome-art" aria-hidden="true"><div className="orbit orbit-one" /><div className="orbit orbit-two" /><div className="orbit-core">p</div></div></section>
-          <div className="section-heading"><div><h2>Payment activity</h2><p>Orders belonging to this merchant account.</p></div><button className="quiet-button" onClick={() => refreshWorkspace().catch(e => setError(String(e)))}><RefreshCw size={14} /> Refresh</button></div>
-          <section className="workspace-card">
-            {orders.length === 0 ? <div className="empty-state"><div className="empty-icon"><Radio size={20} /></div><strong>No checkout orders yet</strong><p>Save a destination and create your first checkout link.</p></div> :
-              <div className="order-list">{orders.map(order => <div className="order-row" key={order.orderId}><div><strong>{order.orderId}</strong><span>{order.destinationSymbol || "Asset"} · {new Date(order.createdAt).toLocaleString()}</span></div><span className="readiness-state state-pending">{order.status.replaceAll("_", " ")}</span>{["quote_committed", "awaiting_deposit", "deposit_detected", "processing", "settled"].includes(order.status) && <><button className="quiet-button" type="button" disabled={busy} onClick={() => checkPaymentStatus(order.orderId)}>{checkingOrderId === order.orderId ? "Checking…" : "Check status"}</button><button className="quiet-button" type="button" onClick={() => { setRecoveryOrderId(order.orderId); setSourceTransactionHash(""); }}>Verify source transaction</button></>}</div>)}</div>}
+          <div className="overview-intro">
+            <div>
+              <div className="eyebrow">MERCHANT WORKSPACE</div>
+              <h1>Your payments, in view.</h1>
+              <p className="workspace-subtitle">A clear record of what buyers send and what reaches your settlement destination.</p>
+            </div>
+            <div className="overview-actions">
+              <button className="quiet-button" onClick={() => setSection("destination")}><Settings2 size={15} /> Destination</button>
+              <button className="primary-button" onClick={() => setSection("checkout")}><Link2 size={15} /> Create checkout</button>
+            </div>
+          </div>
+
+          <section className="overview-metrics" aria-label="Payment activity summary">
+            <article className="overview-metric">
+              <span>All orders</span>
+              <strong>{orders.length}</strong>
+              <small>Orders created in this workspace</small>
+            </article>
+            <article className="overview-metric">
+              <span>In progress</span>
+              <strong>{activeCount}</strong>
+              <small>Awaiting deposit or settlement</small>
+            </article>
+            <article className="overview-metric">
+              <span>Settled</span>
+              <strong>{settledCount}</strong>
+              <small>Independently verified payments</small>
+            </article>
+            <article className="overview-metric">
+              <span>Needs attention</span>
+              <strong>{attentionCount}</strong>
+              <small>Review, failure or expiry states</small>
+            </article>
           </section>
-          {recoveryOrderId && <form className="form-panel" onSubmit={submitSourceDeposit}>
-            <div className="form-panel-heading"><span className="form-icon"><ShieldCheck size={18} /></span><div><h2>Verify source transaction</h2><p>Destination settlement for {recoveryOrderId} is already complete. This step only verifies and records the original Base Sepolia source transaction against the committed quote. It does not reopen settlement, notify the provider again, or move funds.</p></div></div>
+
+          <section className="payment-flow" aria-label="How Pelargo checkout works">
+            <div className="payment-flow-heading">
+              <span className="eyebrow">PAYMENT ROUTE</span>
+              <span>One checkout. Verifiable settlement.</span>
+            </div>
+            <div className="payment-flow-steps">
+              <div><span className="flow-index">01</span><strong>Buyer</strong><small>Chooses a supported asset</small></div>
+              <i aria-hidden="true">→</i>
+              <div><span className="flow-index">02</span><strong>Pelargo</strong><small>Creates and tracks the payment</small></div>
+              <i aria-hidden="true">→</i>
+              <div><span className="flow-index">03</span><strong>NEAR Intents</strong><small>Routes the cross-chain transfer</small></div>
+              <i aria-hidden="true">→</i>
+              <div><span className="flow-index">04</span><strong>Settlement</strong><small>Verified at the destination</small></div>
+            </div>
+          </section>
+
+          <section className="activity-section">
+            <div className="section-heading">
+              <div><h2>Payment activity</h2><p>Order status and settlement actions for this merchant.</p></div>
+              <button className="quiet-button" onClick={() => refreshWorkspace().catch(e => setError(String(e)))} disabled={busy}><RefreshCw size={14} /> Refresh</button>
+            </div>
+            <div className="activity-table-wrap">
+              {orders.length === 0 ? <div className="empty-state activity-empty"><div className="empty-icon"><Radio size={20} /></div><strong>No payment activity yet</strong><p>Configure your settlement destination, then create a checkout link for your first order.</p><button className="primary-button" onClick={() => setSection(settings.destinationAsset ? "checkout" : "destination")}>{settings.destinationAsset ? "Create checkout" : "Configure destination"} <ArrowUpRight size={15} /></button></div> :
+                <table className="activity-table">
+                  <thead><tr><th>Order</th><th>Created</th><th>Requested amount</th><th>Lifecycle</th><th className="activity-actions-heading">Actions</th></tr></thead>
+                  <tbody>{orders.map(order => <tr key={order.orderId}>
+                    <td data-label="Order"><strong className="activity-order-id">{order.orderId}</strong><small>{order.destinationNetwork || "NEAR"} settlement</small></td>
+                    <td data-label="Created"><span className="activity-date">{new Date(order.createdAt).toLocaleString()}</span></td>
+                    <td data-label="Requested amount"><strong>{formatOrderAmount(order)} {order.destinationSymbol || settings.destinationSymbol || ""}</strong></td>
+                    <td data-label="Lifecycle"><span className={`activity-status status-${order.status.replace(/[^a-z0-9_-]/gi, "-")}`}>{statusLabel(order.status)}</span></td>
+                    <td data-label="Actions"><div className="activity-row-actions">
+                      {canCheckStatus(order.status) && <button className="table-action" type="button" disabled={busy} onClick={() => checkPaymentStatus(order.orderId)}>{checkingOrderId === order.orderId ? "Checking…" : "Check status"}</button>}
+                      {["quote_committed", "awaiting_deposit", "deposit_detected", "processing", "settled"].includes(order.status) && <button className="table-action table-action-muted" type="button" onClick={() => { setRecoveryOrderId(order.orderId); setSourceTransactionHash(""); }}>Verify source</button>}
+                    </div></td>
+                  </tr>)}</tbody>
+                </table>}
+            </div>
+          </section>
+
+          {recoveryOrderId && <form className="form-panel recovery-panel" onSubmit={submitSourceDeposit}>
+            <div className="form-panel-heading"><span className="form-icon"><ShieldCheck size={18} /></span><div><h2>Verify source transaction</h2><p>This verifies and records the original Base Sepolia source transaction for {recoveryOrderId}. It does not reopen settlement or initiate another transfer.</p></div></div>
             <label className="field-label" htmlFor="source-transaction-hash">Base Sepolia transaction hash</label>
             <input id="source-transaction-hash" className="workspace-input mono-input" value={sourceTransactionHash} onChange={e => setSourceTransactionHash(e.target.value)} placeholder="0x…" required pattern="0x[a-fA-F0-9]{64}" maxLength={66} />
-            <div className="form-footer"><button className="quiet-button" type="button" onClick={() => setRecoveryOrderId("")}>Cancel</button><button className="primary-button" disabled={recoveryBusy}>{recoveryBusy ? "Verifying deposit…" : "Verify and notify provider"} <ArrowUpRight size={15} /></button></div>
+            <div className="form-footer"><button className="quiet-button" type="button" onClick={() => setRecoveryOrderId("")}>Cancel</button><button className="primary-button" disabled={recoveryBusy}>{recoveryBusy ? "Verifying…" : "Verify source transaction"} <ArrowUpRight size={15} /></button></div>
           </form>}
         </>}
         {section === "destination" && <>
