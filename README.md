@@ -298,3 +298,12 @@ New checkout links place the signed, short-lived buyer token in the URL fragment
 This change reduces exposure through HTTP request URLs, access logs and referrer propagation. It does not make a checkout link non-transferable: anyone possessing the still-valid bearer link can use it, so merchants must treat it as a private, order-scoped credential.
 
 The merchant-to-buyer flow still requires an independent merchant-origin acceptance test. No stable public SDK/CDN package or platform-specific plugins are claimed by this implementation.
+
+
+## Developer integration and merchant account navigation
+
+The Developer workspace now documents the supported integration pattern: create a signed buyer checkout session from a merchant backend, redirect the buyer to Pelargo-hosted checkout, then retrieve merchant-scoped payment status before fulfilling the order. Examples use the current Preview host and fragment-based buyer checkout links. The merchant API key must remain server-side.
+
+The page explicitly distinguishes current capabilities from planned packaging. Hosted checkout and server-side HTTPS integration are available in Preview. A stable JavaScript SDK/CDN bundle, custom-element embed package, Shopify/WooCommerce plugins and merchant webhooks are not published. The implemented Preview route is Base Sepolia source to NEAR testnet destination; it is not universal multi-chain support.
+
+The merchant sidebar now uses its lower space for persistent Profile, Settings, Subscription and Sign out navigation. Subscription is informational only because billing is not implemented. Profile is currently read-only. Settings links to existing destination and developer credential controls; account email/password management is not implemented.
