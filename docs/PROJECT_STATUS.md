@@ -205,3 +205,29 @@ The testnet RPC signer-recovery scan now processes blocks nearest the provider t
 
 
 - Recovery UI wording corrected: the action is labelled **Verify source transaction**, not reconcile deposit. Its success handler no longer calls `/api/payment-status` or re-runs destination settlement verification. When provider status was already `SUCCESS`, the UI reports that source evidence was recorded and the provider was not notified again. This keeps source evidence backfill separate from the already-completed destination settlement. Commit: `863c7c15754ddc035bf9c6fe118e4b9a11e029e8`; Preview deployment and CI verification pending.
+
+## ORDER-35541967 source and destination evidence both confirmed (7 November 2026)
+
+A read-only Preview D1 audit after the merchant used **Verify source transaction** confirms both immutable evidence records now exist for internal order ID `9f04a13e-ffdd-4f2c-9408-ae307e8d9918` / external order ID `ORDER-35541967`.
+
+**Source evidence — `payment_origin_deposit_evidence`:**
+- Chain: `BASE_SEPOLIA`.
+- Transaction: `0x886ff617f13d6eddb23d376eaf2437a90082b610f8c006de743b5df1a5464d5c`.
+- Token contract: `0x38d81431b9f76d9699af7517040d5221d9dea252`.
+- Deposit address: `0x8bdce93d4ff3cd7555f5eb1c29dc229e7c719178`.
+- Amount: `1012633` atomic units (1.012633 USDC).
+- Block: `55569210`; block hash: `0xcdc20c8e00fa1932f5b066c47b39a34129e15374571007801267752e907c5860`.
+- Confirmations recorded: `37260`; verification source: `chain_rpc`.
+- Provider submit status recorded: `SUCCESS`; verified at `2026-11-07T09:19:22.662Z`.
+
+**Destination evidence — `payment_settlement_evidence`:**
+- Chain: NEAR testnet; asset/token contract: `nep141:usdc.tidepool-sandbox.testnet` / `usdc.tidepool-sandbox.testnet`.
+- Transaction: `9myMAuSbY4NAcCWDkhZUWqQLGTW47Z2dkrxjhGgtJspS`.
+- Recipient: `agentg.testnet`; amount: `1000000` atomic units (1 USDC).
+- Block: `276599398`; block hash: `Fy2VMd6Xo8cjZy45EnRc9uiC7uoSScf2UkzQWppWY9AM`.
+- Confirmations recorded: `10063`; verification source: `chain_rpc`.
+- Verified at `2026-11-07T08:55:43.113Z`.
+
+The same read-only query confirmed `checkout_orders.status = paid`, `payment_lifecycle.status = settled`, `provider_status = SUCCESS`, and that the lifecycle destination hash matches the immutable settlement-evidence transaction hash. The source-verification endpoint response stated: “Source transaction verified and evidence recorded. Existing destination settlement remains unchanged. The provider was not notified again.” The source and destination evidence rows were then independently read back. No new transfer was made, no provider resubmission occurred, and these checks did not mutate D1.
+
+This closes the source/destination evidence gap for this Preview testnet order. It does not establish mainnet readiness, broad chain coverage, or production operational readiness. Production branch/resources were not changed; keep `ALLOW_MAINNET_DEPOSITS` unset.
