@@ -4,15 +4,18 @@ This document records the product direction and makes the repository's developme
 
 ## Vision
 
-Pelargo's vision is to make cross-chain crypto payments dependable for merchants by making settlement independently verifiable.
+Pelargo's vision is to give merchants an embeddable checkout for cross-chain payments, backed by independently verifiable settlement.
 
-A merchant should not have to treat a wallet submission, a bridge/provider status, or a transaction hash as proof that an order has been paid. The merchant should receive a clear order lifecycle backed by evidence that the expected asset reached the configured destination.
+The checkout widget is the customer-facing product: merchants should be able to place it in an existing storefront or use hosted checkout, while customers pay with supported digital assets across available networks. Stablecoins such as USDC are important supported payment assets, but Pelargo is not defined as a stablecoin-only product. Asset and network coverage must be described according to implemented, provider-available routes.
+
+Behind the widget, Pelargo owns the merchant/order lifecycle and settlement decision. A merchant should not have to treat a wallet submission, a bridge/provider status, or a transaction hash as proof that an order has been paid. The order should become paid only when evidence confirms that the expected asset reached the configured destination.
 
 The long-term direction is a provider-independent settlement-verification layer that can sit between merchant checkout systems and multiple cross-chain execution providers. Routing can be delegated; merchant identity, order state, payment policy, evidence requirements, and the decision to mark an order paid remain explicit and auditable in Pelargo.
 
 ### Product principles
 
-1. **Merchant-owned order lifecycle.** Merchant identity, order binding, checkout-session validity, and paid/expired/recovery states must be controlled by Pelargo.
+1. **Embedded checkout first.** The widget is the primary customer-facing payment surface; hosted checkout is its equivalent entry point. Merchant integration should be straightforward without moving merchant credentials into browser code.
+2. **Merchant-owned order lifecycle.** Merchant identity, order binding, checkout-session validity, and paid/expired/recovery states must be controlled by Pelargo.
 2. **Evidence before settlement.** A provider success response or source-chain submission is not sufficient. The expected destination asset, recipient, network, and amount must be independently checked before an order is marked paid.
 3. **Non-custodial execution.** Pelargo coordinates checkout and verifies settlement; it is not presented as a custodian or as the owner of user funds.
 4. **Provider separation.** A provider may supply quotes, route discovery, and deposit instructions without becoming the authority for Pelargo's merchant/order lifecycle or final settlement decision.
@@ -21,7 +24,7 @@ The long-term direction is a provider-independent settlement-verification layer 
 
 ### Current implementation versus direction
 
-The current public demonstration is a specific testnet route: Base Sepolia ERC-20 to NEAR testnet NEP-141 through the configured Tidepool / NEAR Intents-compatible provider environment. It demonstrates merchant checkout, provider-assisted routing, and independent destination settlement verification.
+The current public demonstration is a specific testnet route: Base Sepolia ERC-20 to NEAR testnet NEP-141 through the configured Tidepool / NEAR Intents-compatible provider environment. It demonstrates the checkout journey, provider-assisted routing, and independent destination settlement verification. The current implementation includes a custom-element embed and hosted checkout; it does not yet include a stable published SDK/CDN package, commerce-platform plugins, or merchant webhook delivery.
 
 The broader multi-provider and multi-network direction is a product vision, not a claim that arbitrary chains, assets, providers, or mainnet routes are already supported. Current route coverage and production limitations are documented in the [README](../README.md) and [testing record](TESTING.md).
 
