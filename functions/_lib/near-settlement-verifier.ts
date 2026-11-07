@@ -331,6 +331,7 @@ export async function verifyNearNep141Settlement(
   transactionHash: string,
   onDiagnostic?: (stage: string, detail?: string) => void,
   providerObservedAt?: string,
+  recoveryStore?: RecoveryStore,
 ): Promise<NearSettlementEvidence | null> {
   const reject = (stage: string): null => {
     onDiagnostic?.(stage);
@@ -398,6 +399,7 @@ export async function verifyNearNep141Settlement(
       onDiagnostic?.("testnet_rpc_block_scan_started");
       signerId = await signerFromCanonicalRpcBlockWindow(
         rpcUrl, transactionHash, providerObservedAt, env.NEAR_TX_RECOVERY_WINDOW_BLOCKS, onDiagnostic,
+        recoveryStore,
       );
       if (signerId) onDiagnostic?.("signer_resolved_from_canonical_rpc_block_scan");
     }
