@@ -42,7 +42,7 @@ The AppKit integration has passed a live mobile checkout acceptance test: the us
 
 The current integration pattern is server-side session creation followed by a redirect or embed using a short-lived buyer session token. Keep the merchant API key on the merchant server. The buyer token is a one-order bearer credential; the hosted checkout currently receives it in the URL fragment, removes it from browser history and sends it to the API in an Authorization header.
 
-The repository contains a custom-element embed, but there is no stable published SDK/CDN package, Shopify/WooCommerce plugin or merchant webhook delivery. External merchant-origin integration still requires independent acceptance testing. See [docs/INTEGRATION.md](docs/INTEGRATION.md).
+The repository contains a custom-element embed, but there is no stable published SDK/CDN package, Shopify/WooCommerce plugin or merchant webhook delivery. A non-payment external merchant smoke test is being prepared in PR #6. It exercises merchant API authentication, signed buyer-session validation, merchant-scoped order retrieval, duplicate-order rejection and the pre-quote payment boundary. The test runs from a hosted GitHub Actions runner using a repository Actions secret; no merchant key is committed or pasted into chat. See [docs/INTEGRATION.md](docs/INTEGRATION.md) and [docs/EXTERNAL_MERCHANT_TEST.md](docs/EXTERNAL_MERCHANT_TEST.md).
 
 ## Frontend direction
 
@@ -51,11 +51,12 @@ The active redesign uses a blue-and-white foundation with modern financial-infra
 ## Branches, Preview and release controls
 
 - Repository: [BigWave45/Pelargo](https://github.com/BigWave45/Pelargo)
-- Active design/development branch: design/blue-white-premium
+- Integrated non-production branch: reliability/background-reconciliation
+- Current external merchant acceptance branch: test/external-merchant-integration (PR #6)
 - Existing Cloudflare Pages production branch: build/live-intents
 - main contains an older Google AI Studio-generated version and is not the current product source.
 - Cloudflare Pages project: pelargo
-- Preview URL: [design-blue-white-premium.pelargo.pages.dev](https://design-blue-white-premium.pelargo.pages.dev)
+- External merchant test Preview URL: [test-external-merchant-integ.pelargo.pages.dev](https://test-external-merchant-integ.pelargo.pages.dev)
 
 Do not merge, change the Cloudflare production branch, deploy Production, change domain routing, modify Production D1, enable mainnet or initiate payments without explicit approval. Merging to GitHub main alone does not change the Cloudflare Pages production branch.
 
@@ -70,8 +71,11 @@ bun install
 bun run dev
 bun run test:security
 bun run test:api
+bun run test:external-merchant
 bun run build
 ```
+
+The external merchant test requires `PELARGO_API_URL` and `PELARGO_MERCHANT_API_KEY`. For the hosted acceptance run, store the test merchant key as the GitHub Actions repository secret `PELARGO_TEST_MERCHANT_API_KEY`, then run the manual workflow **External merchant acceptance** on the test branch. Full instructions: [docs/EXTERNAL_MERCHANT_TEST.md](docs/EXTERNAL_MERCHANT_TEST.md).
 
 ## Safety
 
