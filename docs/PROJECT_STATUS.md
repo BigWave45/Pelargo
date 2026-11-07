@@ -95,3 +95,12 @@ The adapter boundary should be extended for additional compatible providers only
 - The buyer wallet layer remains separate from provider adapters. Existing Base Sepolia EIP-1193 transfer support and MetaMask asynchronous provider-injection hardening are retained. WalletConnect, Solana/NEAR signing and additional source networks remain out of scope for this adapter refactor.
 - The direct wallet path still requires fresh mobile browser acceptance, provider deposit detection and independent NEAR NEP-141 settlement verification. No quote was committed and no funds were sent during this refactor.
 - No Production deployment, main-branch merge, provider migration or mainnet activation was performed.
+
+
+### Preview verification update — 7 November 2026
+
+- Cloudflare Pages Preview deployment `79f6ba95-56fa-434c-8b56-8ef71a9dadb2` completed successfully for commit `afcd4b97afb6dbe60998193b2c0dde7d5835c372`. The application bundle and standalone `pelargo.js` embed bundle both built.
+- An earlier deployment attempt at `df9042a` failed because the provider adapter refactor malformed the `fetch()` options object. The syntax error was corrected in `afcd4b9`; the succeeding Pages build confirms Functions bundling now completes.
+- Branch alias: `https://design-blue-white-premium.pelargo.pages.dev`.
+- PR #5 validation notes were updated to reflect the successful Preview build. GitHub Actions has not reported a current-head CI run; the new adapter regression assertions therefore remain unverified by CI.
+- This verifies compilation and Preview deployment only. It does not verify runtime provider requests, MetaMask injection in the user's mobile browser, a new source deposit, provider detection or settlement. No payment was initiated.
