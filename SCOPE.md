@@ -6,7 +6,7 @@
 
 Pelargo is an embeddable, non-custodial crypto checkout for merchant websites and applications. The checkout widget is the product. The merchant workspace exists to configure destination settlement and integrate the widget; Pelargo is not a storefront builder.
 
-A merchant creates an order and checkout session on its server. The buyer selects a supported source asset, previews a dry quote, explicitly confirms a committed quote, and receives provider deposit instructions. The buyer sends the source asset manually from their own wallet. Pelargo tracks provider progress and independently verifies supported destination settlement before marking the order paid.
+A merchant creates an order and short-lived checkout session through the merchant workspace or authenticated server API. The buyer selects a supported source asset, previews a dry quote, explicitly confirms a committed quote, and receives provider deposit instructions. For eligible Base Sepolia ERC-20 quotes, the widget can submit the exact token transfer through the connected EIP-1193 wallet; a manual deposit-address path is also available. Pelargo tracks provider progress and independently verifies supported NEAR destination settlement before marking the order paid.
 
 ## Hackathon objective
 
