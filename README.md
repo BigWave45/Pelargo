@@ -89,9 +89,16 @@ This is a manual acceptance result, not exhaustive compatibility testing across 
 
 ## Verified Preview evidence
 
-- **ORDER-35541967:** complete Base Sepolia-to-NEAR testnet payment evidence. Preview D1 records source transaction `0x886ff617f13d6eddb23d376eaf2437a90082b610f8c006de743b5df1a5464d5c` and matching canonical NEAR destination evidence transaction `9myMAuSbY4NAcCWDkhZUWqQLGTW47Z2dkrxjhGgtJspS`, delivering exactly 1 USDC to `agentg.testnet`. Full amounts, token identifiers and verification metadata are in [docs/JUDGE_GUIDE.md](docs/JUDGE_GUIDE.md).
-- **ORDER-68886375:** user-confirmed external iPhone browser to MetaMask handoff and successful Preview checkout. Preview records order `paid`, lifecycle `settled`, provider status `SUCCESS`, and independently verified destination evidence for 1 USDC to `agentg.testnet`. No matching source-deposit evidence row is recorded for this order, so it is not described as complete dual-chain evidence.
+The following records distinguish complete source-to-destination evidence from destination-only evidence. All are testnet records in the isolated Preview environment.
+
+- **ORDER-35541967:** complete Base Sepolia-to-NEAR testnet payment. Preview D1 records source transaction `0x886ff617f13d6eddb23d376eaf2437a90082b610f8c006de743b5df1a5464d5c` and matching canonical NEAR destination transaction `9myMAuSbY4NAcCWDkhZUWqQLGTW47Z2dkrxjhGgtJspS`, delivering exactly 1 USDC to `agentg.testnet`.
+- **ORDER-71455096:** complete 5 USDC Base Sepolia-to-NEAR testnet payment. The source transaction `0xbbccf1b245af1932f8feacb755d8574c6dd276965661123354f829ffb9f2ffd4` was independently verified against the committed quote and recorded after the order had already settled. It records 5,063,164 source atomic units to the quote's deposit address; the matching NEAR transaction `EhTBbho5ZWgEUL2G8X36AizRWRKWcsJTzXzV3CvxVQbm` independently verifies 5,000,000 atomic units (5 USDC) to `agentg.testnet`. The later source verification left the existing paid/settled state unchanged and did not notify the provider again. Full evidence fields are in [docs/JUDGE_GUIDE.md](docs/JUDGE_GUIDE.md).
+- **ORDER-64686642:** complete 1 USDC Base Sepolia-to-NEAR testnet evidence, with source transaction `0xc9a1a525177d5e9282aa5141a6efe72ed60c41f943705bc1e2f88a7e40694d68` and matching NEAR destination transaction `pm6f41ge21eu2hzsQDzdcFVLA8j6YaKug25taduD26m`.
+- **ORDER-68886375:** user-confirmed external iPhone browser to MetaMask handoff and successful Preview checkout. Preview records order `paid`, lifecycle `settled`, provider status `SUCCESS`, and independently verified destination evidence for 1 USDC to `agentg.testnet`. A matching source-evidence record is not currently recorded for this order, so it is not presented here as complete dual-chain evidence.
+- **ORDER-51017560:** paid/settled with independently verified NEAR destination evidence for 1 USDC to `agentg.testnet`; its persisted provider status was `PROCESSING`. Do not interpret this status combination as a provider limitation without further provider-history evidence.
 - **External merchant acceptance:** the hosted Preview workflow passed seven checks for merchant API authentication, buyer-session validation, merchant-scoped order retrieval, duplicate-order rejection, the pre-quote payment boundary and cross-merchant isolation. It creates a pending Preview order only; it does not initiate a payment.
+
+The latest merchant workspace snapshot supplied during this evidence review showed 10 orders: 4 settled, 6 needing attention and 0 in progress. A read-only Preview D1 cross-check confirmed four paid/settled orders and six expired orders. These are point-in-time counts, not hard-coded CI expectations.
 
 These testnet results do not establish mainnet or production readiness. A single observed duration is not a latency benchmark or guarantee. No additional payment is needed merely to repeat the demonstrated route.
 
@@ -194,17 +201,16 @@ bun run build
 ## Branch and release status
 
 - GitHub default branch: `main`.
-- PRs #8–#15 aligned integration, product positioning, judge walkthrough, settlement-proof explanation, architecture documentation, metadata cleanup and historical testnet evidence.
-- PR #16 merged the Cascade-benchmarked judge-readiness documentation: `HACKATHON.md`, judge guide, architecture, threat model and verification matrix, plus consistency updates.
-- PR #16 merge commit: `9885756e05563572f68d53a0ae3b4874edac4073`.
+- PRs #8–#17 are merged documentation, integration-guide, product-positioning, architecture, metadata and judge-readiness updates.
+- PR #16 added the Cascade-benchmarked judge guide, hackathon mapping, architecture, threat model and verification matrix.
+- PR #17 clarified the merchant reconciliation actions and source refund address.
+- Latest merged documentation commit before this evidence update: `14a49411a7ecb145a0d8b32fa22044270bcd31d1`.
 - Integrated non-production branch: `reliability/background-reconciliation`.
 - Cloudflare Pages production branch: `build/live-intents` (unchanged).
 - Cloudflare Pages main-branch Preview alias: `https://main.pelargo.pages.dev`.
 - Cloudflare Pages project: `pelargo`.
 
-Before PR #16, Cloudflare Pages had successfully deployed merged `main` commit `aafe4575f17ec45be7ba1deac94b6f3372ac484a` as a Preview deployment. PR #16 is documentation-only and has merged to `main`; its post-merge Pages Preview deployment has not yet been verified. A GitHub merge does not change the Cloudflare production branch or production database.
-
-The main-branch Preview is the current hackathon demo URL. The built-in production hostname `pelargo.pages.dev` remains attached to `build/live-intents`; no production promotion or production database change is part of this release. Later documentation-only cleanup may produce additional Preview builds without changing the production branch or database.
+The main-branch Preview is the current hackathon demo URL. It is a Preview/testnet deployment. The built-in production hostname `pelargo.pages.dev` remains attached to `build/live-intents`; no production promotion or production database change is part of this release. A documentation-only merge does not change the Cloudflare production branch or database.
 
 ## Safety
 
