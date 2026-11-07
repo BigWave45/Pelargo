@@ -4,29 +4,32 @@ This document records the product direction and makes the repository's developme
 
 ## Vision
 
-Pelargo's vision is to give merchants an embeddable checkout for cross-chain payments, backed by independently verifiable settlement.
+Pelargo's vision is a global, embeddable checkout with one clear settlement home: NEAR. The product promise is **Pay across chains. Settle on NEAR.** Customers should be able to pay from supported source networks and assets, while merchants receive settlement on NEAR.
 
-The checkout widget is the customer-facing product: merchants should be able to place it in an existing storefront or use hosted checkout, while customers pay with supported digital assets across available networks. Stablecoins such as USDC are important supported payment assets, but Pelargo is not defined as a stablecoin-only product. Asset and network coverage must be described according to implemented, provider-available routes.
+The checkout widget is the customer-facing product: merchants can place it in an existing storefront or use hosted checkout. Stablecoins such as USDC are important supported payment assets, but Pelargo is not defined as a stablecoin-only product. The ambition is broad global payment access; asset and network coverage must always be described according to routes actually implemented and verified.
 
-Behind the widget, Pelargo owns the merchant/order lifecycle and settlement decision. A merchant should not have to treat a wallet submission, a bridge/provider status, or a transaction hash as proof that an order has been paid. The order should become paid only when evidence confirms that the expected asset reached the configured destination.
+NEAR is a deliberate architectural and ecosystem choice, not a placeholder or an interchangeable destination. Pelargo aims to direct cross-network merchant payment flows into NEAR settlement, creating practical demand for NEAR accounts, supported NEP-141 assets and ecosystem payment use cases. This is an ecosystem contribution thesis, not a claim that payment volume automatically funds the NEAR treasury or guarantees economic value for every NEAR project.
 
-The long-term direction is a provider-independent settlement-verification layer that can sit between merchant checkout systems and multiple cross-chain execution providers. Routing can be delegated; merchant identity, order state, payment policy, evidence requirements, and the decision to mark an order paid remain explicit and auditable in Pelargo.
+Behind the widget, Pelargo owns the merchant/order lifecycle and settlement decision. A merchant should not have to treat a wallet submission, a bridge/provider status, or a transaction hash as proof that an order has been paid. The order should become paid only when evidence confirms that the expected asset reached its intended NEAR destination.
+
+Routing can be delegated to cross-chain execution providers. Merchant identity, order state, payment policy, evidence requirements, NEAR settlement destination, and the decision to mark an order paid remain explicit and auditable in Pelargo. The long-term architecture can support multiple routing providers without making NEAR's role as the settlement home optional.
 
 ### Product principles
 
 1. **Embedded checkout first.** The widget is the primary customer-facing payment surface; hosted checkout is its equivalent entry point. Merchant integration should be straightforward without moving merchant credentials into browser code.
-2. **Merchant-owned order lifecycle.** Merchant identity, order binding, checkout-session validity, and paid/expired/recovery states must be controlled by Pelargo.
-3. **Evidence before settlement.** A provider success response or source-chain submission is not sufficient. The expected destination asset, recipient, network, and amount must be independently checked before an order is marked paid.
-4. **Non-custodial execution.** Pelargo coordinates checkout and verifies settlement; it is not presented as a custodian or as the owner of user funds.
-5. **Provider separation.** A provider may supply quotes, route discovery, and deposit instructions without becoming the authority for Pelargo's merchant/order lifecycle or final settlement decision.
-6. **Recoverable operations.** Reconciliation, expiry handling, audit events, and explicit recovery states are part of payment correctness, not optional operational extras.
-7. **Evidence-led expansion.** New chains, assets, providers, SDKs, webhooks, and production capabilities should be added only with corresponding implementation and verification evidence.
+2. **NEAR as settlement home.** Cross-network payments are intended to settle on NEAR. NEAR is a core product and ecosystem commitment, not an incidental supported destination.
+3. **Merchant-owned order lifecycle.** Merchant identity, order binding, checkout-session validity, and paid/expired/recovery states must be controlled by Pelargo.
+4. **Evidence before settlement.** A provider success response or source-chain submission is not sufficient. The expected destination asset, recipient, network, and amount must be independently checked before an order is marked paid.
+5. **Non-custodial execution.** Pelargo coordinates checkout and verifies settlement; it is not presented as a custodian or as the owner of user funds.
+6. **Provider separation.** A provider may supply quotes, route discovery, and deposit instructions without becoming the authority for Pelargo's merchant/order lifecycle or final settlement decision.
+7. **Recoverable operations.** Reconciliation, expiry handling, audit events, and explicit recovery states are part of payment correctness, not optional operational extras.
+8. **Evidence-led expansion.** New chains, assets, providers, SDKs, webhooks, and production capabilities should be added only with corresponding implementation and verification evidence.
 
 ### Current implementation versus direction
 
-The current public demonstration is a specific testnet route: Base Sepolia ERC-20 to NEAR testnet NEP-141 through the configured Tidepool / NEAR Intents-compatible provider environment. NEAR is the destination settlement network in this flow: Pelargo verifies the expected NEP-141 transfer on NEAR before the merchant order is treated as paid. That makes NEAR part of the settlement trust boundary, rather than a cosmetic ecosystem integration. The provider assists with routing; Pelargo owns the merchant order and independently checks destination delivery. We do not claim to implement the NEAR Intents protocol itself or to provide general-purpose NEAR routing infrastructure.
+The current public demonstration is a specific testnet route: Base Sepolia ERC-20 to NEAR testnet NEP-141 through the configured Tidepool / NEAR Intents-compatible provider environment. NEAR is the settlement home in this flow: Pelargo verifies the expected NEP-141 transfer on NEAR before the merchant order is treated as paid. The provider assists with cross-chain routing; Pelargo owns the merchant order and independently checks NEAR destination delivery. We do not claim to implement the NEAR Intents protocol itself or to provide general-purpose NEAR routing infrastructure.
 
-The current implementation includes a custom-element embed and hosted checkout; it does not yet include a stable published SDK/CDN package, commerce-platform plugins, or merchant webhook delivery.
+The global checkout vision is broader than the currently demonstrated route. The current implementation includes a custom-element embed and hosted checkout, but only a specific testnet route has been demonstrated. It does not yet include a stable published SDK/CDN package, commerce-platform plugins, or merchant webhook delivery.
 
 The broader multi-provider and multi-network direction is a product vision, not a claim that arbitrary chains, assets, providers, or mainnet routes are already supported. Current route coverage and production limitations are documented in the [README](../README.md) and [testing record](TESTING.md).
 
