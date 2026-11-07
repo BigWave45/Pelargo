@@ -168,7 +168,13 @@ export function PelargoCheckout({
   const [refundTo, setRefundTo] = useState(recovery?.refundTo ?? "");
   const [amount, setAmount] = useState(initialAmount);
 
+  const initialAmountInitialized = useRef(false);
   useEffect(() => {
+    if (!initialAmountInitialized.current) {
+      initialAmountInitialized.current = true;
+      setAmount(initialAmount);
+      return;
+    }
     setAmount(initialAmount);
     clearQuote();
   }, [initialAmount]);
