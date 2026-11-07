@@ -282,3 +282,12 @@ The current verifier resolves the signer through the configured testnet transact
 FastNear Transactions API offers direct transaction lookup by hash on testnet, but its documentation requires an API key. It is not configured as a dependency in the current Preview environment. FastNear NEAR Data API exposes finalized testnet block documents by height and may support a bounded block-window scan to discover a transaction signer without a paid direct-lookup API. That recovery path is not implemented or live-validated. NearScanner's documented indexed API is currently described for mainnet and must not be treated as a testnet fallback without separate confirmation.
 
 Do not weaken settlement verification to accept provider `SUCCESS`, an explorer URL, a transaction hash, or an indexer response as proof. Any discovered signer remains an untrusted hint; canonical NEAR RPC must independently verify finality, successful receipt execution, the configured NEP-141 token contract, exact recipient and exact net amount. Never resubmit a source deposit merely because destination verification is unavailable.
+ 
+
+## Testnet signer recovery without a paid indexer
+
+For Tidepool testnet only, the verifier now attempts a bounded signer lookup through the configured canonical NEAR RPC when NearBlocks returns a transient 429/5xx/network/timeout error or does not return a matching signer. It uses the provider status `updatedAt` timestamp to binary-search finalized block timestamps, inspects a bounded ±8 block window, and fetches non-empty chunks with bounded concurrency. A signer is accepted only when exactly one transaction matches the requested transaction hash.
+
+The signer recovered from a block/chunk is not settlement evidence. Pelargo must still call canonical `EXPERIMENTAL_tx_status` with `wait_until: FINAL` and verify successful execution plus the exact NEP-141 token contract, recipient, and net amount from successful receipts. If the timestamp is missing/outside the bounded scan window, RPC calls fail, or the hash is not found uniquely, verification remains pending and fails closed. This fallback is not a replacement for a healthy indexer and has not yet been live-validated against the recorded stuck order.
+
+Tidepool's labelled `tidepool.explorer` metadata is preserved in bounded provider diagnostics. A URL labelled `execute_intents` may prioritize its final path-segment hash as a candidate, but the URL and label are untrusted provider hints only. Never infer settlement from them.
