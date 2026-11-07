@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useAppKit, useAppKitAccount, useAppKitProvider, useAppKitNetwork } from "@reown/appkit/react";
 import { AlertCircle, ArrowRight, Clock3, LoaderCircle, RefreshCw, Wallet, CheckCircle2 } from "lucide-react";
 
 type Eip1193Provider = {
@@ -10,24 +11,6 @@ declare global { interface Window { ethereum?: Eip1193Provider } }
 
 const BASE_SEPOLIA_CHAIN_ID = "0x14a34";
 
-function waitForInjectedProvider(timeoutMs = 3000): Promise<Eip1193Provider | null> {
-  if (window.ethereum) return Promise.resolve(window.ethereum);
-  return new Promise((resolve) => {
-    let settled = false;
-    const finish = (provider: Eip1193Provider | null) => {
-      if (settled) return;
-      settled = true;
-      window.removeEventListener("ethereum#initialized", handleInitialized);
-      window.clearTimeout(timer);
-      resolve(provider);
-    };
-    const handleInitialized = () => finish(window.ethereum ?? null);
-    window.addEventListener("ethereum#initialized", handleInitialized, { once: true });
-    const timer = window.setTimeout(() => finish(window.ethereum ?? null), timeoutMs);
-    // Recheck after registering the event listener to close the injection race.
-    if (window.ethereum) finish(window.ethereum);
-  });
-}
 const BASE_SEPOLIA_CHAIN = {
   chainId: BASE_SEPOLIA_CHAIN_ID,
   chainName: "Base Sepolia",
@@ -142,6 +125,11 @@ export function PelargoCheckout({
   sessionToken = "",
   sessionExpiresAt = "",
 }: PelargoCheckoutProps) {
+  const { open: openWalletModal } = useAppKit();
+  const { address: appKitAddress, isConnected: appKitConnected } = useAppKitAccount({ namespace: "eip155" });
+  const { walletProvider } = useAppKitProvider<Eip1193Provider>("eip155");
+  const { chainId: appKitChainId } = useAppKitNetwork();
+  const activeWalletProvider = (walletProvider ?? window.ethereum) as Eip1193Provider | undefined;
   const recoveryKey = `pelargo:checkout-recovery:v1:${orderId}:${sessionExpiresAt}:${recipient}`;
   type RecoveryState = {
     version: 1;
@@ -334,23 +322,7 @@ export function PelargoCheckout({
     setError("");
     setWalletBusy(true);
     try {
-      const provider = await waitForInjectedProvider();
-      if (!provider) {
-        throw new Error("No injected EVM wallet was detected. Open this checkout in MetaMask's built-in browser, then retry.");
-      }
-      const accounts = await provider.request({ method: "eth_requestAccounts" });
-      if (!Array.isArray(accounts) || typeof accounts[0] !== "string" || !/^0x[a-fA-F0-9]{40}$/.test(accounts[0])) {
-        throw new Error("The wallet did not return a valid EVM account.");
-      }
-      const chainId = await provider.request({ method: "eth_chainId" });
-      if (typeof chainId !== "string") throw new Error("The wallet did not return its active network.");
-      setWalletAddress(accounts[0]);
-      setWalletChainId(chainId);
-      setWalletTxHash("");
-      if (!refundTo.trim()) setRefundTo(accounts[0]);
-      if (chainId.toLowerCase() !== BASE_SEPOLIA_CHAIN_ID) {
-        setError("Wallet connected. Switch it to Base Sepolia before requesting a wallet payment.");
-      }
+      await openWalletModal({ view: "Connect", namespace: "eip155" });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Wallet connection was not completed.");
     } finally {
@@ -359,12 +331,12 @@ export function PelargoCheckout({
   }
 
   async function switchToBaseSepolia() {
-    if (!window.ethereum) return;
+    if (!activeWalletProvider) return;
     setError("");
     setWalletBusy(true);
     try {
       try {
-        await window.ethereum.request({ method: "wallet_switchEthereumChain", params: [{ chainId: BASE_SEPOLIA_CHAIN_ID }] });
+        await activeWalletProvider.request({ method: "wallet_switchEthereumChain", params: [{ chainId: BASE_SEPOLIA_CHAIN_ID }] });
       } catch (cause) {
         const code = (cause as { code?: number })?.code;
         if (code !== 4902) throw cause;
@@ -444,7 +416,7 @@ export function PelargoCheckout({
   }
 
   useEffect(() => {
-    if (!walletAddress || !baseTokenContract || !window.ethereum || !walletOnBaseSepolia) {
+    if (!walletAddress || !baseTokenContract || !activeWalletProvider || !walletOnBaseSepolia) {
       setWalletBalance("");
       return;
     }
@@ -463,10 +435,9 @@ export function PelargoCheckout({
   }, [walletAddress, walletChainId, baseTokenContract, selectedSource?.decimals]);
 
   useEffect(() => {
-    let cancelled = false;
     let detach = () => {};
-    void waitForInjectedProvider().then((provider) => {
-      if (cancelled || !provider?.on) return;
+    const provider = activeWalletProvider;
+    if (provider?.on) {
       const handleAccounts = (...args: unknown[]) => {
         const accounts = args[0];
         const address = Array.isArray(accounts) && typeof accounts[0] === "string" ? accounts[0] : "";
@@ -484,12 +455,24 @@ export function PelargoCheckout({
         provider.removeListener?.("accountsChanged", handleAccounts);
         provider.removeListener?.("chainChanged", handleChain);
       };
-    }).catch(() => {});
-    return () => {
-      cancelled = true;
-      detach();
-    };
-  }, []);
+    }
+    return () => detach();
+  }, [activeWalletProvider]);
+
+  useEffect(() => {
+    if (appKitConnected && appKitAddress && /^0x[a-fA-F0-9]{40}$/.test(appKitAddress)) {
+      setWalletAddress(appKitAddress);
+      setWalletTxHash("");
+      if (!refundTo.trim()) setRefundTo(appKitAddress);
+    } else if (!appKitConnected) {
+      setWalletAddress("");
+      setWalletChainId("");
+      setWalletBalance("");
+    }
+    if (appKitChainId !== undefined && appKitChainId !== null) {
+      setWalletChainId(typeof appKitChainId === "number" ? "0x" + appKitChainId.toString(16) : String(appKitChainId));
+    }
+  }, [appKitConnected, appKitAddress, appKitChainId]);
 
   async function requestDryQuote() {
     setError("");
