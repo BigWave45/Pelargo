@@ -706,19 +706,23 @@ sqlite.query("UPDATE payment_lifecycle SET last_polled_at = NULL WHERE order_id 
     recipient: "agentg.testnet",
     amountAtomic: "1000000",
   };
-  const mockRpc = (amount = "1000000", expectedSigner = signer) => async (url, init = {}) => {
+  const mockRpc = (amount = "1000000", indexerSigner = null) => async (url, init = {}) => {
     const parsed = new URL(String(url));
+    if (parsed.hostname === "api-testnet.nearblocks.io") {
+      return Response.json({ data: indexerSigner ? [{
+        transaction_hash: hash, signer_account_id: indexerSigner,
+      }] : [] });
+    }
     if (parsed.hostname !== "rpc.testnet.near.org") {
-      throw new Error("Configured signer path must not call the NearBlocks indexer: " + parsed.hostname);
+      throw new Error("Unexpected configured signer recovery host: " + parsed.hostname);
     }
     const req = JSON.parse(init.body);
     rpcCalls.push(req);
     if (req.method === "status") return Response.json({ result: { chain_id: "testnet" } });
     if (req.method === "EXPERIMENTAL_tx_status") {
-      assert.deepEqual(req.params, {
-        tx_hash: hash, sender_account_id: expectedSigner, wait_until: "FINAL",
-      });
-      if (expectedSigner !== signer) return Response.json({
+      assert.equal(req.params.tx_hash, hash);
+      assert.equal(req.params.wait_until, "FINAL");
+      if (req.params.sender_account_id !== signer) return Response.json({
         error: { name: "HANDLER_ERROR", cause: { name: "INVALID_TRANSACTION", info: { error_message: "Transaction signer does not match" } } },
       });
       return Response.json({ result: {
@@ -778,13 +782,17 @@ sqlite.query("UPDATE payment_lifecycle SET last_polled_at = NULL WHERE order_id 
     const wrongAmount = await verifyNearNep141Settlement(envWithRecoverySigner, order, hash);
     assert.equal(wrongAmount, null, "wrong NEP-141 amount must fail closed");
 
-    // A signer mismatch is rejected by canonical RPC and cannot produce evidence.
-    globalThis.fetch = mockRpc("1000000", "wrong-signer.testnet");
-    const wrongSigner = await verifyNearNep141Settlement({
+    // A stale configured signer hint must fall back to the hash-bound indexer
+    // and then repeat canonical FINAL verification with the recovered signer.
+    globalThis.fetch = mockRpc("1000000", signer);
+    const recoveredSigner = await verifyNearNep141Settlement({
       ...envWithRecoverySigner,
       NEAR_TX_SIGNER_ID: "wrong-signer.testnet",
     }, order, hash);
-    assert.equal(wrongSigner, null, "canonical RPC signer mismatch must fail closed");
+    assert.equal(recoveredSigner?.transactionHash, hash,
+      "wrong configured signer hint must recover the canonical transaction signer");
+    assert.equal(rpcCalls.filter((call) => call.method === "EXPERIMENTAL_tx_status").length >= 2, true,
+      "recovered signer must be rechecked through canonical RPC");
   } finally {
     globalThis.fetch = original;
   }
