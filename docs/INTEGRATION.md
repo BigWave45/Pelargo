@@ -2,25 +2,25 @@
 
 ## Buyer checkout capabilities
 
-The embedded widget supports source-asset selection, dry quote preview and an explicit buyer confirmation before requesting a committed quote. A committed quote creates provider deposit instructions; it does not itself send funds. The current draft branch also supports an optional injected EIP-1193 wallet transfer for eligible Base Sepolia ERC-20 quotes: it uses the exact provider asset contract, committed deposit address and exact atomic source amount. MetaMask asynchronous provider detection is hardened. The manual deposit-address path remains available. WalletConnect and non-EVM wallet signing are not implemented. Before showing instructions, the widget validates the provider correlation ID, deposit address and exact positive atomic source amount.
+The embedded widget supports source-asset selection, dry quote preview and an explicit buyer confirmation before requesting a committed quote. A committed quote creates provider deposit instructions; it does not itself send funds. The checkout integrates Reown AppKit for EVM wallet connection and supports an EIP-1193 wallet transfer for eligible Base Sepolia ERC-20 quotes: it uses the exact provider asset contract, committed deposit address and exact atomic source amount. The manual deposit-address path remains available. Non-EVM wallet signing is not implemented. Before showing instructions, the widget validates the provider correlation ID, deposit address and exact positive atomic source amount.
 
 After instructions are created, the widget polls `GET /api/payment-status?orderId=...` every five seconds with the signed checkout session in the `Authorization: Bearer` header. The API verifies the signature, stored token hash, committed session state and order binding. A buyer session cannot query another order. Merchant server-side polling continues to use `x-pelargo-merchant-key`.
 
 Provider `SUCCESS` alone is insufficient. The order becomes paid only after independent destination-chain verification succeeds and matching settlement evidence is persisted. The buyer widget displays the internal payment state and stops polling on terminal states or an invalid/unauthorized session.
 
-The live testnet route has since been demonstrated on ORDER-35541967. Preview D1 records both immutable Base Sepolia source-deposit evidence and independently verified NEAR NEP-141 destination settlement evidence for that order. The order is paid/settled and provider status is SUCCESS. A later order, ORDER-45723806, is also paid/settled with destination evidence and provider SUCCESS, but it has no source-deposit evidence row. Keep these evidence states distinct. The successful test proves one supported testnet route, not production readiness, broad network coverage or scheduled Worker operation. Do not use this integration to collect real customer funds.
+The live testnet route has been demonstrated on ORDER-35541967. Preview D1 records both immutable Base Sepolia source-deposit evidence and independently verified NEAR NEP-141 destination settlement evidence for that order. The order is paid/settled and provider status is SUCCESS. A later order, ORDER-45723806, is also paid/settled with destination evidence and provider SUCCESS, but it has no source-deposit evidence row. In a subsequent user-reported mobile checkout using Reown and MetaMask on Base Sepolia, the checkout page displayed Payment status: Settled, Provider: SUCCESS and Settlement check: verified. The order ID and transaction hashes for that additional test were not captured here. Keep these evidence states distinct. The successful tests prove the demonstrated testnet route, not production readiness, broad network coverage or scheduled Worker operation. Do not use this integration to collect real customer funds.
 
 
 
-### Wallet-first checkout (partially implemented; acceptance pending)
+### Wallet-first checkout (implemented; primary mobile payment path accepted)
 
-The implemented first wallet path is Base Sepolia using injected EIP-1193 wallets. Treat wallet connection, chain/address detection, supported-token balance discovery and transaction execution as separate capabilities. A connected address and visible balance do not establish that a payment was detected or settled.
+The implemented wallet path is Base Sepolia using Reown AppKit and its EIP-1193 provider. Treat wallet connection, chain/address detection, supported-token balance discovery and transaction execution as separate capabilities. A connected address and visible balance do not establish that a payment was detected or settled. The primary mobile payment path has been exercised with MetaMask connected through Reown; the checkout displayed Settled, Provider SUCCESS and Settlement check verified.
 
 The current direct signing path is intentionally limited to the provider's committed deposit-address model. For an eligible Base Sepolia ERC-20 asset, the widget constructs the standard token transfer to the provider-issued deposit address using the exact committed amount. It does not assume provider-supplied calldata. Quotes with memo/tag requirements remain on the manual path. Any new provider adapter must independently validate its deposit semantics before enabling this wallet path.
 
 The intended buyer sequence is: open checkout; explicitly choose Connect wallet; connect a supported Base wallet; detect the connected network and eligible balances; request/refresh a quote; show the source amount, merchant settlement amount, fees/route and expiry; ask the wallet to approve the exact transaction; track provider and destination settlement states. Handle wrong-network, insufficient-balance, rejected-signature, expired-quote, pending, failed and completed states explicitly.
 
-The direct Base Sepolia wallet transfer is implemented but still requires mobile browser acceptance, provider deposit detection and independent NEAR settlement verification on a fresh order. Never claim automatic wallet discovery, arbitrary-wallet support or universal network coverage. Keep merchant API keys server-side and preserve the current signed checkout-session authorization boundary.
+The direct Base Sepolia wallet transfer is implemented and has passed a user-reported mobile checkout test through Reown and MetaMask, with the checkout itself displaying verified settlement. Account-change, disconnect/reconnect and network-switch edge cases remain to be tested. Never claim automatic wallet discovery, arbitrary-wallet support or universal network coverage. Keep merchant API keys server-side and preserve the current signed checkout-session authorization boundary.
 
 ## Security model
 
@@ -227,11 +227,11 @@ The testnet route demonstrated on ORDER-35541967 has both source and destination
 
 ## 6. Wallet connection status
 
-The current implementation supports injected EIP-1193 wallets on Base Sepolia for eligible ERC-20 quotes. The manual deposit-address path remains available.
+The current implementation uses Reown AppKit with an Ethers adapter and Base Sepolia-only network configuration for EVM wallet connection. Eligible ERC-20 quotes use the active EIP-1193 provider for the exact transfer. The manual deposit-address path remains available.
 
 Reown AppKit is integrated in the development Preview. `src/lib/appkit.ts` initializes `@reown/appkit` with `EthersAdapter`, the user-provided Project ID and Base Sepolia as the only configured network. `src/main.tsx` loads the initialization before rendering the app. The checkout uses `useAppKit`, `useAppKitAccount`, `useAppKitProvider("eip155")` and `useAppKitNetwork`. Its balance reads, network checks and exact-amount ERC-20 transfer continue through the EIP-1193 provider. An injected provider remains a fallback, and manual deposit remains available.
 
-The Cloudflare Pages Preview build passed for commit `f95404888e8183c3b9ba031f9a28e1ed89419acf`. Still required: mobile WalletConnect connection, account-change, disconnect/reconnect and network-switch checks, followed by an explicitly approved exact-quote testnet transfer. Keep the connector restricted to Base Sepolia. Reown adds wallet-connection options only; it does not expand supported assets, routes or destination verifiers.
+The Cloudflare Pages Preview build passed. A live mobile payment acceptance test using Reown and MetaMask on Base Sepolia completed, and Pelargo displayed Settled, Provider SUCCESS and Settlement check verified. Account-change, disconnect/reconnect and network-switch edge cases remain. Keep the connector restricted to Base Sepolia. Reown adds wallet-connection options only; it does not expand supported assets, routes or destination verifiers.
 
 ## 7. Hosted checkout URL and current integration status
 
