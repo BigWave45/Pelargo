@@ -2,7 +2,8 @@
 
 **Last consolidated:** 7 November 2026  
 **Repository:** [BigWave45/Pelargo](https://github.com/BigWave45/Pelargo)  
-**Integrated non-production branch:** reliability/background-reconciliation  
+**Canonical GitHub branch:** `main`  
+**Integrated Preview/workflow branch:** `reliability/background-reconciliation`  
 **External merchant acceptance:** PR #6 merged into reliability/background-reconciliation
 
 This document is the current handoff. Historical investigation logs and superseded implementation notes have been removed. Use Git history when an older implementation detail is needed.
@@ -67,14 +68,15 @@ Remaining edge-case checks are account changes, disconnect/reconnect and network
 
 ## Branch and domain strategy
 
-- reliability/background-reconciliation contains the integrated non-production product.
+- `main` now contains the integrated Pelargo application, copied from the reviewed integration tree on 7 November 2026.
 - PR #6 integrated `test/external-merchant-integration` into `reliability/background-reconciliation` on 7 November 2026.
 - build/live-intents is the existing Cloudflare Pages production branch. Do not change it.
-- main contains an older Google AI Studio-generated version and is not the current product source.
-- Integrated non-production Preview alias: https://reliability-background-recon.pelargo.pages.dev. The post-merge acceptance rerun passed against this alias.
+- The obsolete Google AI Studio-generated demo and README were removed from `main`.
+- Latest `main` Preview deployment: https://main.pelargo.pages.dev, from commit `b518eda7ddd89bc9046841e5196f8a56739b1f63`; Cloudflare reports build and deploy success.
+- Integration-branch Preview alias: https://reliability-background-recon.pelargo.pages.dev. The post-merge external merchant acceptance rerun passed against this alias.
 - A free custom domain has not yet been selected or configured.
 
-Do not merge, move the production branch, deploy Production or change domain routing now. First finish the redesign and Reown work, complete acceptance testing, and freeze a release candidate. Then reconcile the candidate against build/live-intents, update main to the approved release, and only after explicit approval change the Cloudflare production branch and attach the chosen domain. A GitHub merge to main alone does not change the Cloudflare Pages production branch.
+The integrated application tree is now on `main`; PRs #1–#4 were closed on 7 November 2026 because their work was merged or superseded. CI passed on the latest `main` commit. The obsolete GitHub Pages workflow was removed after it failed with a 404 because GitHub Pages is not enabled; this does not affect Cloudflare Pages. The Cloudflare production branch remains `build/live-intents`. Do not change that branch, deploy Production, modify Production D1 or change domain routing without explicit approval. A GitHub update to `main` does not change the Cloudflare Pages production branch.
 
 ## Remaining work
 
