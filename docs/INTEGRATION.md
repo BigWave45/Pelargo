@@ -31,7 +31,7 @@ The dashboard supports open merchant registration and password login. Registrati
 - `GET/PUT /api/merchant-settings` — read or save the merchant's destination configuration.
 - `GET /api/orders` — list up to 100 recent orders belonging to the authenticated merchant.
 
-Sessions last seven days. Registration is limited to five attempts per email/IP per hour; login is limited to ten attempts per email/IP per 15 minutes. Email verification, API-key rotation and multi-user merchant accounts are not implemented. Preview password recovery is implemented and has been exercised successfully: a one-time token is emitted to restricted Cloudflare Pages Preview runtime logs, expires after 30 minutes, and can be redeemed once; redemption updates the password and revokes prior sessions. No email delivery is configured, so this is an operator-assisted Preview recovery mechanism, not a production customer recovery channel. The destination asset ID and decimal precision must be confirmed against the active provider token catalogue; the form does not independently prove a token/recipient combination is settleable.
+Sessions last seven days. Registration is limited to five attempts per email/IP per hour; login is limited to ten attempts per email/IP per 15 minutes. Email verification and multi-user merchant accounts are not implemented. Merchant API-key issuance and rotation are implemented through the Developers section and `POST /api/merchant-api-key`. Preview password recovery is implemented and has been exercised successfully: a one-time token is emitted to restricted Cloudflare Pages Preview runtime logs, expires after 30 minutes, and can be redeemed once; redemption updates the password and revokes prior sessions. No email delivery is configured, so this is an operator-assisted Preview recovery mechanism, not a production customer recovery channel. The destination asset ID and decimal precision must be confirmed against the active provider token catalogue; the form does not independently prove a token/recipient combination is settleable.
 
 The operator-only `POST /api/merchant` provisioning endpoint remains available for internal setup and existing server integrations. It is not the public signup flow.
 
@@ -209,9 +209,9 @@ The target Preview Pages environment needs:
 - `NEARSCANNER_API_KEY` for NearScanner signer lookup; the user reports that this secret has been added to Cloudflare.
 - Optional `NEAR_RPC_URL` and `NEARSCANNER_TX_API_URL` endpoint overrides.
 
-The active branch contains migrations `0001` through `0019`. Preview D1 migration `0017` was applied and read back successfully. Migration `0019` application remains unverified. Preview password recovery has been exercised successfully, which confirms the deployed reset path and its required database state are functioning; do not infer that every later migration is applied. Production migration state is separate and must not be changed during hackathon testing.
+The active branch contains migrations `0001` through `0019`. A read-only query of the Preview D1 `d1_migrations` table on 7 November confirmed all 19 are applied. The records for `0019_reconciliation_backfill_eligible_states.sql` and `0018_preview_password_reset.sql` appear as IDs 18 and 19 respectively because they were applied in that order. This confirms the migration ledger, not the correctness of every runtime behavior. Production migration state is separate and was not queried or changed.
 
-A Preview-only background reconciliation Worker and manual GitHub Actions deployment workflow exist. The workflow has not been dispatched. Worker deployment, encrypted `RECONCILIATION_SECRET` installation and five-minute cron activation are not confirmed. Dispatching the workflow also activates the existing Preview expiry and uncertain quote-commit recovery sweeps; review that side effect before authorization.
+A Preview-only background reconciliation Worker is deployed as `pelargo-expiry-sweeper-preview` (deployment `52733dc2-06be-4c7d-9a51-7e7c1a433074`), and Cloudflare previously confirmed its five-minute cron (`*/5 * * * *`) is active. The encrypted `RECONCILIATION_SECRET` value cannot be read back through the Cloudflare API; its installation must be confirmed through a successful authenticated Worker invocation or equivalent runtime evidence. A successful scheduled settlement run has not been established. The Worker also runs abandoned-checkout expiry and uncertain quote-commit recovery sweeps, so any redeployment or activation must account for those side effects.
 
 Tests in `bun run test:security` and `bun run test:api` use in-memory SQLite and mocked provider/indexer/RPC responses. They do not prove live provider, indexer, RPC or scheduled Worker behavior. One live testnet payment, ORDER-83587591, has completed canonical NEAR NEP-141 settlement verification and immutable evidence persistence in Preview D1. The merchant has signed in successfully and reports the latest status read as settled. CI and Preview deployment for the subsequent settled-read immutability commits still need verification.
 
@@ -220,8 +220,8 @@ Current product limitations:
 - EVM, Solana, Bitcoin, native NEAR and other destination settlement verifiers are not implemented.
 - Email delivery for password recovery is not configured; Preview recovery is operator-assisted.
 - Merchant webhooks are not implemented.
-- API-key rotation and multi-user merchant accounts are not implemented.
+- Multi-user merchant accounts are not implemented. API-key issuance and rotation are implemented, but the authenticated rotation flow has not yet been exercised end-to-end in a merchant browser session.
 - No published stable SDK/CDN package.
-- The complete merchant-to-embedded-widget flow still needs a clean, reproducible submission demonstration.
+- The complete merchant-to-embedded-widget flow still needs an independent merchant-origin browser acceptance test using a real merchant-created session. A Preview deployment and a bundle smoke test do not prove this end-to-end flow.
 
 Keep `ALLOW_MAINNET_DEPOSITS` unset. Do not use this prototype to collect real customer funds.
