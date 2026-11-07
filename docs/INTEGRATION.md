@@ -228,7 +228,7 @@ Do not copy secret values into this guide, browser code, Vite VITE_* variables o
 
 The supported destination settlement verifier is NEAR NEP-141. The direct wallet transfer path is limited to eligible provider-listed Base Sepolia ERC-20 source assets. Provider route availability is dynamic. Pelargo does not currently provide arbitrary-chain settlement verification, automatic provider failover, route comparison or a Pelargo-operated liquidity engine.
 
-The testnet route demonstrated on ORDER-35541967 has both source and destination evidence. ORDER-45723806 has destination evidence but no source-evidence row. These are distinct records and must not be conflated. A successful scheduled reconciliation run and independent external merchant-origin acceptance are separate checks; do not infer either from the successful payment record.
+`ORDER-35541967` is the complete dual-chain evidence record: source and destination evidence both match the same merchant order, with exactly 1 USDC delivered to `agentg.testnet`. `ORDER-83587591` is a separate order with both source and destination evidence; its source amount is 1,012,633 atomic units and destination amount is 1,000,000 atomic units. Its provider status remained `PROCESSING` when Pelargo marked the order settled after independent NEAR verification. `ORDER-45723806` has destination evidence but no source-evidence row. These are distinct records and must not be conflated. Scheduled Worker configuration is verified separately; successful scheduled processing of a due payment remains unverified.
 
 ## 6. Wallet connection status
 
