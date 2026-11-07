@@ -51,16 +51,18 @@ The active redesign uses a blue-and-white foundation with modern financial-infra
 ## Branches, Preview and release controls
 
 - Repository: [BigWave45/Pelargo](https://github.com/BigWave45/Pelargo)
-- Integrated non-production branch: reliability/background-reconciliation
+- Canonical GitHub application branch: main
+- Integrated Preview/reconciliation workflow branch: reliability/background-reconciliation
 - External merchant acceptance test: merged via PR #6 into reliability/background-reconciliation
 - Existing Cloudflare Pages production branch: build/live-intents
-- main contains an older Google AI Studio-generated version and is not the current product source.
+- `main` now contains the integrated Pelargo application. The obsolete Google AI Studio demo was replaced on 7 November 2026.
 - Cloudflare Pages project: pelargo
-- Integrated Preview URL: [reliability-background-recon.pelargo.pages.dev](https://reliability-background-recon.pelargo.pages.dev)
+- Latest `main` Preview URL: [main.pelargo.pages.dev](https://main.pelargo.pages.dev)
+- Integration-branch Preview alias: [reliability-background-recon.pelargo.pages.dev](https://reliability-background-recon.pelargo.pages.dev)
 
 Do not merge, change the Cloudflare production branch, deploy Production, change domain routing, modify Production D1, enable mainnet or initiate payments without explicit approval. Merging to GitHub main alone does not change the Cloudflare Pages production branch.
 
-PR #6 is merged into reliability/background-reconciliation. The release sequence is: finish the design and wallet work; run acceptance tests; freeze a release candidate; reconcile it against the existing production baseline; update main to the approved release; then, with explicit approval, configure the production branch and domain. A free custom domain has not yet been selected or configured. Keep the Preview URL separate from the eventual public domain.
+PR #6 is merged into `reliability/background-reconciliation`. On 7 November 2026, the integrated application tree was copied to `main`, the obsolete GitHub Pages workflow was removed, and the remaining open draft PRs (#1–#4) were closed as superseded. The latest `main` commit passed CI and deployed successfully to Cloudflare Pages Preview. Remaining release work is Reown edge-case review, complete mobile/desktop acceptance, and demo preparation. The production branch remains `build/live-intents` and has not been changed. A free custom domain has not yet been selected or configured. Keep the Preview URL separate from the eventual public domain.
 
 ## Development
 
