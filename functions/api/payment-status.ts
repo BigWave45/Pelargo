@@ -208,14 +208,14 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
   const payment = await env.DB.prepare(
     `SELECT o.id, o.external_order_id, o.status AS order_status,
             o.destination_network, o.destination_asset, o.recipient, o.amount_atomic,
-            p.status, p.quote_id, p.deposit_address, p.deposit_memo, p.provider_status, p.destination_tx_candidate, p.last_polled_at
+            p.status, p.quote_id, p.deposit_address, p.deposit_memo, p.provider_status, p.provider_updated_at, p.destination_tx_candidate, p.last_polled_at
        FROM checkout_orders o
        JOIN payment_lifecycle p ON p.order_id = o.id
       WHERE o.merchant_id = ? AND o.external_order_id = ?`
   ).bind(merchantId, orderId).first<{
     id: string; external_order_id: string; order_status: string;
     destination_network: string; destination_asset: string; recipient: string; amount_atomic: string;
-    status: PaymentStatus; quote_id: string | null; deposit_address: string | null; deposit_memo: string | null; provider_status: string | null; destination_tx_candidate: string | null; last_polled_at: string | null;
+    status: PaymentStatus; quote_id: string | null; deposit_address: string | null; deposit_memo: string | null; provider_status: string | null; provider_updated_at: string | null; destination_tx_candidate: string | null; last_polled_at: string | null;
   }>();
 
   if (!payment) return json({ error: "Order not found" }, 404);
@@ -433,7 +433,7 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
               destinationAsset: payment.destination_asset,
               recipient: payment.recipient,
               amountAtomic: payment.amount_atomic,
-            }, hash, (stage) => candidateDiagnostics.push({ hash, stage }), provider.updatedAt);
+            }, hash, (stage) => candidateDiagnostics.push({ hash, stage }), provider.updatedAt ?? payment.provider_updated_at ?? undefined);
             if (evidence) break;
           } catch (error) {
             const detail = error instanceof Error ? error.message.slice(0, 240) : "Unknown verifier failure";
