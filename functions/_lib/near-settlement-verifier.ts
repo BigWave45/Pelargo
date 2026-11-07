@@ -197,39 +197,58 @@ async function signerFromCanonicalRpcBlockWindow(
   const firstHeight = scanStart < lowerBound ? lowerBound : scanStart;
   const lastHeight = scanEnd > headHeight ? headHeight : scanEnd;
   const scanHeights: bigint[] = [];
-  for (let height = firstHeight; height <= lastHeight; height++) scanHeights.push(height);
-  onDiagnostic?.("testnet_rpc_block_scan_window", `heights=${firstHeight}-${lastHeight}; blocks=${scanHeights.length}; target=${observedAt}`);
-  const blocks = await mapWithConcurrency(scanHeights, 5, (height) => rpcBlockByHeight(rpcUrl, height));
-  const chunkRefs: string[] = [];
-  for (const block of blocks) {
-    const chunks = Array.isArray(block.chunks) ? block.chunks : [];
-    for (const rawChunk of chunks) {
-      const chunk = record(rawChunk);
-      if (!chunk || typeof chunk.chunk_hash !== "string" ||
-          chunk.tx_root === EMPTY_NEAR_TX_ROOT) continue;
-      if (!chunkRefs.includes(chunk.chunk_hash)) chunkRefs.push(chunk.chunk_hash);
-    }
-  }
-
-  onDiagnostic?.("testnet_rpc_block_scan_chunks", `non_empty_chunks=${chunkRefs.length}`);
+  // Search nearest-to-timestamp blocks first. Fetch and inspect small batches
+  // so a match does not require downloading the entire recovery window.
+  for (let height = lastHeight; height >= firstHeight; height--) scanHeights.push(height);
+  onDiagnostic?.("testnet_rpc_block_scan_window", `heights=${firstHeight}-${lastHeight}; max_blocks=${scanHeights.length}; target=${observedAt}`);
   const matchingSigners = new Set<string>();
-  await mapWithConcurrency(chunkRefs, 6, async (chunkHash) => {
-    const chunkPayload = await postJson(rpcUrl, {
-      jsonrpc: "2.0", id: "pelargo-near-chunk-scan", method: "chunk",
-      params: { chunk_id: chunkHash },
-    });
-    if (chunkPayload.error) throw new Error("NEAR RPC chunk lookup failed during signer recovery");
-    const chunk = record(chunkPayload.result);
-    const transactions = Array.isArray(chunk?.transactions) ? chunk.transactions : [];
-    for (const rawTransaction of transactions) {
-      const transaction = record(rawTransaction);
-      if (transaction?.hash === expectedHash && typeof transaction.signer_id === "string" &&
-          /^[a-z0-9._-]{2,64}$/.test(transaction.signer_id)) {
-        matchingSigners.add(transaction.signer_id);
+  let inspectedBlocks = 0;
+  let inspectedChunks = 0;
+  const blockBatchSize = 8;
+  const chunkBatchSize = 4;
+
+  for (let offset = 0; offset < scanHeights.length; offset += blockBatchSize) {
+    const heights = scanHeights.slice(offset, offset + blockBatchSize);
+    const blocks = await mapWithConcurrency(heights, 4, (height) => rpcBlockByHeight(rpcUrl, height));
+    inspectedBlocks += blocks.length;
+    const chunkRefs: string[] = [];
+    for (const block of blocks) {
+      const chunks = Array.isArray(block.chunks) ? block.chunks : [];
+      for (const rawChunk of chunks) {
+        const chunk = record(rawChunk);
+        if (!chunk || typeof chunk.chunk_hash !== "string" ||
+            chunk.tx_root === EMPTY_NEAR_TX_ROOT) continue;
+        if (!chunkRefs.includes(chunk.chunk_hash)) chunkRefs.push(chunk.chunk_hash);
       }
     }
-    return null;
-  });
+
+    for (let chunkOffset = 0; chunkOffset < chunkRefs.length; chunkOffset += chunkBatchSize) {
+      const batch = chunkRefs.slice(chunkOffset, chunkOffset + chunkBatchSize);
+      await mapWithConcurrency(batch, chunkBatchSize, async (chunkHash) => {
+        const chunkPayload = await postJson(rpcUrl, {
+          jsonrpc: "2.0", id: "pelargo-near-chunk-scan", method: "chunk",
+          params: { chunk_id: chunkHash },
+        });
+        if (chunkPayload.error) throw new Error("NEAR RPC chunk lookup failed during signer recovery");
+        const chunk = record(chunkPayload.result);
+        const transactions = Array.isArray(chunk?.transactions) ? chunk.transactions : [];
+        for (const rawTransaction of transactions) {
+          const transaction = record(rawTransaction);
+          if (transaction?.hash === expectedHash && typeof transaction.signer_id === "string" &&
+              /^[a-z0-9._-]{2,64}$/.test(transaction.signer_id)) {
+            matchingSigners.add(transaction.signer_id);
+          }
+        }
+        return null;
+      });
+      inspectedChunks += batch.length;
+      if (matchingSigners.size > 1) break;
+    }
+    onDiagnostic?.("testnet_rpc_block_scan_progress", `blocks=${inspectedBlocks}; chunks=${inspectedChunks}; matching_signers=${matchingSigners.size}`);
+    // A NEAR transaction hash is unique. Once a full nearest block batch has
+    // been checked, older batches cannot add a legitimate second occurrence.
+    if (matchingSigners.size > 0) break;
+  }
   // Ambiguous signer data is not safe to resolve automatically.
   return matchingSigners.size === 1 ? [...matchingSigners][0] : null;
 }
