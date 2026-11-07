@@ -179,6 +179,71 @@ async function signerFromCanonicalRpcBlockWindow(
     throw new Error("NEAR_TX_RECOVERY_WINDOW_BLOCKS must be an integer from 8 to 600");
   }
 
+  // Stateless verifier calls (unit tests and explicit one-off tooling) retain
+  // the bounded full-window behavior. Production payment-status always supplies
+  // the D1 store and therefore uses the resumable one-batch path below.
+  if (!recoveryStore) {
+    const latestPayload = await postJson(rpcUrl, {
+      jsonrpc: "2.0", id: "pelargo-near-block-scan-head", method: "block",
+      params: { finality: "final" },
+    });
+    const latestHeader = blockHeader(latestPayload);
+    if (!latestHeader || (typeof latestHeader.height !== "number" && typeof latestHeader.height !== "string") ||
+        (typeof latestHeader.timestamp_nanosec !== "string" && typeof latestHeader.timestamp_nanosec !== "number")) {
+      throw new Error("NEAR RPC returned an incomplete finalized head for signer recovery");
+    }
+    const headHeight = BigInt(latestHeader.height);
+    const ageNs = BigInt(latestHeader.timestamp_nanosec) - targetNs;
+    if (ageNs < -60_000_000_000n || ageNs > 7_200_000_000_000n) return null;
+    const lowerBound = headHeight > 10_000n ? headHeight - 10_000n : 1n;
+    let low = lowerBound, high = headHeight;
+    while (low < high) {
+      const middle = (low + high) / 2n;
+      const block = await rpcBlockByHeight(rpcUrl, middle);
+      const timestamp = blockTimestampNs(block);
+      if (timestamp === null) throw new Error("NEAR RPC block omitted timestamp_nanosec");
+      if (timestamp < targetNs) low = middle + 1n;
+      else high = middle;
+    }
+    const width = BigInt(requestedWindow);
+    const first = low - (width - 8n) < lowerBound ? lowerBound : low - (width - 8n);
+    const last = low + 8n > headHeight ? headHeight : low + 8n;
+    const matches = new Set<string>();
+    for (let height = last; height >= first; height -= 8n) {
+      const heights: bigint[] = [];
+      for (let h = height; h >= first && heights.length < 8; h--) heights.push(h);
+      const blocks = await mapWithConcurrency(heights, 4, (h) => rpcBlockByHeight(rpcUrl, h));
+      const refs: string[] = [];
+      for (const block of blocks) {
+        for (const raw of (Array.isArray(block.chunks) ? block.chunks : [])) {
+          const chunk = record(raw);
+          if (chunk && typeof chunk.chunk_hash === "string" && chunk.tx_root !== EMPTY_NEAR_TX_ROOT &&
+              !refs.includes(chunk.chunk_hash)) refs.push(chunk.chunk_hash);
+        }
+      }
+      for (let offset = 0; offset < refs.length; offset += 4) {
+        const batch = refs.slice(offset, offset + 4);
+        await mapWithConcurrency(batch, 4, async (chunkHash) => {
+          const payload = await postJson(rpcUrl, {
+            jsonrpc: "2.0", id: "pelargo-near-chunk-scan", method: "chunk",
+            params: { chunk_id: chunkHash },
+          });
+          if (payload.error) throw new Error("NEAR RPC chunk lookup failed during signer recovery");
+          const transactions = Array.isArray(record(payload.result)?.transactions)
+            ? record(payload.result)!.transactions as unknown[] : [];
+          for (const raw of transactions) {
+            const tx = record(raw);
+            if (tx?.hash === expectedHash && typeof tx.signer_id === "string" &&
+                /^[a-z0-9._-]{2,64}$/.test(tx.signer_id)) matches.add(tx.signer_id);
+          }
+          return null;
+        });
+      }
+      if (matches.size > 0) break;
+    }
+    return matches.size === 1 ? [...matches][0] : null;
+  }
+
   let cursor: RecoveryCursor | null = null;
   if (recoveryStore) {
     cursor = await recoveryStore.db.prepare(
