@@ -9,6 +9,8 @@ export interface Env {
   NEAR_RPC_URL?: string;
   NEAR_TX_INDEXER_URL?: string;
   NEAR_TX_INDEXER_API_KEY?: string;
+  /** Bounded testnet signer-recovery scan width in blocks (8-600; default 120). */
+  NEAR_TX_RECOVERY_WINDOW_BLOCKS?: string;
   /** Preview-only known transaction signer; canonical RPC still verifies the hash and execution. */
   NEAR_TX_SIGNER_ID?: string;
   /** Exact transaction hash to which NEAR_TX_SIGNER_ID applies. */
