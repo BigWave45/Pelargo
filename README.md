@@ -6,13 +6,14 @@ Pelargo is a merchant-first, non-custodial crypto checkout and settlement-verifi
 
 ## Demo and source
 
-- **Hackathon candidate demo:** https://release-hackathon-candidate.pelargo.pages.dev
+- **Current merged-main demo (Preview/testnet):** https://main.pelargo.pages.dev
+- **Release-candidate deployment:** https://release-hackathon-candidate.pelargo.pages.dev
 - **Integrated Preview (development/acceptance):** https://reliability-background-recon.pelargo.pages.dev
 - **Repository:** https://github.com/BigWave45/Pelargo
 - **Testing and acceptance record:** [docs/TESTING.md](docs/TESTING.md)
 - **Merchant integration guide:** [docs/INTEGRATION.md](docs/INTEGRATION.md)
 
-The Preview is a testnet demonstration. Do not use it to collect customer funds.
+The main and candidate URLs are non-production Preview deployments using the isolated Preview environment and Preview D1 database. They are testnet demonstrations. Do not use them to collect customer funds. The built-in production hostname, https://pelargo.pages.dev, remains on the separately configured production branch.
 
 ## The problem Pelargo addresses
 
@@ -86,19 +87,22 @@ Automated tests, hosted merchant acceptance and manual payment evidence are docu
 
 ## Branch and release status
 
+- GitHub default branch: `main`.
+- Merged release candidate: `release/hackathon-candidate`, merged through PR #7.
 - Integrated non-production branch: `reliability/background-reconciliation`.
-- Release candidate branch: `release/hackathon-candidate`.
-- Existing Cloudflare Pages production branch: `build/live-intents`.
-- `main` is the repository default branch and is being used as the release-candidate base.
+- Cloudflare Pages production branch: `build/live-intents` (unchanged).
+- Cloudflare Pages main-branch Preview alias: `https://main.pelargo.pages.dev`.
 - Cloudflare Pages project: `pelargo`.
 
-The release candidate is being assembled from reviewed application changes. It is not yet merged into `main` or promoted to production. Do not infer that a GitHub merge changes the Cloudflare production branch.
+PR #7 merged the reviewed release candidate into `main` at merge commit `d18ae93a3eda3263eadc420cb951f4ebe52b2764`. Cloudflare successfully built and deployed that exact merge commit as a Preview deployment using the isolated Preview configuration and Preview D1 database. A GitHub merge does not change the Cloudflare production branch or production database.
+
+The main-branch Preview is the cleanest current demo URL. The built-in production hostname `pelargo.pages.dev` remains attached to `build/live-intents` until production configuration and data migration are separately reviewed and explicitly approved.
 
 ## Safety
 
 - All demonstrated payment activity is testnet activity.
 - Keep `ALLOW_MAINNET_DEPOSITS` unset.
-- Do not use the Preview prototype to collect real customer funds.
+- Do not use Preview to collect real customer funds.
 - Never expose merchant API keys, provisioning secrets, session-signing secrets or indexer credentials in browser code or public repositories.
 - A quote, deposit address, provider status or wallet transaction hash is not settlement proof.
 - Production branch changes, domain routing, mainnet activation and production database changes require explicit approval.
