@@ -1,8 +1,5 @@
 {
   "name": "Pelargo",
   "description": "Embeddable cross-chain merchant checkout with independently verified settlement on NEAR.",
-  "requestFramePermissions": [],
-  "majorCapabilities": [
-    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
-  ]
+  "requestFramePermissions": []
 }
