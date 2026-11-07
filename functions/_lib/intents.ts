@@ -106,7 +106,7 @@ export async function intentsRequest(
 
   // The upstream API may redirect. Only explicitly registered provider
   // origins are eligible for requests.
-  return fetch(`${provider.baseUrl}${provider.apiPrefix}/${path}`,
+  return fetch(`${provider.baseUrl}${provider.apiPrefix}/${path}`, {
     ...init,
     headers,
     redirect: "follow",
