@@ -94,3 +94,14 @@
 @media (prefers-reduced-motion: reduce) {
   .pelargo-checkout *, .pelargo-checkout *::before, .pelargo-checkout *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
 }
+
+
+/* Connected-wallet checkout */
+.pelargo-wallet-panel, .pelargo-wallet-payment { margin-top: 16px; padding: 15px; border: 1px solid #dbe5f3; border-radius: 9px; background: #f7f9fd; }
+.pelargo-wallet-heading { display: flex; align-items: center; gap: 9px; color: #173d9b; font-size: 12px; font-weight: 700; }
+.pelargo-wallet-heading svg { flex: 0 0 auto; color: #315be8; }
+.pelargo-wallet-panel > p, .pelargo-wallet-payment > p { margin: 8px 0 12px; color: #586983; font-size: 11px; line-height: 1.6; }
+.pelargo-wallet-panel .pelargo-quote-button, .pelargo-wallet-payment .pelargo-quote-button { width: 100%; margin-top: 12px; }
+.pelargo-wallet-panel .pelargo-quote-detail { grid-template-columns: minmax(0,1fr) minmax(0,1.2fr); }
+.pelargo-text-button { display: inline-flex; margin-top: 9px; padding: 3px 0; border: 0; background: transparent; color: #1746c8; font: 650 11px "DM Sans", sans-serif; cursor: pointer; }
+.pelargo-wallet-payment .pelargo-deposit-address { background: #fff; }
