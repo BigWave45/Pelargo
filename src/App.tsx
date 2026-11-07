@@ -166,6 +166,9 @@ export default function App() {
   const [sourceTransactionHash, setSourceTransactionHash] = useState("");
   const [recoveryBusy, setRecoveryBusy] = useState(false);
   const [checkingOrderId, setCheckingOrderId] = useState<string | null>(null);
+  const [merchantApiKey, setMerchantApiKey] = useState("");
+  const [apiKeyBusy, setApiKeyBusy] = useState(false);
+  const [apiKeyNotice, setApiKeyNotice] = useState("");
 
   async function refreshWorkspace() {
     const [profile, activity] = await Promise.all([
@@ -357,9 +360,70 @@ export default function App() {
           {createdLink && <section className="workspace-card generated-link"><div className="card-heading"><div><h3>Checkout link created</h3><p>Share this URL with the buyer. It is a bearer link and should be treated as private to this order.</p></div><Check size={18} /></div><div className="generated-link-value">{createdLink}</div><button className="quiet-button" onClick={async () => { await navigator.clipboard.writeText(createdLink); setCopied(true); }}><Copy size={14} /> {copied ? "Copied" : "Copy checkout link"}</button></section>}
         </>}
         {section === "developers" && <>
-          <div className="workspace-heading-row"><div><div className="eyebrow">DEVELOPER TOOLS</div><h1>Integration</h1><p className="workspace-subtitle">Use the server-side API to create signed checkout sessions for your own orders.</p></div></div>
-          <section className="workspace-card api-card"><div className="card-heading"><div><h3>Available endpoints</h3><p>Merchant dashboard uses secure cookie sessions. Server integrations use merchant API credentials.</p></div><Code2 size={17} /></div><div className="api-row"><code>POST /api/checkout-session</code><span>Create a signed order session.</span></div><div className="api-row"><code>GET /api/order?orderId=…</code><span>Retrieve an order scoped to the authenticated merchant.</span></div><div className="api-row"><code>GET /api/payment-status?orderId=…</code><span>Poll payment status; paid state requires independent settlement verification.</span></div><div className="api-row"><code>POST /api/deposit-submit</code><span>Verify an origin-chain deposit against the saved quote and notify the provider.</span></div></section>
-          <div className="notice-panel"><strong>Testnet readiness is still being verified.</strong><p>Do not use this checkout for mainnet payments. A committed quote creates deposit instructions; the buyer must still send funds, and Pelargo marks an order paid only after independent settlement verification.</p></div>
+          <div className="workspace-heading-row"><div><div className="eyebrow">DEVELOPER TOOLS</div><h1>Integrate Pelargo</h1><p className="workspace-subtitle">Connect your order backend to Pelargo, then mount the buyer checkout on your order page.</p></div></div>
+          <section className="workspace-card api-card">
+            <div className="card-heading"><div><h3>1. Server API credential</h3><p>Generate a merchant key for your backend. It is displayed once and is never readable again from Pelargo.</p></div><ShieldCheck size={17} /></div>
+            {merchantApiKey ? <div className="notice-panel auth-success"><strong>New merchant API key</strong><p>Copy it now and save it in your server-side secret manager. It will not be shown again. The previous key is now invalid.</p><div className="generated-link-value">{merchantApiKey}</div><button className="quiet-button" type="button" onClick={async()=>{await navigator.clipboard.writeText(merchantApiKey);setApiKeyNotice("API key copied.");}}> <Copy size={14}/> Copy API key</button></div> : <div className="form-footer"><span>Your browser receives the key only in this authenticated, no-store response.</span><button className="primary-button" type="button" disabled={apiKeyBusy} onClick={async()=>{const confirmed=window.confirm("Generate a new merchant API key? Any previous key will stop working immediately.");if(!confirmed)return;setApiKeyBusy(true);setApiKeyNotice("");setError("");try{const result=await api<{apiKey:string;warning:string}>("/api/merchant-api-key",{method:"POST",body:"{}"});setMerchantApiKey(result.apiKey);setApiKeyNotice(result.warning);}catch(e){setError(e instanceof Error?e.message:"Unable to generate merchant API key.");}finally{setApiKeyBusy(false);}}}>{apiKeyBusy?"Generating…":"Generate / rotate API key"} <ArrowUpRight size={15}/></button></div>}
+            {apiKeyNotice && !merchantApiKey && <p className="field-hint">{apiKeyNotice}</p>}
+          </section>
+          <section className="workspace-card api-card">
+            <div className="card-heading"><div><h3>2. Create a checkout session on your server</h3><p>Keep the merchant API key in your backend environment. Never put it in browser JavaScript.</p></div><Code2 size={17}/></div>
+            <div className="code-panel"><div className="code-panel-head"><span>SERVER · JAVASCRIPT / TYPESCRIPT</span><button type="button" onClick={async()=>{await navigator.clipboard.writeText(`const response = await fetch("https://reliability-background-recon.pelargo.pages.dev/api/checkout-session", {\n  method: "POST",\n  headers: {\n    "content-type": "application/json",\n    "x-pelargo-merchant-key": process.env.PELARGO_MERCHANT_API_KEY,\n  },\n  body: JSON.stringify({\n    orderId: order.id,\n    amount: order.amount,\n    amountAtomic: order.amountAtomic,\n    destinationAsset: process.env.PELARGO_DESTINATION_ASSET,\n    destinationSymbol: "USDC",\n    destinationNetwork: "NEAR",\n    recipient: process.env.PELARGO_RECIPIENT,\n    expiresInSeconds: 900,\n  }),\n});\nif (!response.ok) throw new Error("Pelargo checkout session failed");\nconst { token, session } = await response.json();\n// Return token + public session to the authenticated buyer page.`);setApiKeyNotice("Server example copied.");}}><Copy size={12}/> Copy</button></div><pre>{`const response = await fetch("https://reliability-background-recon.pelargo.pages.dev/api/checkout-session", {
+  method: "POST",
+  headers: {
+    "content-type": "application/json",
+    "x-pelargo-merchant-key": process.env.PELARGO_MERCHANT_API_KEY,
+  },
+  body: JSON.stringify({
+    orderId: order.id,
+    amount: order.amount,
+    amountAtomic: order.amountAtomic,
+    destinationAsset: process.env.PELARGO_DESTINATION_ASSET,
+    destinationSymbol: "USDC",
+    destinationNetwork: "NEAR",
+    recipient: process.env.PELARGO_RECIPIENT,
+    expiresInSeconds: 900,
+  }),
+});
+if (!response.ok) throw new Error("Pelargo checkout session failed");
+const { token, session } = await response.json();
+// Return token + public session to the authenticated buyer page.`}</pre><div className="code-panel-foot">Build order values from your own database. amountAtomic must be an integer string using the destination token's actual decimals.</div></div>
+          </section>
+          <section className="workspace-card api-card">
+            <div className="card-heading"><div><h3>3. Mount the buyer checkout</h3><p>Run this on the buyer's order page after your server has created the session. The short-lived token is order-scoped.</p></div><Link2 size={17}/></div>
+            <div className="code-panel"><div className="code-panel-head"><span>BROWSER · HTML</span><button type="button" onClick={async()=>{await navigator.clipboard.writeText(`<script type="module" src="https://reliability-background-recon.pelargo.pages.dev/pelargo.js"></script>\n<div id="pelargo-checkout"></div>\n<script type="module">\n  // Obtain this from your own authenticated backend route.\n  const { token, session } = await fetch("/api/pelargo/checkout-session", {\n    method: "POST", credentials: "same-origin"\n  }).then(r => { if (!r.ok) throw new Error("Checkout unavailable"); return r.json(); });\n  const checkout = document.createElement("pelargo-checkout");\n  for (const [name, value] of Object.entries({\n    "merchant-name": session.merchantName, "amount": session.amount,\n    "order-id": session.orderId, "destination-asset": session.destinationAsset,\n    "destination-symbol": session.destinationSymbol, "destination-network": session.destinationNetwork,\n    "recipient": session.recipient, "session-token": token,\n    "session-expires-at": session.expiresAt\n  })) checkout.setAttribute(name, value);\n  document.querySelector("#pelargo-checkout").append(checkout);\n</script>`);setApiKeyNotice("Browser embed example copied.");}}><Copy size={12}/> Copy</button></div><pre>{`<script type="module" src="https://reliability-background-recon.pelargo.pages.dev/pelargo.js"></script>
+<div id="pelargo-checkout"></div>
+<script type="module">
+  // Obtain this from your own authenticated backend route.
+  const { token, session } = await fetch("/api/pelargo/checkout-session", {
+    method: "POST", credentials: "same-origin"
+  }).then(r => {
+    if (!r.ok) throw new Error("Checkout unavailable");
+    return r.json();
+  });
+  const checkout = document.createElement("pelargo-checkout");
+  for (const [name, value] of Object.entries({
+    "merchant-name": session.merchantName,
+    "amount": session.amount,
+    "order-id": session.orderId,
+    "destination-asset": session.destinationAsset,
+    "destination-symbol": session.destinationSymbol,
+    "destination-network": session.destinationNetwork,
+    "recipient": session.recipient,
+    "session-token": token,
+    "session-expires-at": session.expiresAt
+  })) checkout.setAttribute(name, value);
+  document.querySelector("#pelargo-checkout").append(checkout);
+</script>`}</pre><div className="code-panel-foot">The /api/pelargo/checkout-session route is yours to implement. It must authenticate the buyer and call Pelargo server-to-server using your merchant API key. Do not call Pelargo with that key from the browser.</div></div>
+          </section>
+          <section className="workspace-card api-card">
+            <div className="card-heading"><div><h3>4. Payment lifecycle endpoints</h3><p>Use these from your server for order reconciliation and fulfillment.</p></div><RefreshCw size={17}/></div>
+            <div className="api-row"><code>POST /api/checkout-session</code><span>Create a signed, time-limited order session.</span></div>
+            <div className="api-row"><code>GET /api/order?orderId=…</code><span>Retrieve an order scoped to your merchant.</span></div>
+            <div className="api-row"><code>GET /api/payment-status?orderId=…</code><span>Read provider and independent settlement status.</span></div>
+            <div className="api-row"><code>POST /api/deposit-submit</code><span>Submit an existing Base Sepolia source transaction for verification.</span></div>
+          </section>
+          <div className="notice-panel"><strong>Testnet only.</strong><p>This integration points to the Pelargo Preview host. Committed quotes create real testnet deposit instructions. Buyers must manually send the exact asset and amount. Never use this example for mainnet or real customer funds. The current bundle URL is a Preview integration target, not a stable production CDN.</p></div>
         </>}
         <footer className="workspace-footer"><span>Pelargo</span><span>Merchant checkout infrastructure</span><span>Testnet · Mainnet deposits disabled</span></footer>
       </div>
