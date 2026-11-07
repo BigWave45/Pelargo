@@ -139,3 +139,7 @@ The Preview reconciliation Worker `pelargo-expiry-sweeper-preview` is deployed w
 - [Testing and acceptance record](TESTING.md): automated tests, hosted acceptance, payment evidence and limitations.
 - [Project status](PROJECT_STATUS.md): branch, Preview deployment and release record.
 - [Vision and development history](VISION_AND_DEVELOPMENT_HISTORY.md): long-term NEAR settlement thesis and parallel branch history.
+- [Architecture](architecture.md): component responsibilities and NEAR settlement boundary.
+- [Threat model](threat-model.md): trust assumptions, tested controls and residual risks.
+- [Verification matrix](verification-matrix.md): what each evidence source does and does not prove.
+- [NEAR Hackathon notes](../HACKATHON.md): track fit and submission requirements.
