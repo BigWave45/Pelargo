@@ -52,19 +52,23 @@ jobs:
           wranglerVersion: "4.136.3"
           command: deploy --dry-run --config wrangler.expiry.preview.staged.toml
 
-      # Bootstrap the named script with no cron trigger. The action deploys
-      # this version, then installs the encrypted secret from the environment.
-      - name: Bootstrap Preview Worker and install its encrypted secret
+      # Bootstrap the named Worker without a cron trigger. Use an explicit
+      # Wrangler config for the secret command because the repository root
+      # config belongs to the Pages application.
+      - name: Bootstrap Preview Worker
         uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           wranglerVersion: "4.136.3"
           command: deploy --config wrangler.expiry.preview.staged.toml
-          secrets: |
-            RECONCILIATION_SECRET
+
+      - name: Install encrypted reconciliation secret on Preview Worker
         env:
           RECONCILIATION_SECRET: ${{ secrets.RECONCILIATION_SECRET }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$RECONCILIATION_SECRET" | bunx wrangler secret put RECONCILIATION_SECRET --config wrangler.expiry.preview.staged.toml
 
       - name: Validate scheduled config after installing secret
         uses: cloudflare/wrangler-action@v4
