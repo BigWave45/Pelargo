@@ -1,8 +1,10 @@
 # Pelargo
 
-**One checkout. Cross-chain payments. Independently verified settlement.**
+**Pay across chains. Settle on NEAR.**
 
-Pelargo is a merchant-first, non-custodial crypto checkout and settlement-verification layer. Merchants create orders and hosted checkout sessions; buyers pay through a supported provider route; Pelargo independently verifies destination settlement before marking an order paid.
+Pelargo is building a global, embeddable checkout for merchants. Customers pay using supported assets from supported networks; payments are routed to settle on NEAR, which serves as Pelargo's core settlement network. Merchants integrate the checkout widget into their own storefront or use hosted checkout. Pelargo manages the merchant order and checkout lifecycle, then independently verifies settlement on NEAR before marking an order paid.
+
+The widget is the global payment interface. NEAR is the settlement home. Other networks are payment entry points, while NEAR is the network where Pelargo is designed to complete and verify merchant settlement. Supported stablecoins such as USDC are part of the asset mix, but Pelargo is not a stablecoin-only product. The long-term ambition is broad global access; current route and asset support remains limited to what has actually been implemented and verified.
 
 ## Demo and source
 
@@ -18,12 +20,12 @@ The main and candidate URLs are non-production Preview deployments using the iso
 
 ## The problem Pelargo addresses
 
-A submitted wallet transaction or a provider's success response is not proof that a merchant received the expected asset. Pelargo maintains the merchant/order lifecycle and independently checks destination-chain settlement before declaring an order paid.
+Merchants need one checkout they can place inside an existing storefront, without having to build payment orchestration across networks or independently reconcile settlement. Pelargo is designed to let customers pay from supported networks while merchants receive settlement on NEAR. A submitted wallet transaction, source-chain deposit, or provider success response is not proof that the merchant received the expected asset. Pelargo owns the order lifecycle and verifies the expected NEAR destination transfer before an order is marked paid.
 
 ## How it works
 
 1. A merchant creates an order and requests a short-lived, signed buyer checkout session.
-2. The buyer opens hosted checkout and connects a supported wallet.
+2. The buyer uses the embedded Pelargo checkout widget or its hosted-checkout equivalent and connects a supported wallet.
 3. Pelargo obtains a quote and deposit instructions from its configured provider.
 4. The buyer submits the source-chain payment.
 5. Pelargo verifies the expected destination-chain transfer and persists matching settlement evidence.
@@ -36,6 +38,16 @@ The provider supplies route discovery, quotes, deposit instructions and provider
 The current Preview demonstration uses a provider-supported **Base Sepolia ERC-20 source asset to NEAR testnet NEP-141 destination asset** route through the Tidepool / NEAR Intents-compatible testnet environment. The demonstrated destination is 1 USDC to `agentg.testnet`.
 
 This is a specific testnet route, not universal cross-chain coverage. Route and asset availability depend on the provider's catalogue and liquidity. Pelargo does not currently provide arbitrary-chain settlement verification, automatic provider failover or route comparison. Mainnet committed quotes remain disabled.
+
+## Why NEAR is Pelargo's settlement home
+
+NEAR is not a placeholder destination or one interchangeable network in a list. Pelargo is being built around NEAR as its core settlement network. The intended model is that customers can pay from supported source networks and assets, while merchant settlement is completed and verified on NEAR. This gives merchants one checkout surface and gives the NEAR ecosystem a concrete payments use case: cross-network payment activity can arrive as settlement activity on NEAR, using NEAR accounts and supported NEP-141 assets.
+
+NEAR is therefore central to both the product architecture and its ecosystem thesis. Pelargo aims to bring merchant payment flows, asset movement and real checkout demand into the NEAR economy. That is an intended contribution, not a claim that Pelargo automatically funds NEAR, its treasury, or every application in the ecosystem. The actual economic benefit depends on merchants, users, assets, liquidity and settlement volume adopting the product.
+
+The current demonstrated route brings a payment from Base Sepolia to a NEAR testnet NEP-141 asset. Pelargo checks the destination transfer against the merchant order's expected token, recipient and amount using NEAR chain data before treating settlement as complete. The configured route uses a Tidepool / NEAR Intents-compatible testnet environment. We do not claim to implement the NEAR Intents protocol itself.
+
+The global checkout is the product direction; current route coverage is narrower. At present, the demonstrated path is specific and testnet-only. Additional source networks, assets and NEAR settlement assets must be implemented and verified before being advertised as supported.
 
 ## Wallet connection
 
@@ -54,19 +66,19 @@ This is a manual acceptance result, not exhaustive compatibility testing across 
 
 These testnet results do not establish mainnet or production readiness. A single observed duration is not a latency benchmark or guarantee. No additional payment is needed merely to repeat the demonstrated route.
 
-## Merchant integration
+## Merchant integration and checkout widget
 
-The current integration pattern is server-side merchant authentication and checkout-session creation, followed by a redirect or embed using a short-lived buyer session token. Merchant API keys must remain on the merchant server.
+The checkout widget is Pelargo's primary customer-facing product surface. A merchant authenticates server-side, creates an order and short-lived checkout session, then places the Pelargo custom element in its storefront or sends the buyer to the hosted-checkout equivalent. The widget presents the payment experience; Pelargo's API and lifecycle services bind that session to the merchant's order and verify settlement. Merchant API keys must remain on the merchant server.
 
-The repository includes a custom-element embed and integration documentation. It does not currently provide a stable published SDK/CDN package, Shopify or WooCommerce plugin, or merchant webhook delivery. See [docs/INTEGRATION.md](docs/INTEGRATION.md) and [docs/EXTERNAL_MERCHANT_TEST.md](docs/EXTERNAL_MERCHANT_TEST.md).
+The repository includes a custom-element embed and integration documentation. This is an implemented integration pattern, not yet a stable published SDK/CDN package. Pelargo does not currently provide Shopify or WooCommerce plugins or merchant webhook delivery. Supported assets and networks are limited to implemented and provider-available routes; stablecoins such as USDC are supported where a route exists, but stablecoins are not the only intended asset class. See [docs/INTEGRATION.md](docs/INTEGRATION.md) and [docs/EXTERNAL_MERCHANT_TEST.md](docs/EXTERNAL_MERCHANT_TEST.md).
 
 ## Architecture
 
 - Frontend: React, TypeScript and Vite.
 - Application/API: Cloudflare Pages Functions.
 - Persistence: Cloudflare D1.
-- Provider integration: Tidepool / NEAR Intents-compatible testnet environment.
-- Destination verification: NEAR NEP-141 chain verification.
+- Cross-chain routing: configured Tidepool / NEAR Intents-compatible testnet environment.
+- Core settlement network: NEAR, with NEP-141 destination-asset settlement verification using NEAR chain data.
 - Background processing: scheduled reconciliation Worker for payment lifecycle recovery and verification.
 
 The implementation includes merchant-scoped API access, signed short-lived checkout sessions, lifecycle transition validation, audit events, provider quote binding, source-deposit verification for the configured Base Sepolia route, destination settlement verification and reconciliation-job concurrency controls.
