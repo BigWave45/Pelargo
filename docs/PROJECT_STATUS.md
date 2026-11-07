@@ -13,8 +13,8 @@ The Base Sepolia → NEAR testnet route has been demonstrated on Preview, includ
 - ORDER-35541967 is paid/settled and has both immutable Base Sepolia source-deposit evidence and independently verified NEAR NEP-141 destination-settlement evidence.
 - The destination transfer delivered exactly 1 USDC to agentg.testnet.
 - ORDER-45723806 is also recorded as paid/settled with destination evidence, but it has no source-deposit evidence row. Do not describe it as fully evidenced on both chains.
-- In the latest user-reported mobile acceptance test, the checkout page itself displayed Payment status: Settled, Provider: SUCCESS and Settlement check: verified after connecting MetaMask through Reown on Base Sepolia. The order ID and transaction hashes for this additional test have not yet been captured in this handoff.
-- The user reported that the latest checkout completed quickly. No measured duration or latency guarantee has been established.
+- In the latest user-reported mobile acceptance test, the checkout page itself displayed Payment status: Settled, Provider: SUCCESS and Settlement check: verified after connecting MetaMask through Reown on Base Sepolia. The latest settled Preview record is ORDER-49053014, a strong temporal match but not yet explicitly confirmed by the user. Its independently verified NEAR destination transaction is `3uZtiZpnhUd4r2wzbmUhPHwW6CAVBfsLLwWuUyfRrZPC` (block 276622029; 68 confirmations), for 1 USDC to agentg.testnet. No source-deposit evidence row or source transaction hash is recorded for this order; therefore its source transaction reference remains unconfirmed.
+- Database lifecycle events for ORDER-49053014 show 2 minutes 20.6 seconds from order creation to settlement and 23.2 seconds from deposit detection to settlement. This is one observed test, not a latency guarantee.
 - Do not initiate another payment solely to repeat the demonstrated route.
 
 This proves one supported testnet route. It does not establish mainnet readiness, production readiness, universal route coverage or a successful scheduled reconciliation run.
@@ -34,8 +34,9 @@ This proves one supported testnet route. It does not establish mainnet readiness
 - Exact provider-quoted deposit address and atomic amount are used for the wallet transfer.
 - Manual deposit instructions remain the fallback.
 - Reown AppKit is initialized in Preview using the user-provided Project ID, Ethers adapter and Base Sepolia-only network. Checkout wallet connection uses AppKit hooks and its EIP-1193 provider.
-- Live mobile acceptance passed: the user connected MetaMask through Reown on Base Sepolia, completed checkout, and Pelargo itself displayed Settled, Provider SUCCESS and Settlement check verified. The order ID and transaction hashes were not captured in this handoff.
-- Remaining wallet checks: account changes, disconnect/reconnect and network-switch edge cases. No measured checkout duration or latency guarantee has been established.
+- Live mobile acceptance passed: the user connected MetaMask through Reown on Base Sepolia, completed checkout, and Pelargo itself displayed Settled, Provider SUCCESS and Settlement check verified. The latest settled Preview record is ORDER-49053014, a strong temporal match but not explicitly confirmed by the user. Its NEAR destination transaction is `3uZtiZpnhUd4r2wzbmUhPHwW6CAVBfsLLwWuUyfRrZPC`; the database records 1 USDC to agentg.testnet, block 276622029 and 68 confirmations. There is no source-deposit evidence row or source transaction hash for this order.
+- ORDER-49053014 took 2 minutes 20.6 seconds from order creation to settlement in recorded lifecycle events, with settlement 23.2 seconds after deposit detection. This is a single observation, not a latency guarantee.
+- Remaining wallet checks: account changes, disconnect/reconnect and network-switch edge cases.
 
 **Frontend**
 - The active branch contains the redesigned merchant Overview, destination settings, checkout creation, hosted buyer checkout, Developers and account views.
