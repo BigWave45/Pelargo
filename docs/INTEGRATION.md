@@ -291,3 +291,6 @@ For Tidepool testnet only, the verifier now attempts a bounded signer lookup thr
 The signer recovered from a block/chunk is not settlement evidence. Pelargo must still call canonical `EXPERIMENTAL_tx_status` with `wait_until: FINAL` and verify successful execution plus the exact NEP-141 token contract, recipient, and net amount from successful receipts. If the timestamp is missing/outside the bounded scan window, RPC calls fail, or the hash is not found uniquely, verification remains pending and fails closed. This fallback is not a replacement for a healthy indexer and has not yet been live-validated against the recorded stuck order.
 
 Tidepool's labelled `tidepool.explorer` metadata is preserved in bounded provider diagnostics. A URL labelled `execute_intents` may prioritize its final path-segment hash as a candidate, but the URL and label are untrusted provider hints only. Never infer settlement from them.
+
+
+The block/chunk fallback is capped to one prioritized candidate per payment-status poll to limit public RPC load. If that candidate is not found, the order remains pending verification; later polls may retry. This deliberately avoids scanning every intermediate provider hash in one request.
