@@ -229,7 +229,9 @@ The testnet route demonstrated on ORDER-35541967 has both source and destination
 
 The current implementation supports injected EIP-1193 wallets on Base Sepolia for eligible ERC-20 quotes. The manual deposit-address path remains available.
 
-Reown AppKit / WalletConnect is planned but is not enabled yet. It requires a Reown Project ID, matching dependency and bun.lock updates, a successful frozen-lockfile Preview build, and mobile acceptance tests for connection, network switching, account changes, disconnect and exact quoted transfer. Keep the connector restricted to Base Sepolia. Reown adds wallet-connection options only; it does not expand supported assets, routes or destination verifiers.
+Reown AppKit is integrated in the development Preview. `src/lib/appkit.ts` initializes `@reown/appkit` with `EthersAdapter`, the user-provided Project ID and Base Sepolia as the only configured network. `src/main.tsx` loads the initialization before rendering the app. The checkout uses `useAppKit`, `useAppKitAccount`, `useAppKitProvider("eip155")` and `useAppKitNetwork`. Its balance reads, network checks and exact-amount ERC-20 transfer continue through the EIP-1193 provider. An injected provider remains a fallback, and manual deposit remains available.
+
+The Cloudflare Pages Preview build passed for commit `f95404888e8183c3b9ba031f9a28e1ed89419acf`. Still required: mobile WalletConnect connection, account-change, disconnect/reconnect and network-switch checks, followed by an explicitly approved exact-quote testnet transfer. Keep the connector restricted to Base Sepolia. Reown adds wallet-connection options only; it does not expand supported assets, routes or destination verifiers.
 
 ## 7. Hosted checkout URL and current integration status
 
