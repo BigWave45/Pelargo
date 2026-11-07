@@ -294,6 +294,7 @@ export async function verifyNearNep141Settlement(
       onDiagnostic?.("testnet_indexer_unavailable_rpc_block_scan");
     }
     if (!signerId && provider.network === "testnet") {
+      onDiagnostic?.("testnet_rpc_block_scan_started");
       signerId = await signerFromCanonicalRpcBlockWindow(rpcUrl, transactionHash, providerObservedAt);
       if (signerId) onDiagnostic?.("signer_resolved_from_canonical_rpc_block_scan");
     }
