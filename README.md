@@ -249,3 +249,8 @@ The no-key fallback performs at most one bounded block/chunk scan per payment-st
 ### Bounded testnet signer-recovery diagnostics (7 November 2026)
 
 The testnet fallback now scans a configurable, bounded window ending eight blocks after the first finalized block at or after Tidepool's provider update timestamp. The default is 120 blocks (mostly before the provider timestamp), configurable with the server-side `NEAR_TX_RECOVERY_WINDOW_BLOCKS` setting from 8 to 600. The fallback reports the searched height range, block count, and non-empty chunk count in bounded verification diagnostics. It still requires a unique matching transaction signer followed by canonical `EXPERIMENTAL_tx_status` finality and exact NEP-141 receipt verification. The merchant workspace now displays candidate-specific verification stages and bounded scan details on 503 responses. This is diagnostic and recovery coverage, not proof that the existing stuck payment will settle; the fallback has not yet been live-validated against that order. Do not resubmit its source deposit.
+
+
+### Incremental NEAR signer recovery (7 November 2026)
+
+The testnet RPC signer-recovery scan now processes blocks nearest the provider timestamp first in batches of eight, inspects non-empty chunks in batches of four, and stops after the first exact transaction-hash match. This avoids fetching every block and chunk in the configured recovery window before checking for a match. Automated verification passed for commit `c021cc9`; Cloudflare Preview deployment is still running at the time of this note. Live validation against ORDER-35541967 remains outstanding. The fallback still does not establish payment until canonical NEAR RPC confirms finality and the exact NEP-141 transfer.
