@@ -362,7 +362,13 @@ export default function App() {
         {nav.map(({ id, label, icon: Icon }) => <button key={id} className={`workspace-nav-item ${section === id ? "is-active" : ""}`} onClick={() => { setSection(id); setMobileNavOpen(false); }}><Icon size={17} /><span>{label}</span></button>)}
       </nav>
       <div className="workspace-sidebar-bottom">
-        <div className="workspace-profile"><div className="workspace-avatar">{merchant.name.slice(0, 2).toUpperCase()}</div><div className="workspace-profile-copy"><strong>{merchant.name}</strong><span>{merchant.email}</span></div><button className="icon-action" onClick={logout} aria-label="Sign out"><LogOut size={15} /></button></div>
+        <div className="workspace-profile">
+           <button className="workspace-profile-open" type="button" onClick={() => setSection("profile")} aria-label="Open merchant profile">
+             <div className="workspace-avatar">{merchant.name.slice(0, 2).toUpperCase()}</div>
+             <div className="workspace-profile-copy"><strong>{merchant.name}</strong><span>{merchant.email}</span></div>
+           </button>
+           <button className="icon-action" onClick={logout} aria-label="Sign out" title="Sign out"><LogOut size={15} /></button>
+         </div>
       </div>
     </aside>
     <main className="workspace-main">
