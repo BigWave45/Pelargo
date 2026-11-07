@@ -122,16 +122,8 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
   if (typeof providerBefore.status !== "string" || !statuses.includes(providerBefore.status as ProviderStatus)) {
     return json({ error: "Provider returned an unrecognized status" }, 502);
   }
-  if (providerBefore.status === "SUCCESS") {
-    return json({
-      error: "Provider already reports success; do not resubmit the source transaction. Destination reconciliation is required.",
-      code: "PROVIDER_ALREADY_SUCCESS",
-      providerStatus: providerBefore.status,
-      nearTxHashes: providerBefore.swapDetails?.nearTxHashes ?? [],
-      destinationChainTxHashes: providerBefore.swapDetails?.destinationChainTxHashes ?? [],
-    }, 409);
-  }
-  if (!["PENDING_DEPOSIT", "KNOWN_DEPOSIT_TX", "PROCESSING"].includes(providerBefore.status)) {
+  const providerAlreadySuccessful = providerBefore.status === "SUCCESS";
+  if (!providerAlreadySuccessful && !["PENDING_DEPOSIT", "KNOWN_DEPOSIT_TX", "PROCESSING"].includes(providerBefore.status)) {
     return json({
       error: "Provider reports a terminal non-success state; source deposit submission is not permitted",
       code: "PROVIDER_TERMINAL_STATUS",
@@ -162,7 +154,9 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
       entry !== null && typeof entry === "object" && entry.hash === transactionHash
     );
   let submitted: ProviderStatusResponse = providerBefore;
-  if (!alreadyKnown) {
+  // SUCCESS is not a reason to skip source-chain evidence verification. It is,
+  // however, an absolute prohibition on resubmitting the source transaction.
+  if (!alreadyKnown && !providerAlreadySuccessful) {
     try {
       const response = await intentsRequest("deposit/submit", {
         method: "POST",
@@ -190,7 +184,7 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
   // its response body is not specified. Confirm the provider's persisted state
   // with the documented status endpoint rather than assuming a response schema.
   let confirmedStatus: ProviderStatus | "SUBMITTED_UNCONFIRMED" = "SUBMITTED_UNCONFIRMED";
-  if (alreadyKnown) {
+  if (alreadyKnown || providerAlreadySuccessful) {
     confirmedStatus = providerBefore.status as ProviderStatus;
   } else {
     try {
@@ -240,7 +234,9 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
   return json({
     orderId,
     originDeposit: "verified",
-    providerNotification: alreadyKnown ? "already_known" : "accepted",
+    providerNotification: providerAlreadySuccessful && !alreadyKnown
+      ? "not_resubmitted_provider_already_successful"
+      : alreadyKnown ? "already_known" : "accepted",
     providerStatus: confirmedStatus,
     sourceTransactionHash: transactionHash,
     originChainTxHashes: submitted.swapDetails?.originChainTxHashes ?? [],
