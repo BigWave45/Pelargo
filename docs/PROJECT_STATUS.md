@@ -1,6 +1,6 @@
 # Product direction and wallet-first checkout plan — 7 November 2026
 
-This file records the current product/design decision and implementation state. The Base Sepolia wallet path is implemented in the draft branch, but a live end-to-end wallet payment remains unverified.
+This file records the current product/design decision and implementation state. A live Base Sepolia → NEAR testnet payment has been completed and independently settled at least once. The evidence state is order-specific: ORDER-35541967 has both source and destination evidence; the newer ORDER-45723806 has destination settlement evidence but no recorded source evidence row.
 
 - Continue the UI, UX and copy redesign in parallel with wallet technical validation. The redesign is not paused or superseded by wallet work.
 - Preserve the existing merchant account/API-key model, merchant-created checkout sessions, widget contract, Tidepool/1Click quote integration, order state machine, provider polling and independent NEAR settlement verifier.
@@ -9,7 +9,7 @@ This file records the current product/design decision and implementation state. 
 - The current manual deposit-address flow remains available as a fallback. Wallet transaction submission does not mark an order paid; provider detection and independent NEAR settlement verification remain authoritative.
 - Wallet connection, token balance discovery and transaction signing/broadcast are implemented as separate steps. Only injected EVM wallets on Base Sepolia are currently supported by this draft.
 - Design direction remains blue/white, modern financial infrastructure plus editorial minimalism. Remove generic AI decoration. Use product UI states, precise diagrams and restrained geometric elements only where they explain the payment journey. Design copy around simplicity, with separate messaging for buyers, merchants and developers.
-- Remaining order: Cloudflare Pages Preview browser acceptance, fresh Base Sepolia testnet payment, confirmation that provider polling detects the transfer, and independent NEAR settlement verification. Continue the broader public-site, merchant workspace and developer copy/UI redesign in parallel.
+- The core Base Sepolia → NEAR testnet payment path has since been demonstrated: ORDER-35541967 is paid/settled with immutable source evidence and independently verified NEAR destination evidence. A separate later Preview order ORDER-45723806 is also paid/settled with destination evidence, but its source evidence row is absent. Treat these as distinct evidence states; do not imply both orders have complete dual-chain records.
 - No production deployment, merge, mainnet activation or payment initiation without explicit approval.
 
 ---
@@ -256,3 +256,31 @@ Changes are on design/blue-white-premium only. No production branch, production 
 ## Preview checkout-session signing configuration
 
 Configured a dedicated random `ORDER_SESSION_SECRET` as a Cloudflare Pages Preview-only encrypted secret. This enables signed checkout session creation in the isolated Preview environment. Production environment configuration and production D1 remain unchanged. A new Preview deployment is required for the updated environment binding to become active.
+
+
+## Current handoff — 7 November 2026, after settlement acceptance
+
+### Payment-flow verification
+
+- The route has been demonstrated end to end on testnet. Preview D1 records ORDER-35541967 as `checkout_orders.status=paid`, `payment_lifecycle.status=settled`, provider status `SUCCESS`, with both `payment_origin_deposit_evidence` and `payment_settlement_evidence` present.
+- That order delivered exactly 1 USDC to `agentg.testnet`. The Base Sepolia source deposit was 1.012633 USDC; the provider quote specified 1 USDC output.
+- The latest order ORDER-45723806 is also `paid` / `settled`, provider `SUCCESS`, with NEAR destination settlement evidence. It has no row in `payment_origin_deposit_evidence`. Do not claim source evidence completeness for this order.
+- No further payment should be initiated just to repeat the same route. Continue with product completeness, frontend quality, integration docs and hackathon submission materials.
+
+### Frontend status
+
+- The active branch `design/blue-white-premium` contains the merchant Overview, payment destination, checkout creation, hosted buyer checkout, Developers, Profile, Settings and Subscription views.
+- The buyer checkout reads the short-lived bearer token from the URL fragment, removes it from browser history, then sends it in the Authorization header to `GET /api/checkout-session`. The old query-token API example in this document must not be used.
+- Payment submission and destination settlement verification remain separate. A wallet transaction hash is not proof of payment.
+- The latest successful Preview deployment before the Reown dependency experiment is commit `e6a027d5515075716b0d1ff7f118c8b96a0edf45`. The Reown experiment was reverted because Pages uses `bun install --frozen-lockfile` and the package manifest change did not include a matching `bun.lock` update. The revert is on the active design branch; Preview rebuild is in progress/awaiting final status.
+- Reown AppKit / WalletConnect is not enabled yet. Wait for the user's Reown Project ID, then add `@reown/appkit`, `@reown/appkit-adapter-ethers` and `ethers`, regenerate `bun.lock` using Bun, and verify the React EIP-1193 provider bridge. Restrict the AppKit network to Base Sepolia. Preserve manual deposit instructions and injected-wallet fallback. Do not activate Reown merely by setting a project ID until the package lock and build pass.
+
+### Remaining work
+
+1. Finish the whole product UI pass: mobile/desktop review of destination settings, checkout creation, Developers, Profile, Settings and Subscription; verify all actions, error/empty/loading states and navigation.
+2. Correct and consolidate README, PROJECT_STATUS and INTEGRATION claims so historical test records are clearly marked and current evidence is accurately described.
+3. Complete Reown configuration once the Project ID is available; build and test connection, network switching, account changes, disconnect, exact quoted ERC-20 transfer and manual fallback.
+4. Audit the separate merchant integration path and public/demo experience. Do not claim a stable published SDK, CDN package, webhook delivery or platform plugin.
+5. Prepare hackathon submission materials and a clean public demo using testnet only.
+
+No merge, Production deployment, mainnet activation, production resource change or payment initiation is authorized by this handoff.
