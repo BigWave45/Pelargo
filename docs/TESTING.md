@@ -76,6 +76,18 @@ Observed on 7 November 2026 at 16:49 UTC in the integrated Preview merchant work
 
 The Preview D1 cross-check confirmed that the six needs-attention orders were all terminal: `checkout_orders.status = expired` and `payment_lifecycle.status = expired` for all six. The three settled orders had `checkout_orders.status = paid` and `payment_lifecycle.status = settled`. These are point-in-time workspace counts, not hard-coded CI expectations; future tests should assert lifecycle consistency and derive counts from the fixture/database rather than assume these exact totals.
 
+### Provider status and Pelargo lifecycle are separate fields
+
+A provider status is an externally reported status persisted by the provider adapter. `payment_lifecycle.status` is Pelargo's own lifecycle state. They are not interchangeable: a provider status is not Pelargo's response, and a Pelargo lifecycle state must not be described as a provider-reported result. In particular, Pelargo requires independently verified destination-chain settlement evidence; provider `SUCCESS` alone is not sufficient to mark a payment settled.
+
+A read-only Preview D1 snapshot of the same nine orders showed:
+
+- All six expired orders had `provider_status = NULL` and `provider_updated_at = NULL`. The database therefore contains no persisted provider status for these six orders. Their expired state is Pelargo's recorded lifecycle outcome; this snapshot does not establish that the provider returned `FAILED`, reported a limitation, or caused the expiry.
+- Two settled orders had persisted `provider_status = SUCCESS`.
+- One settled order, `ORDER-51017560`, had persisted `provider_status = PROCESSING` while its Pelargo order/lifecycle states were `paid`/`settled`.
+
+The `ORDER-51017560` combination is a status discrepancy that requires investigation against its provider-status update history, reconciliation events and destination evidence before drawing a conclusion. Do not normalize it as an expected provider response or use it as evidence of a provider limitation. These provider fields are a point-in-time database snapshot, not a complete record of every raw provider payload or response. The exact provider response schema and adapter mapping must be established from the implementation and relevant logs before naming provider enums or interpreting a missing value.
+
 ## Deployment and scheduled-worker checks
 
 The Preview reconciliation Worker deployment workflow is manual-only and guarded to the `reliability/background-reconciliation` branch. Its workflow validates Preview-only credentials, dry-runs the staged and scheduled configurations, installs the encrypted reconciliation secret, activates the five-minute Cron Trigger, and checks the deployed Worker schedule and isolated Preview D1 binding.
@@ -96,7 +108,6 @@ Cloudflare Pages Preview deployment and GitHub CI success are deployment/build e
 ## Safety and interpretation
 
 All demonstrated payment activity is testnet activity. Keep mainnet deposits disabled and do not use Preview to collect customer funds. Do not infer universal chain/token support, production readiness, provider-independent liquidity or guaranteed settlement times from this test record.
-
 
 ## Mobile MetaMask connection integration
 
