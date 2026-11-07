@@ -354,7 +354,7 @@ export function PelargoCheckout({
   }
 
   async function payFromWallet() {
-    if (!window.ethereum || !selectedSource || !baseTokenContract || !paymentInstructions || !walletAddress) return;
+    if (!activeWalletProvider || !selectedSource || !baseTokenContract || !paymentInstructions || !walletAddress) return;
     if (sessionExpired || quoteExpired) {
       setError("This checkout or quote has expired. Do not send funds. Ask the merchant for a new checkout link.");
       return;
@@ -432,7 +432,7 @@ export function PelargoCheckout({
       .catch(() => { if (!cancelled) setWalletBalance("Unavailable"); })
       .finally(() => { if (!cancelled) setWalletBalanceLoading(false); });
     return () => { cancelled = true; };
-  }, [walletAddress, walletChainId, baseTokenContract, selectedSource?.decimals]);
+  }, [walletAddress, walletChainId, baseTokenContract, selectedSource?.decimals, activeWalletProvider]);
 
   useEffect(() => {
     let detach = () => {};
@@ -470,7 +470,8 @@ export function PelargoCheckout({
       setWalletBalance("");
     }
     if (appKitChainId !== undefined && appKitChainId !== null) {
-      setWalletChainId(typeof appKitChainId === "number" ? "0x" + appKitChainId.toString(16) : String(appKitChainId));
+      const numericChainId = Number(appKitChainId);
+      if (Number.isFinite(numericChainId)) setWalletChainId("0x" + numericChainId.toString(16));
     }
   }, [appKitConnected, appKitAddress, appKitChainId]);
 
