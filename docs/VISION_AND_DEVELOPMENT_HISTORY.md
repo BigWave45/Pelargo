@@ -16,15 +16,17 @@ The long-term direction is a provider-independent settlement-verification layer 
 
 1. **Embedded checkout first.** The widget is the primary customer-facing payment surface; hosted checkout is its equivalent entry point. Merchant integration should be straightforward without moving merchant credentials into browser code.
 2. **Merchant-owned order lifecycle.** Merchant identity, order binding, checkout-session validity, and paid/expired/recovery states must be controlled by Pelargo.
-2. **Evidence before settlement.** A provider success response or source-chain submission is not sufficient. The expected destination asset, recipient, network, and amount must be independently checked before an order is marked paid.
-3. **Non-custodial execution.** Pelargo coordinates checkout and verifies settlement; it is not presented as a custodian or as the owner of user funds.
-4. **Provider separation.** A provider may supply quotes, route discovery, and deposit instructions without becoming the authority for Pelargo's merchant/order lifecycle or final settlement decision.
-5. **Recoverable operations.** Reconciliation, expiry handling, audit events, and explicit recovery states are part of payment correctness, not optional operational extras.
-6. **Evidence-led expansion.** New chains, assets, providers, SDKs, webhooks, and production capabilities should be added only with corresponding implementation and verification evidence.
+3. **Evidence before settlement.** A provider success response or source-chain submission is not sufficient. The expected destination asset, recipient, network, and amount must be independently checked before an order is marked paid.
+4. **Non-custodial execution.** Pelargo coordinates checkout and verifies settlement; it is not presented as a custodian or as the owner of user funds.
+5. **Provider separation.** A provider may supply quotes, route discovery, and deposit instructions without becoming the authority for Pelargo's merchant/order lifecycle or final settlement decision.
+6. **Recoverable operations.** Reconciliation, expiry handling, audit events, and explicit recovery states are part of payment correctness, not optional operational extras.
+7. **Evidence-led expansion.** New chains, assets, providers, SDKs, webhooks, and production capabilities should be added only with corresponding implementation and verification evidence.
 
 ### Current implementation versus direction
 
-The current public demonstration is a specific testnet route: Base Sepolia ERC-20 to NEAR testnet NEP-141 through the configured Tidepool / NEAR Intents-compatible provider environment. It demonstrates the checkout journey, provider-assisted routing, and independent destination settlement verification. The current implementation includes a custom-element embed and hosted checkout; it does not yet include a stable published SDK/CDN package, commerce-platform plugins, or merchant webhook delivery.
+The current public demonstration is a specific testnet route: Base Sepolia ERC-20 to NEAR testnet NEP-141 through the configured Tidepool / NEAR Intents-compatible provider environment. NEAR is the destination settlement network in this flow: Pelargo verifies the expected NEP-141 transfer on NEAR before the merchant order is treated as paid. That makes NEAR part of the settlement trust boundary, rather than a cosmetic ecosystem integration. The provider assists with routing; Pelargo owns the merchant order and independently checks destination delivery. We do not claim to implement the NEAR Intents protocol itself or to provide general-purpose NEAR routing infrastructure.
+
+The current implementation includes a custom-element embed and hosted checkout; it does not yet include a stable published SDK/CDN package, commerce-platform plugins, or merchant webhook delivery.
 
 The broader multi-provider and multi-network direction is a product vision, not a claim that arbitrary chains, assets, providers, or mainnet routes are already supported. Current route coverage and production limitations are documented in the [README](../README.md) and [testing record](TESTING.md).
 
