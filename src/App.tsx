@@ -81,7 +81,7 @@ function toAtomic(amount: string, decimals: number): string {
 }
 
 function AuthScreen({ onAuthenticated }: { onAuthenticated: (merchant: Merchant) => void }) {
-  const [mode, setMode] = useState<"register" | "login">("register");
+  const [mode, setMode] = useState<"register" | "login">("login");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -106,10 +106,10 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (merchant: Merchant)
 
   return <div className="auth-shell">
     <div className="auth-card">
-      <a className="workspace-brand auth-brand" href="/"><span className="workspace-brand-mark">p</span><span>pelargo</span></a>
+      <a className="workspace-brand auth-brand" href="/"><span className="workspace-brand-mark">P</span><span>pelargo</span></a>
       <div className="eyebrow">MERCHANT WORKSPACE</div>
-      <h1>{mode === "register" ? "Create your merchant account" : "Welcome back"}</h1>
-      <p className="workspace-subtitle">{mode === "register" ? "Set up your checkout workspace. Buyers do not need Pelargo accounts." : "Sign in to manage your checkout and payment activity."}</p>
+      <h1>{mode === "register" ? "Create your merchant account" : "Sign in"}</h1>
+      <p className="workspace-subtitle">{mode === "register" ? "Set up your checkout workspace. Buyers do not need Pelargo accounts." : "Access your merchant account."}</p>
       <form onSubmit={submit}>
         {mode === "register" && <><label className="field-label" htmlFor="auth-name">Business name</label><input id="auth-name" className="workspace-input" value={name} onChange={e => setName(e.target.value)} autoComplete="organization" required maxLength={120} /></>}
         <label className="field-label" htmlFor="auth-email">Email address</label>
@@ -119,7 +119,7 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (merchant: Merchant)
         {mode === "register" && <p className="field-hint">Use at least 12 characters. This password protects access to your merchant workspace.</p>}
         {mode === "login" && <p className="auth-switch" style={{ textAlign: "right", margin: "10px 0 0" }}><button type="button" onClick={() => setShowRecovery(true)}>Forgot password?</button></p>}
         {error && <div className="notice-panel auth-error" role="alert">{error}</div>}
-        <button className="primary-button auth-submit" disabled={busy}>{busy ? "Please wait…" : mode === "register" ? "Create account" : "Sign in"} <ArrowUpRight size={15} /></button>
+        <button className="primary-button auth-submit" disabled={busy}>{busy ? (mode === "register" ? "Creating account…" : "Signing in…") : mode === "register" ? "Create account" : "Sign in"} {busy ? <RefreshCw size={15} className="auth-submit-spinner" /> : <ArrowUpRight size={15} />}</button>
       </form>
       <p className="auth-switch">{mode === "register" ? "Already have an account?" : "New to Pelargo?"} <button type="button" onClick={() => { setMode(mode === "register" ? "login" : "register"); setError(""); }}>{mode === "register" ? "Sign in" : "Create an account"}</button></p>
       <p className="auth-footnote">Merchant accounts are for configuring checkout. Payment execution remains subject to network and settlement controls.</p>
