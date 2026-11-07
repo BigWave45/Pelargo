@@ -1,6 +1,15 @@
 name: Deploy Preview reconciliation Worker
 
 on:
+  push:
+    branches:
+      - design/blue-white-premium
+    paths:
+      - 'workers/expiry-sweeper.ts'
+      - 'functions/**'
+      - 'wrangler.expiry.preview.toml'
+      - 'wrangler.expiry.preview.staged.toml'
+      - '.github/workflows/deploy-preview-reconciliation-worker.yml'
   workflow_dispatch:
 
 permissions:
@@ -13,14 +22,16 @@ concurrency:
 jobs:
   deploy-preview:
     # A manual dispatch from any other branch must never deploy this Worker.
-    if: github.ref == 'refs/heads/reliability/background-reconciliation'
+    if: github.ref == 'refs/heads/design/blue-white-premium'
     runs-on: ubuntu-latest
     environment: preview
     steps:
       - name: Check out the reviewed branch
         uses: actions/checkout@v4
         with:
-          ref: reliability/background-reconciliation
+          ref: design/blue-white-premium
+
+      - uses: oven-sh/setup-bun@v2
 
       - name: Require Preview-only deployment credentials
         env:
@@ -41,19 +52,25 @@ jobs:
           wranglerVersion: "4.136.3"
           command: deploy --dry-run --config wrangler.expiry.preview.staged.toml
 
-      # Bootstrap the named script with no cron trigger. The action deploys
-      # this version, then installs the encrypted secret from the environment.
-      - name: Bootstrap Preview Worker and install its encrypted secret
+      # Bootstrap the named Worker without a cron trigger. Use an explicit
+      # Wrangler config for the secret command because the repository root
+      # config belongs to the Pages application.
+      - name: Bootstrap Preview Worker
         uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           wranglerVersion: "4.136.3"
           command: deploy --config wrangler.expiry.preview.staged.toml
-          secrets: |
-            RECONCILIATION_SECRET
+
+      - name: Install encrypted reconciliation secret on Preview Worker
         env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           RECONCILIATION_SECRET: ${{ secrets.RECONCILIATION_SECRET }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$RECONCILIATION_SECRET" | bunx wrangler secret put RECONCILIATION_SECRET --config wrangler.expiry.preview.staged.toml
 
       - name: Validate scheduled config after installing secret
         uses: cloudflare/wrangler-action@v4

@@ -1,19 +1,89 @@
-# Preview integration and migration audit — 7 November 2026
+# Pelargo project status and handoff
 
-- Read-only Cloudflare Pages deployment inspection confirms the latest active-branch Preview deployment is `bf42d182-f628-4073-b7b2-e4f8f7847475`, commit `3acdaa917dd796f3a9c652defbcd97361fb82e91`, with build and deploy stages successful. The stable Preview alias remains `https://reliability-background-recon.pelargo.pages.dev`. This is a deployment check, not an independent merchant-origin checkout acceptance test.
-- GitHub Actions CI run #490 for commit `3acdaa9` completed successfully. The run includes the repository CI workflow; it does not exercise a live merchant API key or a real committed quote.
-- Read-only query of Preview D1 `d1_migrations` confirms all 19 migrations are applied. In particular, `0019_reconciliation_backfill_eligible_states.sql` is recorded at migration id 18 and `0018_preview_password_reset.sql` at id 19. The filenames are not ordered by their application record IDs. No database writes were made. Production D1 was not queried or changed.
-- Cloudflare deployment metadata confirms the Preview Pages deployment is bound to D1 database `0335acdc-f0e0-42f6-ba87-e3448fb91728`. The latest deployment metadata lists `MERCHANT_PROVISIONING_SECRET` and `ORDER_SESSION_SECRET` as secret-type bindings but does not expose their values; this does not independently prove their runtime validity.
-- The Preview reconciliation Worker was previously verified as deployed with the five-minute cron active. The encrypted `RECONCILIATION_SECRET` value is not readable through the Cloudflare API, and no successful scheduled settlement run is established by this audit. Do not infer secret validity or attribute the existing settled order to the Worker.
-- Merchant API-key issuance/rotation and the Developers integration screen are implemented on `reliability/background-reconciliation`. The standalone embed's `process.env.NODE_ENV` browser-runtime reference was fixed, and the latest Preview deployment includes that commit. The actual merchant flow remains unaccepted: issue/rotate a key, create a real merchant order/session server-side, load the widget from a separate merchant origin, preview a dry quote, and verify the buyer confirmation boundary. Do not commit a quote or send funds during this acceptance pass without explicit approval.
-- No Production resources were queried or changed, no merge occurred, and no branch was deleted.
+**Last consolidated:** 7 November 2026  
+**Repository:** [BigWave45/Pelargo](https://github.com/BigWave45/Pelargo)  
+**Active branch:** design/blue-white-premium
 
-## Next acceptance sequence
+This document is the current handoff. Historical investigation logs and superseded implementation notes have been removed. Use Git history when an older implementation detail is needed.
 
-1. Sign in to the Preview merchant workspace and generate a merchant API key. Save it only in a server-side secret store; do not paste it into browser code or this chat.
-2. From a merchant backend route, call `POST /api/checkout-session` with a fresh external order ID and trusted order configuration. Confirm the response is `201` and contains a short-lived session token and public session claims.
-3. On a separate merchant-origin test page, load `https://reliability-background-recon.pelargo.pages.dev/pelargo.js`, call the merchant backend route, and mount `<pelargo-checkout>` using the returned claims and token.
-4. Verify the widget mounts, requests token discovery, and displays a dry quote. Stop before buyer confirmation/committed quote unless a separate testnet payment has been explicitly approved.
-5. Test authenticated `GET /api/order` or `GET /api/payment-status` from the merchant backend. Verify cross-merchant access is denied.
-6. Separately establish Worker secret validity and scheduled invocation evidence from runtime logs and Preview D1 job state. Review expiry and uncertain-commit sweep side effects before dispatching or redeploying anything.
+## Verified payment state
 
+The Base Sepolia → NEAR testnet route has been demonstrated on Preview, including a subsequent live mobile checkout using Reown and MetaMask.
+
+- ORDER-35541967 is paid/settled and has both immutable Base Sepolia source-deposit evidence and independently verified NEAR NEP-141 destination-settlement evidence.
+- The destination transfer delivered exactly 1 USDC to agentg.testnet.
+- ORDER-45723806 is also recorded as paid/settled with destination evidence, but it has no source-deposit evidence row. Do not describe it as fully evidenced on both chains.
+- In the latest user-reported mobile acceptance test, the checkout page itself displayed Payment status: Settled, Provider: SUCCESS and Settlement check: verified after connecting MetaMask through Reown on Base Sepolia. The latest settled Preview record is ORDER-49053014, a strong temporal match but not yet explicitly confirmed by the user. Its independently verified NEAR destination transaction is `3uZtiZpnhUd4r2wzbmUhPHwW6CAVBfsLLwWuUyfRrZPC` (block 276622029; 68 confirmations), for 1 USDC to agentg.testnet. No source-deposit evidence row or source transaction hash is recorded for this order; therefore its source transaction reference remains unconfirmed.
+- Database lifecycle events for ORDER-49053014 show 2 minutes 20.6 seconds from order creation to settlement and 23.2 seconds from deposit detection to settlement. This is one observed test, not a latency guarantee.
+- Do not initiate another payment solely to repeat the demonstrated route.
+
+This proves one supported testnet route. It does not establish mainnet readiness, production readiness, universal route coverage or a successful scheduled reconciliation run.
+
+## Current implementation
+
+**Merchant and order lifecycle**
+- Merchant registration/login, authenticated dashboard sessions and merchant API-key issuance/rotation.
+- Merchant-scoped destination settings, order creation, checkout sessions and payment activity.
+- Short-lived signed buyer sessions bound to merchant, order, amount, destination asset and recipient.
+- Provider asset discovery, dry quotes, explicit committed-quote confirmation and provider status polling.
+- Independent NEAR NEP-141 destination verification; only matching verified settlement evidence can mark an order paid.
+- Source-deposit verification and evidence recovery for the demonstrated Base Sepolia route.
+
+**Wallet**
+- Injected EIP-1193 wallet support for eligible Base Sepolia ERC-20 source assets.
+- Exact provider-quoted deposit address and atomic amount are used for the wallet transfer.
+- Manual deposit instructions remain the fallback.
+- Reown AppKit is initialized in Preview using the user-provided Project ID, Ethers adapter and Base Sepolia-only network. Checkout wallet connection uses AppKit hooks and its EIP-1193 provider.
+- Live mobile acceptance passed: the user connected MetaMask through Reown on Base Sepolia, completed checkout, and Pelargo itself displayed Settled, Provider SUCCESS and Settlement check verified. The latest settled Preview record is ORDER-49053014, a strong temporal match but not explicitly confirmed by the user. Its NEAR destination transaction is `3uZtiZpnhUd4r2wzbmUhPHwW6CAVBfsLLwWuUyfRrZPC`; the database records 1 USDC to agentg.testnet, block 276622029 and 68 confirmations. There is no source-deposit evidence row or source transaction hash for this order.
+- ORDER-49053014 took 2 minutes 20.6 seconds from order creation to settlement in recorded lifecycle events, with settlement 23.2 seconds after deposit detection. This is a single observation, not a latency guarantee.
+- Remaining wallet checks: account changes, disconnect/reconnect and network-switch edge cases.
+
+**Frontend**
+- The active branch contains the redesigned merchant Overview, destination settings, checkout creation, hosted buyer checkout, Developers and account views.
+- Design direction: blue-and-white, modern financial infrastructure with editorial restraint. Use real payment data and explicit lifecycle states; no mock payment progress or fabricated metrics.
+- Review the complete experience on mobile and desktop, including loading, empty, error and terminal states.
+
+**Developer integration**
+- Server-side merchant session creation and the hosted checkout/embed path are documented in docs/INTEGRATION.md.
+- Merchant credentials stay server-side. Buyer checkout uses a short-lived one-order bearer token.
+- No stable published SDK/CDN package, Shopify/WooCommerce plugin or merchant webhook delivery is released.
+- The external merchant-origin integration still needs independent acceptance testing.
+
+## Reown / WalletConnect work
+
+Reown AppKit is the planned WalletConnect integration to address mobile browsers where no injected EVM wallet is detected.
+
+Implementation and primary mobile payment acceptance are complete:
+1. Reown Project ID configured in AppKit.
+2. AppKit, Ethers adapter and ethers dependencies installed with matching bun.lock.
+3. Connector restricted to Base Sepolia.
+4. Cloudflare Pages Preview build and deployment completed.
+5. User connected MetaMask through Reown on mobile and completed checkout. Pelargo displayed Settled, Provider SUCCESS and Settlement check verified.
+
+Remaining edge-case checks are account changes, disconnect/reconnect and network switching. Reown changes wallet connection only; it does not expand token, route or destination-verification support.
+
+## Branch and domain strategy
+
+- design/blue-white-premium is the active development branch.
+- build/live-intents is the existing Cloudflare Pages production branch. Do not change it yet.
+- main contains an older Google AI Studio-generated version and is not the current product source.
+- Preview URL: https://design-blue-white-premium.pelargo.pages.dev.
+- A free custom domain has not yet been selected or configured.
+
+Do not merge, move the production branch, deploy Production or change domain routing now. First finish the redesign and Reown work, complete acceptance testing, and freeze a release candidate. Then reconcile the candidate against build/live-intents, update main to the approved release, and only after explicit approval change the Cloudflare production branch and attach the chosen domain. A GitHub merge to main alone does not change the Cloudflare Pages production branch.
+
+## Remaining work
+
+1. Complete Reown edge-case checks for account changes, disconnect/reconnect and network switching.
+2. Review all redesigned screens on mobile and desktop; verify navigation, real actions, and loading/empty/error/success states.
+3. Independently test the merchant-origin integration using a separate merchant backend and browser origin. Do not expose merchant credentials to the buyer.
+4. Verify the latest Preview deployment corresponds to the intended branch head before using it for acceptance.
+5. Consolidate submission/demo materials after acceptance.
+
+## Release and safety constraints
+
+- Preview/testnet only for current work. Keep ALLOW_MAINNET_DEPOSITS unset.
+- Do not use the prototype to collect real customer funds.
+- Do not modify Production D1 or other Production resources.
+- No merge to the release/production path, Production deployment, domain-routing change, mainnet activation or payment initiation without explicit user approval.
+- Do not create another payment just to repeat an already demonstrated route.

@@ -10,8 +10,10 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
 
   if (request.method === "GET") {
     if (!env.DB) return json({ error: "Checkout storage is not configured" }, 503);
-    const token = new URL(request.url).searchParams.get("token") ?? "";
-    if (!token || token.length > 4096) return json({ error: "A valid checkout session token is required" }, 400);
+    const authorization = request.headers.get("authorization") ?? "";
+    const match = /^Bearer ([A-Za-z0-9_.-]{1,4096})$/.exec(authorization);
+    const token = match?.[1] ?? "";
+    if (!token) return json({ error: "A valid checkout session bearer token is required" }, 401);
     const claims = await verifyCheckoutSession(token, env);
     if (!claims) return json({ error: "Checkout session is invalid or expired" }, 401);
     const tokenHash = await sha256Hex(token);

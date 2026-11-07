@@ -2,13 +2,25 @@
 
 ## Buyer checkout capabilities
 
-The embedded widget supports source-asset selection, dry quote preview and an explicit buyer confirmation before requesting a committed quote. A committed quote creates provider deposit instructions; it does not send funds. Before showing instructions, the widget validates the provider correlation ID, deposit address and exact positive atomic source amount. It displays the committed amount, address, optional memo and deadline, with copy controls. The buyer must manually send the exact testnet asset and amount using a wallet on the selected source network.
+The embedded widget supports source-asset selection, dry quote preview and an explicit buyer confirmation before requesting a committed quote. A committed quote creates provider deposit instructions; it does not itself send funds. The checkout integrates Reown AppKit for EVM wallet connection and supports an EIP-1193 wallet transfer for eligible Base Sepolia ERC-20 quotes: it uses the exact provider asset contract, committed deposit address and exact atomic source amount. The manual deposit-address path remains available. Non-EVM wallet signing is not implemented. Before showing instructions, the widget validates the provider correlation ID, deposit address and exact positive atomic source amount.
 
 After instructions are created, the widget polls `GET /api/payment-status?orderId=...` every five seconds with the signed checkout session in the `Authorization: Bearer` header. The API verifies the signature, stored token hash, committed session state and order binding. A buyer session cannot query another order. Merchant server-side polling continues to use `x-pelargo-merchant-key`.
 
 Provider `SUCCESS` alone is insufficient. The order becomes paid only after independent destination-chain verification succeeds and matching settlement evidence is persisted. The buyer widget displays the internal payment state and stops polling on terminal states or an invalid/unauthorized session.
 
-The buyer committed-quote and polling paths have mocked integration coverage. A live testnet payment has also been executed for ORDER-83587591: Pelargo verified the Base Sepolia source deposit, then independently verified the exact NEAR NEP-141 destination transfer through canonical NEAR RPC and persisted immutable settlement evidence in Preview D1. The merchant has since signed in successfully. The 7 November dashboard history shows six records: one settled, three awaiting deposit, and two expired. The three awaiting-deposit records are unpaid checkouts; the two expired records are terminal expiries. This UI snapshot is distinct from a fresh D1 audit and does not prove the scheduled Worker's operation. This proves one testnet payment path, not production readiness. Do not use this integration to collect real customer funds.
+The live testnet route has been demonstrated on ORDER-35541967. Preview D1 records both immutable Base Sepolia source-deposit evidence and independently verified NEAR NEP-141 destination settlement evidence for that order. The order is paid/settled and provider status is SUCCESS. A later order, ORDER-45723806, is also paid/settled with destination evidence and provider SUCCESS, but it has no source-deposit evidence row. In a subsequent user-reported mobile checkout using Reown and MetaMask on Base Sepolia, the checkout page displayed Payment status: Settled, Provider: SUCCESS and Settlement check: verified. The latest settled Preview record found during follow-up is ORDER-49053014, a strong temporal match but not explicitly confirmed by the user. It records 1 USDC to agentg.testnet and independently verified NEAR destination transaction `3uZtiZpnhUd4r2wzbmUhPHwW6CAVBfsLLwWuUyfRrZPC` (block 276622029; 68 confirmations). No source-deposit evidence row or source transaction hash is recorded for this order. Its lifecycle timestamps show 2 minutes 20.6 seconds from order creation to settlement, and 23.2 seconds from deposit detection to settlement. Treat that as one observed duration, not a performance guarantee. Keep these evidence states distinct. The successful tests prove the demonstrated testnet route, not production readiness, broad network coverage or scheduled Worker operation. Do not use this integration to collect real customer funds.
+
+
+
+### Wallet-first checkout (implemented; primary mobile payment path accepted)
+
+The implemented wallet path is Base Sepolia using Reown AppKit and its EIP-1193 provider. Treat wallet connection, chain/address detection, supported-token balance discovery and transaction execution as separate capabilities. A connected address and visible balance do not establish that a payment was detected or settled. The primary mobile payment path has been exercised with MetaMask connected through Reown; the checkout displayed Settled, Provider SUCCESS and Settlement check verified.
+
+The current direct signing path is intentionally limited to the provider's committed deposit-address model. For an eligible Base Sepolia ERC-20 asset, the widget constructs the standard token transfer to the provider-issued deposit address using the exact committed amount. It does not assume provider-supplied calldata. Quotes with memo/tag requirements remain on the manual path. Any new provider adapter must independently validate its deposit semantics before enabling this wallet path.
+
+The intended buyer sequence is: open checkout; explicitly choose Connect wallet; connect a supported Base wallet; detect the connected network and eligible balances; request/refresh a quote; show the source amount, merchant settlement amount, fees/route and expiry; ask the wallet to approve the exact transaction; track provider and destination settlement states. Handle wrong-network, insufficient-balance, rejected-signature, expired-quote, pending, failed and completed states explicitly.
+
+The direct Base Sepolia wallet transfer is implemented and has passed a user-reported mobile checkout test through Reown and MetaMask, with the checkout itself displaying verified settlement. Account-change, disconnect/reconnect and network-switch edge cases remain to be tested. Never claim automatic wallet discovery, arbitrary-wallet support or universal network coverage. Keep merchant API keys server-side and preserve the current signed checkout-session authorization boundary.
 
 ## Security model
 
@@ -16,7 +28,7 @@ The merchant dashboard uses a separate opaque, server-side session stored in an 
 
 For server integrations, the merchant server owns the merchant API key and decides the trusted order amount, destination asset and receiving address. The browser receives only a short-lived signed checkout-session token and public order claims.
 
-Never expose the merchant API key, `MERCHANT_PROVISIONING_SECRET`, `ORDER_SESSION_SECRET` or `NEAR_INDEXER_API_KEY` to browser code, HTML attributes, public repositories or Vite `VITE_*` variables. The short-lived signed checkout-session token is the deliberate exception: it is a one-order bearer credential and must be delivered to the buyer widget for quote and status authorization. Do not confuse it with a merchant API key. Keep its lifetime short, avoid logging it, do not put it in URLs, do not reuse it, and avoid exposing it to unrelated third-party scripts. The server validates its signature, stored hash, status, expiry and order binding on every protected operation.
+Never expose the merchant API key, `MERCHANT_PROVISIONING_SECRET`, `ORDER_SESSION_SECRET` or `NEAR_INDEXER_API_KEY` to browser code, HTML attributes, public repositories or Vite `VITE_*` variables. The short-lived signed checkout-session token is the deliberate exception: it is a one-order bearer credential and must be delivered to the buyer widget for quote and status authorization. Do not confuse it with a merchant API key. Keep its lifetime short, avoid logging it, and do not reuse it. The hosted checkout currently carries it in the URL fragment, removes it from browser history immediately, and sends it to the API in an Authorization header. A fragment is not sent in the HTTP request, but the link remains transferable to anyone who obtains it. The server validates its signature, stored hash, status, expiry and order binding on every protected operation.
 
 The signed session binds the merchant, order, amount, destination asset and recipient. Do not accept those authorization values from untrusted browser input. The buyer may select a supported source asset and provide a source refund address.
 
@@ -149,9 +161,9 @@ Optional: `expiresInSeconds` (60–1800; default 900).
 
 Returns HTTP 201 with a signed `token` and public `session` claims. Duplicate order references for one merchant return HTTP 409. The API resolves merchant identity from the stored API-key hash or authenticated dashboard session, never from browser-supplied merchant IDs.
 
-### `GET /api/checkout-session?token=...`
+### `GET /api/checkout-session`
 
-Validates a signed session and returns public order claims. The token is a bearer credential and must be protected from unnecessary logging.
+Validates a signed session and returns public order claims. Send the short-lived token in `Authorization: Bearer <token>`. The hosted checkout currently reads the token from the URL fragment (`#checkout=...`), removes it from browser history, and then sends it in the Authorization header. Do not use the legacy query-string token form.
 
 ### `GET /api/tokens`
 
@@ -181,7 +193,7 @@ Returns the authenticated merchant's stored order and current database status. A
 
 Polls the configured Intents provider using the persisted deposit address and optional memo. Merchant requests authenticate with `x-pelargo-merchant-key`; buyer requests authenticate with the signed checkout session in `Authorization: Bearer`. Buyer sessions are restricted to their own committed order. Provider status and destination transaction candidate are stored with concurrency guards. Provider `SUCCESS` is not sufficient to mark an order paid.
 
-For NEAR NEP-141 destinations, Pelargo selects the signer lookup and canonical NEAR RPC for the configured provider network. Mainnet signer lookup uses NearScanner; testnet lookup is configured for NearBlocks v3 `GET /v3/txns/{hash}`. These external response contracts are currently mocked in CI and have not been validated against a live Pelargo transaction. Canonical NEAR RPC must independently verify finalized transaction/receipt execution and the exact token contract, recipient and net amount. Verified evidence must match the order and stored transaction candidate before the database marks it paid. Other destination networks/token standards fail closed.
+For NEAR NEP-141 destinations, Pelargo resolves a transaction signer and then uses canonical NEAR RPC to verify finalized transaction/receipt execution and the exact token contract, recipient and net amount. Signer lookup and provider transaction candidates are hints, not settlement proof. Verified evidence must match the order and stored transaction candidate before the database marks it paid. Other destination networks/token standards fail closed.
 
 ### `GET /api/operator/recovery-cases`
 
@@ -199,29 +211,40 @@ A quote or deposit address is not proof of payment. A provider status of `SUCCES
 
 Merchant webhooks/callbacks are not implemented. Merchants must currently poll their authenticated order/payment endpoints.
 
-## 5. Deployment prerequisites and current limits
+## 5. Current deployment requirements and limits
 
-The target Preview Pages environment needs:
-- D1 binding named `DB`, with the required migrations applied.
-- `MERCHANT_PROVISIONING_SECRET` for operator provisioning and recovery access.
-- `ORDER_SESSION_SECRET` with high entropy (at least 32 characters).
-- A provisioned merchant and its API key stored server-side.
-- `NEARSCANNER_API_KEY` for NearScanner signer lookup; the user reports that this secret has been added to Cloudflare.
-- Optional `NEAR_RPC_URL` and `NEARSCANNER_TX_API_URL` endpoint overrides.
+The Preview Pages environment requires:
+- A D1 binding named DB with the migrations required by the deployed code.
+- MERCHANT_PROVISIONING_SECRET and ORDER_SESSION_SECRET configured as server-side secrets.
+- The appropriate NEAR RPC and signer-indexer configuration for the selected provider network.
+- A provisioned merchant account and its API key stored only on the merchant server.
 
-The active branch contains migrations `0001` through `0019`. A read-only query of the Preview D1 `d1_migrations` table on 7 November confirmed all 19 are applied. The records for `0019_reconciliation_backfill_eligible_states.sql` and `0018_preview_password_reset.sql` appear as IDs 18 and 19 respectively because they were applied in that order. This confirms the migration ledger, not the correctness of every runtime behavior. Production migration state is separate and was not queried or changed.
+Do not copy secret values into this guide, browser code, Vite VITE_* variables or public repositories. Preview and Production use separate resources; do not apply migrations or change bindings in Production as part of Preview testing.
 
-A Preview-only background reconciliation Worker is deployed as `pelargo-expiry-sweeper-preview` (deployment `52733dc2-06be-4c7d-9a51-7e7c1a433074`), and Cloudflare previously confirmed its five-minute cron (`*/5 * * * *`) is active. The encrypted `RECONCILIATION_SECRET` value cannot be read back through the Cloudflare API; its installation must be confirmed through a successful authenticated Worker invocation or equivalent runtime evidence. A successful scheduled settlement run has not been established. The Worker also runs abandoned-checkout expiry and uncertain quote-commit recovery sweeps, so any redeployment or activation must account for those side effects.
+The supported destination settlement verifier is NEAR NEP-141. The direct wallet transfer path is limited to eligible provider-listed Base Sepolia ERC-20 source assets. Provider route availability is dynamic. Pelargo does not currently provide arbitrary-chain settlement verification, automatic provider failover, route comparison or a Pelargo-operated liquidity engine.
 
-Tests in `bun run test:security` and `bun run test:api` use in-memory SQLite and mocked provider/indexer/RPC responses. They do not prove live provider, indexer, RPC or scheduled Worker behavior. One live testnet payment, ORDER-83587591, has completed canonical NEAR NEP-141 settlement verification and immutable evidence persistence in Preview D1. The merchant has signed in successfully and reports the latest status read as settled. CI and Preview deployment for the subsequent settled-read immutability commits still need verification.
+The testnet route demonstrated on ORDER-35541967 has both source and destination evidence. ORDER-45723806 has destination evidence but no source-evidence row. These are distinct records and must not be conflated. A successful scheduled reconciliation run and independent external merchant-origin acceptance are separate checks; do not infer either from the successful payment record.
 
-Current product limitations:
-- NEAR NEP-141 is the only implemented destination settlement verifier; the active demo is on NEAR testnet.
-- EVM, Solana, Bitcoin, native NEAR and other destination settlement verifiers are not implemented.
-- Email delivery for password recovery is not configured; Preview recovery is operator-assisted.
-- Merchant webhooks are not implemented.
-- Multi-user merchant accounts are not implemented. API-key issuance and rotation are implemented, but the authenticated rotation flow has not yet been exercised end-to-end in a merchant browser session.
-- No published stable SDK/CDN package.
-- The complete merchant-to-embedded-widget flow still needs an independent merchant-origin browser acceptance test using a real merchant-created session. A Preview deployment and a bundle smoke test do not prove this end-to-end flow.
+## 6. Wallet connection status
 
-Keep `ALLOW_MAINNET_DEPOSITS` unset. Do not use this prototype to collect real customer funds.
+The current implementation uses Reown AppKit with an Ethers adapter and Base Sepolia-only network configuration for EVM wallet connection. Eligible ERC-20 quotes use the active EIP-1193 provider for the exact transfer. The manual deposit-address path remains available.
+
+Reown AppKit is integrated in the development Preview. `src/lib/appkit.ts` initializes `@reown/appkit` with `EthersAdapter`, the user-provided Project ID and Base Sepolia as the only configured network. `src/main.tsx` loads the initialization before rendering the app. The checkout uses `useAppKit`, `useAppKitAccount`, `useAppKitProvider("eip155")` and `useAppKitNetwork`. Its balance reads, network checks and exact-amount ERC-20 transfer continue through the EIP-1193 provider. An injected provider remains a fallback, and manual deposit remains available.
+
+The Cloudflare Pages Preview build passed. A live mobile payment acceptance test using Reown and MetaMask on Base Sepolia completed, and Pelargo displayed Settled, Provider SUCCESS and Settlement check verified. The latest settled Preview order, ORDER-49053014, is a strong but not user-confirmed match to that test. Its destination transaction hash is `3uZtiZpnhUd4r2wzbmUhPHwW6CAVBfsLLwWuUyfRrZPC`; D1 contains no source-deposit evidence row or source transaction hash for it. Account-change, disconnect/reconnect and network-switch edge cases remain. Keep the connector restricted to Base Sepolia. Reown adds wallet-connection options only; it does not expand supported assets, routes or destination verifiers.
+
+## 7. Hosted checkout URL and current integration status
+
+The hosted checkout receives the short-lived buyer token in the URL fragment (for example, #checkout=<token>). The browser reads the fragment, removes it from browser history and then calls GET /api/checkout-session with Authorization: Bearer <token>. New integrations should use this fragment pattern, not a query-string token.
+
+The fragment reduces exposure through ordinary HTTP request logs and referrer headers. It does not make the link private: anyone who obtains an unexpired checkout URL can use that bearer token. Do not publish checkout links or send them to analytics.
+
+The custom-element embed exists in the repository, but no stable versioned SDK/CDN package, Shopify/WooCommerce plugin or merchant webhook delivery is released. Confirm the actual deployed pelargo.js artifact before using it. The external merchant-origin flow still requires a separate acceptance test.
+
+## 8. Current Preview route and release safeguards
+
+The current Preview URL is https://design-blue-white-premium.pelargo.pages.dev. Verify that the latest successful Cloudflare Pages deployment corresponds to the intended branch head before using the URL for acceptance testing.
+
+The current development branch is design/blue-white-premium. The existing Cloudflare Pages production branch is build/live-intents; GitHub main contains an older generated version. Do not merge, change the production branch, configure a public domain, deploy Production, modify Production D1 or enable mainnet without explicit approval.
+
+Keep ALLOW_MAINNET_DEPOSITS unset. Do not use Preview to collect real customer funds. Do not initiate another test payment solely to repeat the route already demonstrated.

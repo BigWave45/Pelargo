@@ -125,8 +125,10 @@ async function retryOrReleaseJob(
   job: { orderId: string; leaseToken: string; attemptCount: number },
   now: Date,
   error: string,
+  delayOverrideMs?: number,
 ): Promise<void> {
-  const nextAttempt = new Date(now.getTime() + retryDelayMs(job.attemptCount)).toISOString();
+  const delay = delayOverrideMs ?? retryDelayMs(job.attemptCount);
+  const nextAttempt = new Date(now.getTime() + delay).toISOString();
   await db.prepare(
     `UPDATE payment_reconciliation_jobs
         SET next_attempt_at = ?, lease_token = NULL, lease_until = NULL,
@@ -176,8 +178,14 @@ export async function reconcileDuePayments(
       });
       const body = await response.text();
       const statusResult = (() => {
-        try { return JSON.parse(body) as { paymentStatus?: string; settlement?: string; code?: string }; }
-        catch { return {}; }
+        try {
+          return JSON.parse(body) as {
+            paymentStatus?: string;
+            settlement?: string;
+            code?: string;
+            verificationDiagnostics?: Array<{ stage?: string }>;
+          };
+        } catch { return {}; }
       })();
 
       const latest = await env.DB.prepare(
@@ -192,7 +200,15 @@ export async function reconcileDuePayments(
       }
 
       const detail = `HTTP ${response.status}; ${statusResult.code ?? statusResult.settlement ?? "status_unavailable"}`;
-      await retryOrReleaseJob(env.DB, job, now, detail);
+      // A resumable RPC scan makes bounded progress on each invocation.
+      // Schedule it before the next five-minute cron tick; a full five-minute delay can miss the next tick by a small amount and defer progress for another cycle.
+      const scanProgress = statusResult.verificationDiagnostics?.some((item) =>
+        item.stage === "testnet_rpc_block_scan_started" ||
+        item.stage === "testnet_rpc_block_scan_progress" ||
+        item.stage === "signer_resolved_from_canonical_rpc_block_scan" ||
+        item.stage === "signer_reused_from_persisted_rpc_scan"
+      ) ?? false;
+      await retryOrReleaseJob(env.DB, job, now, detail, scanProgress ? 4 * 60_000 : undefined);
       stats.deferred++;
       console.log("[pelargo] payment_reconciliation_deferred", {
         orderId: order.external_order_id,

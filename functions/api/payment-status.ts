@@ -37,6 +37,29 @@ function readProviderHashes(value: unknown): string[] {
   return hashes;
 }
 
+ 
+function readTidepoolExplorer(value: unknown): Array<{ label: string; url: string; hash: string | null }> {
+  if (!Array.isArray(value)) return [];
+  const items: Array<{ label: string; url: string; hash: string | null }> = [];
+  for (const raw of value) {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) continue;
+    const item = raw as Record<string, unknown>;
+    const label = typeof item.label === "string" ? item.label.slice(0, 100) : "";
+    const url = typeof item.url === "string" ? item.url.slice(0, 500) : "";
+    let hash: string | null = null;
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol === "https:") {
+        const segments = parsed.pathname.split("/").filter(Boolean);
+        const last = segments[segments.length - 1] ?? "";
+        if (/^[1-9A-HJ-NP-Za-km-z]{32,64}$/.test(last)) hash = last;
+      }
+    } catch { /* Ignore malformed provider explorer URLs. */ }
+    if (label || url) items.push({ label, url, hash });
+  }
+  return items.slice(0, 12);
+}
+
 function readQuoteInstructions(value: unknown): {
   originAssetId: string;
   amountInAtomic: string;
@@ -185,14 +208,14 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
   const payment = await env.DB.prepare(
     `SELECT o.id, o.external_order_id, o.status AS order_status,
             o.destination_network, o.destination_asset, o.recipient, o.amount_atomic,
-            p.status, p.quote_id, p.deposit_address, p.deposit_memo, p.provider_status, p.destination_tx_candidate, p.last_polled_at
+            p.status, p.quote_id, p.deposit_address, p.deposit_memo, p.provider_status, p.provider_updated_at, p.destination_tx_candidate, p.last_polled_at
        FROM checkout_orders o
        JOIN payment_lifecycle p ON p.order_id = o.id
       WHERE o.merchant_id = ? AND o.external_order_id = ?`
   ).bind(merchantId, orderId).first<{
     id: string; external_order_id: string; order_status: string;
     destination_network: string; destination_asset: string; recipient: string; amount_atomic: string;
-    status: PaymentStatus; quote_id: string | null; deposit_address: string | null; deposit_memo: string | null; provider_status: string | null; destination_tx_candidate: string | null; last_polled_at: string | null;
+    status: PaymentStatus; quote_id: string | null; deposit_address: string | null; deposit_memo: string | null; provider_status: string | null; provider_updated_at: string | null; destination_tx_candidate: string | null; last_polled_at: string | null;
   }>();
 
   if (!payment) return json({ error: "Order not found" }, 404);
@@ -235,6 +258,7 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
     };
     updatedAt?: string;
     quoteResponse?: unknown;
+    tidepool?: { explorer?: unknown };
   };
   try {
     const response = await intentsRequest(`status?${params.toString()}`, {
@@ -295,6 +319,7 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
     originChainTxHashes: readProviderHashes(provider.swapDetails?.originChainTxHashes),
     nearTxHashes: readProviderHashes(provider.swapDetails?.nearTxHashes),
     destinationChainTxHashes: readProviderHashes(provider.swapDetails?.destinationChainTxHashes),
+    tidepoolExplorer: readTidepoolExplorer(provider.tidepool?.explorer),
   };
   const depositInstructions = quoteInstructions ? {
     ...quoteInstructions,
@@ -310,7 +335,13 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
     : [];
   // The 1Click API represents transaction hashes as either strings or
   // { hash } objects. Normalize both forms before selecting a candidate.
+  const tidepoolExplorer = readTidepoolExplorer(provider.tidepool?.explorer);
+  const labelledExecuteIntentsHashes = tidepoolExplorer
+    .filter((item) => /execute[_ -]?intents/i.test(item.label))
+    .map((item) => item.hash)
+    .filter((hash): hash is string => Boolean(hash));
   const candidateHashes = [
+    ...labelledExecuteIntentsHashes,
     ...readProviderHashes(destinationHashes),
     ...readProviderHashes(provider.swapDetails?.nearTxHashes),
     // Explicitly configured recovery hash is scoped to Preview configuration;
@@ -402,13 +433,22 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
               destinationAsset: payment.destination_asset,
               recipient: payment.recipient,
               amountAtomic: payment.amount_atomic,
-            }, hash, (stage) => candidateDiagnostics.push({ hash, stage }));
+            }, hash, (stage, detail) => candidateDiagnostics.push({ hash, stage, ...(detail ? { detail: detail.slice(0, 180) } : {}) }), provider.updatedAt ?? payment.provider_updated_at ?? undefined, { db: env.DB, orderId: payment.id });
             if (evidence) break;
           } catch (error) {
             const detail = error instanceof Error ? error.message.slice(0, 240) : "Unknown verifier failure";
             candidateDiagnostics.push({ hash, stage: "verifier_exception", detail });
             candidateErrors.push(`${hash}: ${detail}`);
           }
+          // A bounded RPC block scan is deliberately limited to one candidate
+          // per poll. Repeating a multi-block scan for every intermediate NEAR
+          // hash can multiply public-RPC load without improving safety.
+          if (candidateDiagnostics.some((item) =>
+            item.hash === hash && (
+              item.stage === "testnet_rpc_block_scan_progress" ||
+              item.stage === "signer_resolved_from_canonical_rpc_block_scan" ||
+              item.stage === "signer_reused_from_persisted_rpc_scan"
+            ))) break;
         }
         // Keep every candidate failure visible. A later candidate may still
         // verify successfully; if none does, return the complete bounded
@@ -418,6 +458,7 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
             orderId, candidateErrors: candidateErrors.slice(0, 8),
           });
           return json({
+            error: "NEAR destination transaction candidates could not be independently verified",
             orderId,
             paymentStatus: verificationStatus,
             providerStatus: provider.status,
@@ -440,9 +481,9 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
           const results = await env.DB.batch([
             env.DB.prepare(
               `UPDATE payment_lifecycle
-                  SET destination_tx_candidate = ?, updated_at = ?
+                  SET destination_tx_candidate = ?, destination_tx_hash = ?, updated_at = ?
                 WHERE order_id = ? AND status = 'processing'`
-            ).bind(evidence.transactionHash, verifiedAt, payment.id),
+            ).bind(evidence.transactionHash, evidence.transactionHash, verifiedAt, payment.id),
             env.DB.prepare(
               `INSERT INTO payment_settlement_evidence
                 (order_id, destination_chain, destination_asset, token_contract, transaction_hash,
@@ -488,6 +529,7 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
         orderId, message: error instanceof Error ? error.message : "unknown",
       });
       return json({
+        error: "NEAR destination settlement verification is temporarily unavailable",
         orderId, paymentStatus: verificationStatus, providerStatus: provider.status,
         settlement: "verification_unavailable_or_mismatched",
         code: "NEAR_SETTLEMENT_VERIFICATION_FAILED",
@@ -495,6 +537,7 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
           name: error instanceof Error ? error.name : "UnknownError",
           message: error instanceof Error ? error.message.slice(0, 240) : "Unknown verifier failure",
         },
+        verificationDiagnostics: candidateDiagnostics.slice(0, 24),
         providerEvidence,
         candidateHash: effectiveCandidateHash,
         depositInstructions,
