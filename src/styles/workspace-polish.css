@@ -1,0 +1,63 @@
+/* Contrast and surface refinement for the merchant workspace. */
+:root {
+  color: #172331;
+  background: #f3f1ea;
+}
+.workspace { color: #172331; }
+.workspace-sidebar { background: #fcfbf8; border-color: #e3e0d8; }
+.workspace-topbar { background: #fbfaf7; border-color: #e3e0d8; }
+.workspace-side-label, .eyebrow { color: #667383; }
+.workspace-breadcrumb { color: #667383; }
+.workspace-breadcrumb strong { color: #263647; }
+.workspace-help, .workspace-profile-copy span { color: #667383; }
+.workspace-profile-copy strong { color: #263647; }
+.workspace-subtitle { color: #596879; }
+.workspace h2, .workspace h3 { color: #1e2d3d; }
+.section-heading p, .card-heading p { color: #667383; }
+.setup-card { background: #fff; border-color: #e2dfd7; }
+.setup-card-copy strong { color: #1e2d3d; }
+.setup-card-copy small { color: #596879; }
+.setup-number { color: #7b8794; }
+.status-outline, .draft-pill, .muted-tag {
+  color: #526174;
+  background: #fff;
+  border-color: #d8dce2;
+}
+.workspace-card, .form-panel, .integration-panel {
+  background: #fff;
+  border-color: #e1e5ea;
+  box-shadow: 0 5px 18px rgba(23,35,49,.035);
+}
+.empty-state strong { color: #263647; }
+.empty-state p, .readiness-note { color: #596879; }
+.readiness-row { color: #3f4e60; }
+.readiness-state { font-size: 10px; }
+.state-unverified { color: #87520e; }
+.state-pending { color: #596879; }
+.field-label { color: #344354; }
+.field-hint { color: #596879; }
+.form-panel-heading p, .checkout-explainer > p, .checkout-step small { color: #596879; }
+.checkout-step strong { color: #263647; }
+.notice-panel { background: #fff8eb; border-color: #e8d7b7; }
+.notice-panel strong { color: #704b13; }
+.notice-panel p { color: #674f2b; }
+.checkout-preview { border-color: #e0e5ec; box-shadow: 0 12px 32px rgba(23,35,49,.07); }
+.preview-topline, .preview-amount small, .preview-option small { color: #596879; }
+.preview-brand { color: #263647; }
+.preview-brand span { color: #667383; }
+.preview-amount i { color: #596879; }
+.preview-option b { color: #263647; }
+.preview-disclaimer { color: #596879; }
+.integration-panel-copy > p { color: #596879; }
+.integration-facts div { color: #3f4e60; }
+.api-row span { color: #596879; }
+.workspace-footer { color: #667383; }
+.token-main small { color: #596879; }
+.token-main code { color: #667383; }
+.token-foot { color: #596879; }
+.auth-card .workspace-subtitle { color: #596879; }
+.auth-footnote { color: #596879; }
+.auth-switch { color: #465568; }
+@media (prefers-reduced-motion: reduce) {
+  .setup-card, .workspace-sidebar { transition: none; }
+}
