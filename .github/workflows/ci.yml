@@ -23,5 +23,7 @@ jobs:
         run: bun run test:security
       - name: Checkout API integration tests
         run: bun run test:api
+      - name: External merchant smoke-test syntax
+        run: node --check scripts/external-merchant-smoke.mjs
       - name: Build frontend
         run: bun run build
