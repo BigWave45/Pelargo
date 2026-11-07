@@ -27,7 +27,7 @@ Open https://main.pelargo.pages.dev.
 3. The asset ID is the exact NEAR testnet asset recorded in Preview D1. Provider catalogue availability can change. If it is not returned by the current Tidepool testnet catalogue, do not substitute an arbitrary token or infer support from the example.
 4. Create a checkout order with a unique reference and destination amount.
 5. Open the signed checkout link in a separate browser tab/private window.
-6. Inspect the buyer checkout and request a dry quote preview for a currently listed Base Sepolia asset.
+6. Inspect the buyer checkout. For the previously recorded Base Sepolia route, the source asset catalogue ID is `nep141:base-0x38d81431b9f76d9699af7517040d5221d9dea252.tp-omft.testnet` (USDC, 6 decimals; Base Sepolia ERC-20 contract `0x38d81431b9f76d9699af7517040d5221d9dea252`). The live Preview `/api/tokens` catalogue returned this asset on 7 November 2026 at 22:37 UTC. Select it if it is still present, then request the dry quote preview.
 7. Stop at the dry quote preview. Do not request a committed quote, deposit instructions or initiate a transfer during a documentation-only review.
 
 A dry quote is a preview. It does not create a committed provider deposit instruction or move funds. The merchant order should remain pending/unpaid. This walkthrough demonstrates merchant registration, destination configuration, signed checkout-session creation, the hosted buyer surface and dry-quote presentation. It does not itself reproduce the historical completed payment.
