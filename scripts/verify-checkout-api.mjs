@@ -326,7 +326,7 @@ sqlite.query("UPDATE checkout_sessions SET expires_at = ? WHERE jti = ?").run(
   new Date(Date.now() - 60_000).toISOString(), expiredJti,
 );
 const expiredLookup = await checkoutSession({
-  request: new Request("https://pelargo.test/api/checkout-session?token=" + encodeURIComponent(expiredOrder.body.token)),
+  request: new Request("https://pelargo.test/api/checkout-session", { headers: { authorization: `Bearer ${expiredOrder.body.token}` } }),
   env,
 });
 assert.equal(expiredLookup.status, 410, "stored expired sessions must be rejected even when token verification is otherwise valid");
