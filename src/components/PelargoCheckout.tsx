@@ -335,6 +335,14 @@ export function PelargoCheckout({
   const walletAccountMatchesQuote = !paymentInstructions || walletAddress.toLowerCase() === refundTo.trim().toLowerCase();
   const walletCanPay = Boolean(walletAddress && walletOnBaseSepolia && baseTokenContract && paymentInstructions && walletAccountMatchesQuote && !walletTxHash);
 
+  function openMetaMaskMobile() {
+    // MetaMask documents this universal link for opening the current dapp
+    // directly in its mobile in-app browser. Keep the complete checkout URL
+    // (including the signed session query) intact.
+    const currentDappUrl = encodeURIComponent(window.location.href);
+    window.location.assign(`https://link.metamask.io/dapp/${currentDappUrl}`);
+  }
+
   async function connectWallet() {
     setError("");
     setWalletBusy(true);
@@ -771,9 +779,16 @@ export function PelargoCheckout({
           <div className="pelargo-wallet-heading"><Wallet size={17} /><strong>Pay from your Base wallet</strong></div>
           <p>Connect an EVM wallet to pay the exact quoted USDC amount on Base Sepolia. Pelargo never receives your private key.</p>
           {!walletAddress ? (
-            <button type="button" className="pelargo-quote-button" onClick={connectWallet} disabled={walletBusy || sessionExpired}>
-              {walletBusy ? <><LoaderCircle size={15} className="pelargo-spin" /> Connecting…</> : <>Connect wallet <ArrowRight size={15} /></>}
-            </button>
+            <>
+              <button type="button" className="pelargo-quote-button" onClick={connectWallet} disabled={walletBusy || sessionExpired}>
+                {walletBusy ? <><LoaderCircle size={15} className="pelargo-spin" /> Connecting…</> : <>Connect wallet <ArrowRight size={15} /></>}
+              </button>
+              {/Android|iPhone|iPad|iPod/i.test(navigator.userAgent) && !(window as Window & { ethereum?: { isMetaMask?: boolean } }).ethereum?.isMetaMask && (
+                <button type="button" className="pelargo-text-button" onClick={openMetaMaskMobile} disabled={sessionExpired}>
+                  Open this checkout in MetaMask
+                </button>
+              )}
+            </>
           ) : (
             <>
               <div className="pelargo-quote-detail"><span>Connected account</span><code>{walletAddress.slice(0, 8)}…{walletAddress.slice(-6)}</code></div>
