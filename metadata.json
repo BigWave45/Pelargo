@@ -1,6 +1,8 @@
 {
   "name": "Pelargo",
-  "description": "A premium, non-custodial checkout widget built on intents.",
+  "description": "Embeddable cross-chain merchant checkout with independently verified settlement on NEAR.",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }
