@@ -481,16 +481,42 @@ export async function verifyNearNep141Settlement(
       ? "indexer_and_bounded_rpc_block_scan_did_not_find_matching_signer"
       : "indexer_did_not_return_matching_signer_provider_timestamp_required_for_rpc_scan");
   }
-  const txStatus = await postJson(rpcUrl, {
+  const requestFinalStatus = (senderAccountId: string) => postJson(rpcUrl, {
     jsonrpc: "2.0",
     id: "pelargo-settlement-verifier",
     method: "EXPERIMENTAL_tx_status",
     params: {
       tx_hash: transactionHash,
-      sender_account_id: signerId,
+      sender_account_id: senderAccountId,
       wait_until: "FINAL",
     },
   });
+  let txStatus = await requestFinalStatus(signerId);
+  // A configured signer is a lookup hint, not an authority. If canonical RPC
+  // rejects that sender/hash pair, recover the signer through the testnet
+  // indexer and then the bounded canonical block scan before giving up.
+  if (txStatus.error && configuredSigner && provider.network === "testnet") {
+    onDiagnostic?.("configured_signer_hint_rejected_trying_indexer");
+    const rejectedHint = signerId;
+    signerId = null;
+    try {
+      const indexed = await requestJson(indexerUrl, { method: "GET", headers: indexerHeaders });
+      signerId = indexedSigner(indexed, transactionHash);
+    } catch {
+      onDiagnostic?.("testnet_indexer_unavailable_after_signer_hint_rejection");
+    }
+    if (!signerId || signerId === rejectedHint) {
+      signerId = await signerFromCanonicalRpcBlockWindow(
+        rpcUrl, transactionHash, providerObservedAt, env.NEAR_TX_RECOVERY_WINDOW_BLOCKS,
+        onDiagnostic, recoveryStore,
+      );
+    }
+    if (!signerId || signerId === rejectedHint) {
+      return reject("configured_signer_rejected_and_alternative_signer_not_found");
+    }
+    onDiagnostic?.("alternative_signer_resolved_after_configured_hint_rejection");
+    txStatus = await requestFinalStatus(signerId);
+  }
   if (txStatus.error) return reject("rpc_transaction_status_error");
   const result = record(txStatus.result);
   if (!result || !rpcSuccess(result.status)) return reject("transaction_not_successful_or_not_final");
