@@ -86,3 +86,25 @@ body { background: #f5f7fb; color: #14213b; }
 @media (prefers-reduced-motion: reduce) {
   .setup-card, .workspace-sidebar { transition: none; }
 }
+
+/* Auth and operational list surfaces */
+.auth-shell { background: #f5f7fb; color: #14213b; }
+.auth-brand { color: #14213b; }
+.auth-card { border: 1px solid #e2e9f2; border-radius: 12px; }
+.auth-submit { background: #1746c8; border-color: #1746c8; color: #fff; border-radius: 7px; }
+.auth-submit:hover:not(:disabled) { background: #123aa7; }
+.auth-error { color: #9c352c; background: #fff5f3; border-color: #f0d1cc; }
+.auth-success { color: #18794e; background: #edf8f1; border-color: #cce8d6; }
+.auth-switch { color: #5f708a; }
+.auth-switch button, .generated-link-value { color: #1746c8; }
+.order-list { border-top: 1px solid #e7edf5; }
+.order-row { border-bottom: 1px solid #e7edf5; color: #34445f; }
+.generated-link { border: 1px solid #dce5f2; background: #f6f8fc; border-radius: 7px; }
+.generated-link-value { overflow-wrap: anywhere; }
+.icon-action { color: #52627b; border-color: #dce4ef; background: #fff; }
+.buyer-checkout-shell { background: #f5f7fb; }
+.buyer-checkout-head { color: #14213b; }
+@media (max-width: 650px) {
+  .auth-card { border-radius: 10px; }
+  .order-row { gap: 9px; }
+}
