@@ -1,0 +1,35 @@
+# Preview-only expiry/recovery Worker configuration.
+# This binds exclusively to pelargo-preview-db.
+# Preview-only expiry and payment-reconciliation Worker.
+# The Preview Worker and five-minute cron are already deployed. Before any
+# redeployment, verify the Preview migration, encrypted secret and runtime state.
+name = "pelargo-expiry-sweeper-preview"
+main = "workers/expiry-sweeper.ts"
+compatibility_date = "2026-11-04"
+workers_dev = false
+
+[triggers]
+crons = ["*/5 * * * *"]
+
+[vars]
+INTENTS_API_BASE_URL = "https://www.usetidepool.tech"
+ALLOW_TESTNET_DEPOSITS = "true"
+# One-order recovery hint. The signer is still independently checked by canonical RPC.
+NEAR_TX_HASH = "vif8EKtCAzHcaihLNuC6XaRMhCzEDxUiHbAJJRQVUVE"
+NEAR_TX_SIGNER_ID = "maker.tidepool-sandbox.testnet"
+NEAR_TX_ORDER_ID = "ORDER-83587591"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "pelargo-preview-db"
+database_id = "0335acdc-f0e0-42f6-ba87-e3448fb91728"
+
+# Configure RECONCILIATION_SECRET only as an encrypted secret on this Worker.
+# The in-process status verifier receives the same Worker Env binding.
+# Never put the secret value in this file or commit it to source control.
+
+[secrets]
+required = ["RECONCILIATION_SECRET"]
+
+[observability]
+enabled = true

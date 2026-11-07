@@ -1,85 +1,91 @@
 # Pelargo
 
-A premium, non-custodial checkout widget that lets buyers pay from whatever wallet and chain they already have while the merchant receives exactly what they asked for.
+## Product
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Status: Hackathon Demo](https://img.shields.io/badge/Status-Hackathon%20Ready-success.svg)](SCOPE.md)
+Pelargo is an embeddable, non-custodial crypto checkout layer. Merchants create an order and a short-lived checkout session; buyers pay through a provider-supported route; merchants receive their configured settlement asset after Pelargo independently verifies destination settlement.
 
----
+The long-term direction is one merchant integration with broader wallet, network, asset and provider coverage. That is a product direction, not a claim about current compatibility.
 
-## Status
+## Current supported scope
 
-Stages 1–3 (UI, flow, and demo store) are built with mock data. Real wallet connection and live payments are not built yet. See [SCOPE.md](SCOPE.md) for full architecture and roadmap details.
+- Preview uses Tidepool's NEAR Intents-compatible testnet environment.
+- The demonstrated route is a provider-listed Base Sepolia ERC-20 source asset to a NEAR testnet NEP-141 destination.
+- Pelargo supports an injected EIP-1193 wallet transfer for eligible Base Sepolia quotes, using the exact committed quote deposit address and atomic source amount. Manual deposit instructions remain available.
+- Pelargo independently verifies NEAR NEP-141 destination settlement before marking an order paid.
+- Official NEAR 1Click is an allowlisted mainnet provider option in the codebase. Mainnet committed quotes remain disabled; do not activate them for the hackathon.
 
----
+Provider route availability is dynamic. Wallet connection does not create liquidity, expand the provider's token catalogue or add destination verifiers. Pelargo does not currently provide automatic provider failover, route comparison or arbitrary-chain settlement verification.
 
-## How to run
+## What Pelargo owns
+
+Pelargo owns merchant accounts and API-key boundaries, signed checkout sessions, merchant/order binding, checkout UI, provider orchestration, payment lifecycle and independent NEAR NEP-141 destination verification. The configured provider supplies source-asset discovery, quotes, deposit instructions and provider-side deposit detection.
+
+A provider SUCCESS, a source-chain transfer or a submitted wallet transaction hash is not sufficient to mark an order paid. Settlement requires canonical destination-chain verification and matching persisted evidence.
+
+## Verified Preview test
+
+ORDER-35541967 completed the Base Sepolia → NEAR testnet route. Preview records both immutable source-deposit evidence and independently verified destination-settlement evidence. The merchant received exactly 1 USDC on agentg.testnet.
+
+ORDER-45723806 is also recorded as paid/settled with destination evidence, but has no corresponding source-deposit evidence row. Do not describe that order as having complete dual-chain evidence.
+
+The latest settled Preview record found during the 7 November 2026 Reown acceptance follow-up is ORDER-49053014: 1 USDC delivered to agentg.testnet, provider SUCCESS, lifecycle settled, with independently verified NEAR destination transaction `3uZtiZpnhUd4r2wzbmUhPHwW6CAVBfsLLwWuUyfRrZPC` (block 276622029; 68 confirmations). Database events show 2 minutes 20.6 seconds from order creation to settlement, including 23.2 seconds from deposit detection to settlement. This is a strong temporal match to the user-reported Reown checkout, but the user has not explicitly confirmed the order ID. No source-deposit evidence row or source transaction hash is recorded for this order, so do not claim dual-chain evidence for it.
+
+No additional payment is needed merely to repeat the already demonstrated route. These testnet results do not establish mainnet or production readiness.
+
+## Wallet connection
+
+The checkout initializes Reown AppKit with the Ethers adapter and a Base Sepolia-only network configuration. The buyer connects through AppKit, and the checkout reads the EIP-1193 provider, account and network state from AppKit. A live mobile checkout using Reown and MetaMask completed with the checkout page showing Payment status: Settled, Provider: SUCCESS and Settlement check: verified. Existing exact-amount ERC-20 transfer checks and independent settlement verification remain in place. Manual deposit instructions remain available.
+
+The AppKit integration has passed a live mobile checkout acceptance test: the user connected MetaMask through Reown on Base Sepolia, completed checkout, and Pelargo displayed Payment status: Settled, Provider: SUCCESS and Settlement check: verified. The user reported that completion was fast; no measured duration or latency guarantee has been established. Account-change, disconnect/reconnect and network-switch edge cases remain separate acceptance tests. Reown adds wallet-connection options only; it does not expand route, asset or settlement-verification coverage.
+
+## Merchant integration
+
+The current integration pattern is server-side session creation followed by a redirect or embed using a short-lived buyer session token. Keep the merchant API key on the merchant server. The buyer token is a one-order bearer credential; the hosted checkout currently receives it in the URL fragment, removes it from browser history and sends it to the API in an Authorization header.
+
+The repository contains a custom-element embed, but there is no stable published SDK/CDN package, Shopify/WooCommerce plugin or merchant webhook delivery. PR #6 added a non-payment external merchant acceptance test. The post-merge GitHub Actions run passed all seven checks against the integrated Preview, including merchant API authentication, signed buyer-session validation, merchant-scoped order retrieval, duplicate-order rejection, the pre-quote payment boundary and cross-merchant isolation (a second merchant receives 404 when attempting to retrieve the first merchant's order). The workflow uses repository Actions secrets; no merchant key is committed or pasted into chat. The test creates a pending Preview order only: it does not commit a quote or initiate a payment or transfer. See [docs/INTEGRATION.md](docs/INTEGRATION.md) and [docs/EXTERNAL_MERCHANT_TEST.md](docs/EXTERNAL_MERCHANT_TEST.md).
+
+## Frontend direction
+
+The active redesign uses a blue-and-white foundation with modern financial-infrastructure styling and editorial restraint. The workspace includes Overview, destination settings, checkout creation, buyer checkout, Developers and account views. Keep the interface grounded in live product data; do not add fabricated metrics or simulated payment progress.
+
+## Branches, Preview and release controls
+
+- Repository: [BigWave45/Pelargo](https://github.com/BigWave45/Pelargo)
+- Integrated non-production branch: reliability/background-reconciliation
+- External merchant acceptance test: merged via PR #6 into reliability/background-reconciliation
+- Existing Cloudflare Pages production branch: build/live-intents
+- main contains an older Google AI Studio-generated version and is not the current product source.
+- Cloudflare Pages project: pelargo
+- Integrated Preview URL: [reliability-background-recon.pelargo.pages.dev](https://reliability-background-recon.pelargo.pages.dev)
+
+Do not merge, change the Cloudflare production branch, deploy Production, change domain routing, modify Production D1, enable mainnet or initiate payments without explicit approval. Merging to GitHub main alone does not change the Cloudflare Pages production branch.
+
+PR #6 is merged into reliability/background-reconciliation. The release sequence is: finish the design and wallet work; run acceptance tests; freeze a release candidate; reconcile it against the existing production baseline; update main to the approved release; then, with explicit approval, configure the production branch and domain. A free custom domain has not yet been selected or configured. Keep the Preview URL separate from the eventual public domain.
+
+## Development
+
+Stack: React, TypeScript, Vite, Cloudflare Pages Functions, Cloudflare D1 and NEAR Intents / 1Click.
 
 ```bash
 bun install
 bun run dev
+bun run test:security
+bun run test:api
+bun run test:external-merchant
+bun run build
 ```
 
-Visit `http://localhost:3000` to interact with the demo merchant store and dev panel.
+The external merchant test requires `PELARGO_API_URL` and `PELARGO_MERCHANT_API_KEY`. For the hosted acceptance run, store the primary test merchant key as `PELARGO_TEST_MERCHANT_API_KEY` and a different merchant's key as `PELARGO_OTHER_TEST_MERCHANT_API_KEY` in GitHub Actions repository secrets. Run **External merchant acceptance** from the default branch; the workflow now explicitly checks out `reliability/background-reconciliation` and targets its integrated Preview alias. The pre-merge run and the post-merge rerun both passed all seven checks, including cross-merchant isolation. The current workflow checks out `reliability/background-reconciliation` and targets its integrated Preview alias. Full instructions: [docs/EXTERNAL_MERCHANT_TEST.md](docs/EXTERNAL_MERCHANT_TEST.md).
 
-*(Note: `npm install && npm run dev` can also be used if preferred).*
+## Safety
 
----
-
-## The Stack
-
-- **Framework**: React 19 + TypeScript + Vite
-- **Styling**: Plain CSS powered strictly by design tokens (`src/styles/tokens.css`)
-- **Icons**: Minimal SVG vectors and Lucide React icons
-- **Zero-runtime API calls**: Deterministic mock intent solver data
-
----
-
-## Architecture: Built on Intents
-
-Pelargo never holds funds. The buyer picks a wallet and token, gets a quote with a deposit address, and sends funds from their own wallet. The Intents network delivers the merchant's chosen token to the merchant. Pelargo only requests quotes and checks status.
-
-```text
- ┌───────────────┐
- │ Buyer Wallet  │ (Any token & chain: ETH, SOL, NEAR, USDT, USDC)
- └───────┬───────┘
-         │ 1. Sends native funds to quote deposit address
-         ▼
- ┌────────────────────────────────────────────────────────┐
- │                   Intent Solvers                       │
- │  • Fills order instantly with guaranteed rate          │
- │  • Executes cross-chain bridge & swap off-screen       │
- └───────┬────────────────────────────────────────────────┘
-         │ 2. Direct settlement
-         ▼
- ┌───────────────┐
- │   Merchant    │ (Receives exact requested currency e.g. 25.00 USDC)
- └───────────────┘
-
- * Pelargo Widget only coordinates quotes, countdowns, and settlement status *
-```
-
----
-
-## Quick Judge & Reviewer Guide
-
-The demo store for **Northwind Goods** includes a floating **Pelargo Dev Review** panel in the bottom-right corner designed specifically for hackathon evaluation:
-
-1. **Theme Switcher**: Instant toggle between Dark mode (default) and Light mode. Both themes strictly adhere to WCAG 4.5:1 contrast standards.
-2. **Screen Jumps**: One-click preview of all 5 happy screens and 3 error/loading states:
-   - `1. Choose`: Top 3 chain options with quick route selection.
-   - `2. TokenPicker`: Searchable token list grouped by network.
-   - `3. Confirm`: Quote breakdown with live 42s timer (<10s warning state).
-   - `4. Progress`: 3-stage status timeline with calm pulsing indicator and active-payment exit protection.
-   - `5. Receipt`: Success animation and mock transaction explorer link.
-   - `Err: Expired`: Automatic recovery for outdated exchange rates.
-   - `Err: Failed`: Plain-language confirmation of funds safety.
-   - `Loading`: 600ms shimmer skeleton loader.
-3. **Merchant Theming Demo**: Test the `accent` prop override button to preview merchant brand personalization.
-4. **Mobile Responsiveness**: Test at 360px viewport width—the widget automatically transforms from a centered modal into an ergonomic bottom sheet.
-
----
+- Keep ALLOW_MAINNET_DEPOSITS unset.
+- Use testnet assets only for the hackathon demonstration.
+- Never expose merchant API keys, provisioning secrets, session-signing secrets or indexer credentials in browser code or public repositories.
+- Do not use the Preview prototype to collect real customer funds.
+- Do not treat a quote, deposit address, provider status or wallet transaction hash as settlement proof.
+- Production and mainnet changes require explicit approval.
 
 ## License
 
-This project is licensed under the [MIT License](LICENSE).
+MIT

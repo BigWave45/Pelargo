@@ -1,0 +1,35 @@
+name = "pelargo"
+compatibility_date = "2026-11-04"
+pages_build_output_dir = "./dist"
+
+# Cloudflare Pages Functions are discovered from ./functions.
+# Keep the default D1 binding pointed at production. Preview overrides it below.
+[[d1_databases]]
+binding = "DB"
+database_name = "pelargo-db"
+database_id = "eae6ecc8-d79d-4d12-8a37-2d38ab84a0b1"
+
+# Preview uses an isolated database and the community Tidepool testnet API.
+# Testnet deposits are enabled only in Preview; no production mainnet gate is enabled.
+[[env.preview.d1_databases]]
+binding = "DB"
+database_name = "pelargo-preview-db"
+database_id = "0335acdc-f0e0-42f6-ba87-e3448fb91728"
+
+[env.preview.vars]
+INTENTS_API_BASE_URL = "https://www.usetidepool.tech"
+ALLOW_TESTNET_DEPOSITS = "true"
+
+# Production explicitly keeps the production database. ALLOW_MAINNET_DEPOSITS
+# remains unset and therefore committed mainnet quotes stay disabled.
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "pelargo-db"
+database_id = "eae6ecc8-d79d-4d12-8a37-2d38ab84a0b1"
+
+# Configure encrypted MERCHANT_PROVISIONING_SECRET and ORDER_SESSION_SECRET
+# separately in Cloudflare for both environments. Add ONECLICK_JWT only if
+# the official 1Click partner account requires JWT authentication.
+# The separate expiry Worker configs are wrangler.expiry.toml (production)
+# and wrangler.expiry.preview.toml (preview). The Preview Worker is deployed;
+# do not deploy or modify the Production Worker without explicit approval.
