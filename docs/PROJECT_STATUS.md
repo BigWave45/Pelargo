@@ -18,7 +18,7 @@ Use one release path. Do not merge the historical feature branches independently
 - `design/premium-ui`, `design/premium-checkout-widget`, `ops/*` and `reliability/near-verifier-diagnostics` are historical or superseded work branches. Their changes are not to be merged separately without identifying a concrete missing change first.
 - PR #4 is closed and unmerged. It targets `main` from the old integration branch and contains a very large historical commit range. Do not reopen or merge it as the release mechanism.
 
-The release candidate is currently a fast-forward extension of `main`, with ten commits and no divergence (10 ahead, 0 behind `main`). At candidate head `dc742880b4d41f8bf4a2234d7fe18852673195f0`, type-checking, checkout-session security tests, checkout/API integration tests, external merchant smoke-test syntax validation and frontend build all passed in CI: https://github.com/BigWave45/Pelargo/actions/runs/42394397895. Cloudflare Pages also completed the candidate Preview deployment successfully: https://release-hackathon-candidate.pelargo.pages.dev.
+The release candidate is currently a fast-forward extension of `main`, with fourteen commits and no divergence (14 ahead, 0 behind `main`). At candidate head `dc742880b4d41f8bf4a2234d7fe18852673195f0`, type-checking, checkout-session security tests, checkout/API integration tests, external merchant smoke-test syntax validation and frontend build all passed in CI: https://github.com/BigWave45/Pelargo/actions/runs/42394397895. Cloudflare Pages also completed the candidate Preview deployment successfully: https://release-hackathon-candidate.pelargo.pages.dev.
 
 ## Product and supported scope
 
