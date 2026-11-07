@@ -3,6 +3,11 @@ import { defineConfig } from "vite";
 
 export default defineConfig({
   plugins: [react()],
+  // React's production runtime reads this expression; standalone browser embeds
+  // have no Node.js process global, so replace it at bundle time.
+  define: {
+    "process.env.NODE_ENV": JSON.stringify("production"),
+  },
   build: {
     emptyOutDir: false,
     lib: {
