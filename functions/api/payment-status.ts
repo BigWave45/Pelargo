@@ -445,9 +445,9 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
           // hash can multiply public-RPC load without improving safety.
           if (candidateDiagnostics.some((item) =>
             item.hash === hash && (
-              item.stage === "testnet_indexer_unavailable_rpc_block_scan" ||
-              item.stage === "testnet_rpc_block_scan_started" ||
-              item.stage === "signer_resolved_from_canonical_rpc_block_scan"
+              item.stage === "testnet_rpc_block_scan_progress" ||
+              item.stage === "signer_resolved_from_canonical_rpc_block_scan" ||
+              item.stage === "signer_reused_from_persisted_rpc_scan"
             ))) break;
         }
         // Keep every candidate failure visible. A later candidate may still
