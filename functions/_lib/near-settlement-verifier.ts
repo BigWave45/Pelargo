@@ -154,6 +154,7 @@ type RecoveryCursor = {
   scan_next_height: string | null;
   scan_chunk_hashes: string | null;
   scan_chunk_offset: number;
+  scan_signer_id: string | null;
 };
 
 /**
@@ -182,13 +183,18 @@ async function signerFromCanonicalRpcBlockWindow(
   if (recoveryStore) {
     cursor = await recoveryStore.db.prepare(
       `SELECT scan_candidate_hash, scan_observed_at, scan_first_height, scan_last_height,
-              scan_next_height, scan_chunk_hashes, scan_chunk_offset
+              scan_next_height, scan_chunk_hashes, scan_chunk_offset, scan_signer_id
          FROM payment_reconciliation_jobs WHERE order_id = ?`
     ).bind(recoveryStore.orderId).first<RecoveryCursor>();
     if (cursor?.scan_candidate_hash !== expectedHash || cursor.scan_observed_at !== observedAt ||
         !cursor.scan_first_height || !cursor.scan_last_height || !cursor.scan_next_height) {
       cursor = null;
     }
+  }
+
+  if (cursor?.scan_signer_id) {
+    onDiagnostic?.("signer_reused_from_persisted_rpc_scan");
+    return cursor.scan_signer_id;
   }
 
   if (!cursor) {
@@ -229,13 +235,14 @@ async function signerFromCanonicalRpcBlockWindow(
       scan_next_height: last.toString(),
       scan_chunk_hashes: null,
       scan_chunk_offset: 0,
+      scan_signer_id: null,
     };
     if (recoveryStore) {
       await recoveryStore.db.prepare(
         `UPDATE payment_reconciliation_jobs
             SET scan_candidate_hash = ?, scan_observed_at = ?, scan_first_height = ?,
                 scan_last_height = ?, scan_next_height = ?, scan_chunk_hashes = NULL,
-                scan_chunk_offset = 0, updated_at = ?
+                scan_chunk_offset = 0, scan_signer_id = NULL, updated_at = ?
           WHERE order_id = ?`
       ).bind(expectedHash, observedAt, first.toString(), last.toString(), last.toString(),
         new Date().toISOString(), recoveryStore.orderId).run();
@@ -282,7 +289,9 @@ async function signerFromCanonicalRpcBlockWindow(
       return null;
     });
     if (signers.size === 1) {
-      await persist({ hashes: null, offset: 0 });
+      if (recoveryStore) await recoveryStore.db.prepare(
+        "UPDATE payment_reconciliation_jobs SET scan_signer_id = ?, scan_chunk_hashes = NULL, scan_chunk_offset = 0, updated_at = ? WHERE order_id = ? AND scan_candidate_hash = ?"
+      ).bind([...signers][0], new Date().toISOString(), recoveryStore.orderId, expectedHash).run();
       onDiagnostic?.("signer_resolved_from_canonical_rpc_block_scan");
       return [...signers][0];
     }
