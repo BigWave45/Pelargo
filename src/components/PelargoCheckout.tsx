@@ -466,8 +466,18 @@ export function PelargoCheckout({
         const accounts = args[0];
         const address = Array.isArray(accounts) && typeof accounts[0] === "string" ? accounts[0] : "";
         setWalletAddress(address);
-        setWalletTxHash("");
-        if (address) setRefundTo(address);
+
+        // A committed provider quote is bound to the refund address supplied
+        // when it was created. Never silently rebind that quote to a new wallet.
+        // Preserve a submitted transaction hash across account changes as well.
+        if (!paymentInstructions) {
+          if (address) setRefundTo(address);
+          if (quote) {
+            setQuote(null);
+            setQuoteId("");
+            setRequestedAt("");
+          }
+        }
       };
       const handleChain = (...args: unknown[]) => {
         const chainId = args[0];
