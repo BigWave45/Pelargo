@@ -54,3 +54,21 @@ This file records the current product/design decision and implementation state. 
 4. Verify the widget mounts, requests token discovery, and displays a dry quote. Stop before buyer confirmation/committed quote unless a separate testnet payment has been explicitly approved.
 5. Test authenticated `GET /api/order` or `GET /api/payment-status` from the merchant backend. Verify cross-merchant access is denied.
 6. Separately establish Worker secret validity and scheduled invocation evidence from runtime logs and Preview D1 job state. Review expiry and uncertain-commit sweep side effects before dispatching or redeploying anything.
+
+
+---
+
+## Provider dependency and product-coverage disclosure — 7 November 2026
+
+The current V1 is still dependent on the configured NEAR Intents / 1Click provider integration through Tidepool's testnet environment. Tidepool/1Click currently determines the source-token catalogue, available source/destination routes, quote availability and expiry, deposit address, exact source amount and provider-side deposit lifecycle. Pelargo does not currently provide its own independent routing/liquidity layer, second-provider redundancy, automatic provider failover or arbitrary-asset execution.
+
+This is a provider dependency, not a claim that Pelargo is merely a thin UI wrapper. Pelargo owns merchant authentication and API-key boundaries, signed checkout sessions, order binding and lifecycle, checkout UX, provider-facing orchestration, and independent NEAR NEP-141 destination settlement verification. Nevertheless, source-asset and route coverage remain constrained by the configured provider and must be represented honestly in the product and demo.
+
+Wallet support is separate from route support. The current direct wallet path supports injected EIP-1193 wallets on Base Sepolia for matching provider-listed ERC-20 source assets. Adding MetaMask, WalletConnect or other wallet connectors does not expand Tidepool's token catalogue, route liquidity or Pelargo's implemented destination verifiers. WalletConnect is not implemented yet.
+
+Public copy and developer documentation must distinguish:
+- **Implemented now:** provider-listed source assets/routes; Tidepool/1Click testnet quote and deposit flow; Base Sepolia injected-wallet transfer for eligible provider quotes; manual deposit fallback; independent NEAR NEP-141 destination settlement verification.
+- **Not implemented:** arbitrary source assets/routes; provider redundancy/failover; independent Pelargo routing; WalletConnect; universal wallet discovery; EVM/Solana/Bitcoin/native-NEAR destination settlement verification.
+- **Product direction:** a universal checkout interface that can add more wallet connectors, providers, source networks and settlement verifiers behind stable merchant and checkout contracts.
+
+No production deployment, provider migration, additional provider integration or payment initiation is authorized by this documentation update.
