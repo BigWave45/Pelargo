@@ -188,3 +188,13 @@ The testnet RPC signer-recovery scan now processes blocks nearest the provider t
 - The settlement was recorded by the existing Preview reconciliation path; do not attribute the successful verification specifically to the new stale-signer fallback until runtime diagnostics prove that path was used. Production branch `build/live-intents`, Production D1 and Production deployment remain untouched.
 
 - The follow-up persistence patch is committed on `design/blue-white-premium`; GitHub Actions CI run `42357587840` completed successfully and the `verify` job passed. Cloudflare Pages Preview deployment `fd7fc81d-b48d-4930-b58e-385a35e96d21` was queued at the last check for commit `1b93afa35752052d92177bfeb0244fa3753ea127`; its build/deploy stages are not yet complete.
+
+
+## Post-success source deposit evidence recovery — 7 November 2026
+
+- Found a lifecycle gap in `POST /api/deposit-submit`: it returned `PROVIDER_ALREADY_SUCCESS` before independently checking and persisting Base Sepolia source-deposit evidence. This could leave a valid, already-settled destination payment without its source evidence row.
+- Updated the Preview branch handler to continue exact Base Sepolia receipt verification and immutable `payment_origin_deposit_evidence` persistence when the provider already reports `SUCCESS`.
+- Critical safety rule: when provider status is `SUCCESS`, the handler never calls `deposit/submit`. It only verifies and records source evidence. The existing pre-submit provider/quote correlation, exact source token contract, quote amount, deposit address, transaction receipt, confirmation threshold and ERC-20 Transfer-log checks remain required.
+- Commit: `948795afd7adf9fb42b567c5c2f8d93194959d55` on `design/blue-white-premium`. GitHub Actions Preview reconciliation Worker workflow was triggered by this push; completion and Pages Preview deployment still require verification.
+- The earlier `ORDER-35541967` destination settlement is independently verified and immutable in Preview D1. Its source evidence row was still absent at the last audit. This code change does not itself backfill that order: an authenticated merchant request with the exact Base Sepolia source transaction hash is still required. No new source transaction is to be sent.
+- Production resources, production branch and production deployment were not changed.
