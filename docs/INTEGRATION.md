@@ -22,7 +22,7 @@ The signed session binds the merchant, order, amount, destination asset and reci
 
 ## Self-service merchant accounts
 
-The dashboard supports open merchant registration and password login. A new account creates a merchant record and an internal API key whose hash is stored server-side; the plaintext key is not returned to the browser. Dashboard requests authenticate with the merchant session cookie. The dashboard can save a NEAR settlement asset ID, symbol, network, token decimals and recipient, create a signed checkout session, and list merchant-scoped orders.
+The dashboard supports open merchant registration and password login. Registration creates a merchant record and an internal API key whose hash is stored server-side; the plaintext key is not returned during registration. After signing in, a merchant can use `POST /api/merchant-api-key` to issue or rotate the key. The plaintext is returned once in a `Cache-Control: no-store` response and is not persisted in browser storage. Rotation immediately invalidates the previous key. Dashboard requests authenticate with the merchant session cookie. The dashboard can save a NEAR settlement asset ID, symbol, network, token decimals and recipient, create a signed checkout session, and list merchant-scoped orders.
 
 - `POST /api/auth/register` — create an account with `name`, `email`, and a password of 12–128 characters. Returns the merchant profile and sets the session cookie.
 - `POST /api/auth/login` — authenticate with email and password; sets a new session cookie.
@@ -34,6 +34,16 @@ The dashboard supports open merchant registration and password login. A new acco
 Sessions last seven days. Registration is limited to five attempts per email/IP per hour; login is limited to ten attempts per email/IP per 15 minutes. Email verification, API-key rotation and multi-user merchant accounts are not implemented. Preview password recovery is implemented and has been exercised successfully: a one-time token is emitted to restricted Cloudflare Pages Preview runtime logs, expires after 30 minutes, and can be redeemed once; redemption updates the password and revokes prior sessions. No email delivery is configured, so this is an operator-assisted Preview recovery mechanism, not a production customer recovery channel. The destination asset ID and decimal precision must be confirmed against the active provider token catalogue; the form does not independently prove a token/recipient combination is settleable.
 
 The operator-only `POST /api/merchant` provisioning endpoint remains available for internal setup and existing server integrations. It is not the public signup flow.
+
+### Merchant API key issuance
+
+After signing in to the merchant workspace, generate a server credential from the Developers section. The dashboard calls:
+
+`POST /api/merchant-api-key`
+
+Authentication: the dashboard's HttpOnly merchant session cookie. The request must be same-origin and has no body.
+
+A successful response contains `apiKey` and a warning. The key is shown once. Store it in your server-side secret manager, for example as `PELARGO_MERCHANT_API_KEY`. Do not store it in local storage, ship it in frontend code, commit it to source control or expose it in a `VITE_*` variable. Calling this endpoint again rotates the credential and invalidates the previous key. If the response is lost, generate a new key; the previous plaintext cannot be recovered.
 
 ## 1. Create a checkout session from your server
 
