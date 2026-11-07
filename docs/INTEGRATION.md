@@ -237,3 +237,12 @@ Current product limitations:
 - The complete merchant-to-embedded-widget flow still needs an independent merchant-origin browser acceptance test using a real merchant-created session. A Preview deployment and a bundle smoke test do not prove this end-to-end flow.
 
 Keep `ALLOW_MAINNET_DEPOSITS` unset. Do not use this prototype to collect real customer funds.
+
+
+### Base Sepolia connected-wallet payment (implemented in the current draft branch; end-to-end verification pending)
+
+The embedded buyer checkout now supports an injected EIP-1193 wallet on Base Sepolia for source assets whose provider asset ID matches the Base Sepolia OMFT ERC-20 format. The buyer explicitly connects a wallet, the widget detects the account and chain, and the widget reads the exact token balance through `eth_call`. The wallet must be on Base Sepolia (chain ID 84532 / `0x14a34`). The widget derives the token contract from the selected provider asset ID, not from a user-entered contract address.
+
+After the existing committed 1Click quote returns a deposit address and exact `amountIn`, the buyer may approve a standard ERC-20 `transfer(address,uint256)` through the wallet. The recipient and amount are taken from the committed provider quote. The wallet account must match the refund address used to create the quote. Quotes with a deposit memo are excluded from direct wallet transfer and retain the manual instructions path. A connected wallet, visible balance or submitted transaction hash is not proof of payment.
+
+The current flow relies on provider deposit detection and existing `GET /api/payment-status` polling. Pelargo's independent destination-chain verifier remains the only authority for marking an order paid. The manual deposit-address flow remains available as fallback. The implementation is a draft and has not yet passed Preview browser acceptance or a fresh end-to-end wallet payment test. It supports injected EVM wallets only; it does not provide universal wallet discovery, WalletConnect, mobile deep links, Solana/NEAR signing or arbitrary-chain execution.
