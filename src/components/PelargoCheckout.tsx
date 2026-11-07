@@ -18,7 +18,7 @@ const BASE_SEPOLIA_CHAIN = {
 };
 
 function baseSepoliaTokenContract(assetId: string): string | null {
-  const match = /^nep141:base-(0x[a-fA-F0-9]{40})\\.tp-omft\\.testnet$/i.exec(assetId);
+  const match = /^nep141:base-(0x[a-fA-F0-9]{40})\.tp-omft\.testnet$/i.exec(assetId);
   return match?.[1] ?? null;
 }
 
@@ -304,11 +304,19 @@ export function PelargoCheckout({
       setError("Switch your wallet to Base Sepolia before paying.");
       return;
     }
+    if (walletAddress.toLowerCase() !== refundTo.trim().toLowerCase()) {
+      setError("The connected wallet must match the refund address used for this quote. Reconnect the original wallet or create a new checkout quote.");
+      return;
+    }
+    if (paymentInstructions.memo) {
+      setError("This provider quote includes a deposit memo. Direct wallet transfer is disabled for this quote; use the manual deposit instructions.");
+      return;
+    }
     if (!/^0x[a-fA-F0-9]{40}$/.test(paymentInstructions.address)) {
       setError("The provider returned a deposit address that is not a valid Base EVM address. Use the manual instructions only after checking with the merchant.");
       return;
     }
-    if (!/^\\d+$/.test(paymentInstructions.amountIn) || BigInt(paymentInstructions.amountIn) <= 0n) {
+    if (!/^\d+$/.test(paymentInstructions.amountIn) || BigInt(paymentInstructions.amountIn) <= 0n) {
       setError("The committed quote does not contain a valid exact source amount.");
       return;
     }
@@ -316,7 +324,7 @@ export function PelargoCheckout({
     const amountAtomic = BigInt(paymentInstructions.amountIn);
     const transferData = "0xa9059cbb" + paymentInstructions.address.slice(2).toLowerCase().padStart(64, "0") + amountAtomic.toString(16).padStart(64, "0");
     const confirmed = window.confirm(
-      "Send the exact quoted testnet amount from your connected wallet?\\n\\nNetwork: Base Sepolia\\nToken contract: " + tokenAddress + "\\nDeposit address: " + paymentInstructions.address + "\\nAmount (atomic units): " + paymentInstructions.amountIn + "\\n\\nOnly approve the matching ERC-20 transfer in your wallet. This testnet transfer cannot be reversed."
+      "Send the exact quoted testnet amount from your connected wallet?\n\nNetwork: Base Sepolia\nToken contract: " + tokenAddress + "\nDeposit address: " + paymentInstructions.address + "\nAmount (atomic units): " + paymentInstructions.amountIn + "\n\nOnly approve the matching ERC-20 transfer in your wallet. This testnet transfer cannot be reversed."
     );
     if (!confirmed) return;
     setError("");
@@ -609,7 +617,7 @@ export function PelargoCheckout({
       </div>
 
       <label className="pelargo-field-label" htmlFor="pelargo-source">You pay with</label>
-      <select id="pelargo-source" className="pelargo-select" value={sourceAssetId} onChange={(event) => { setSourceAssetId(event.target.value); clearQuote(); }} disabled={loadingTokens || sourceTokens.length === 0}>
+      <select id="pelargo-source" className="pelargo-select" value={sourceAssetId} onChange={(event) => { setSourceAssetId(event.target.value); clearQuote(); }} disabled={loadingTokens || sourceTokens.length === 0 || Boolean(paymentInstructions)}>
         {sourceTokens.map((token) => (
           <option value={token.assetId} key={token.assetId}>{token.symbol} · {displayNetwork(token)}</option>
         ))}
