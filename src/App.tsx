@@ -26,7 +26,7 @@ type CheckoutSession = {
   amountAtomic: string; destinationAsset: string; destinationSymbol: string;
   destinationNetwork: string; recipient: string; expiresAt: string;
 };
-type Section = "overview" | "destination" | "checkout" | "developers";
+type Section = "overview" | "destination" | "checkout" | "developers" | "profile" | "settings" | "subscription";
 
 const nav: { id: Section; label: string; icon: React.ElementType }[] = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
@@ -193,6 +193,7 @@ export default function App() {
   const [authChecked, setAuthChecked] = useState(false);
   const [section, setSection] = useState<Section>("overview");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [settings, setSettings] = useState<Settings>({
     name: "", destinationAsset: "", destinationSymbol: "USDC",
     destinationNetwork: "NEAR", recipient: "", destinationDecimals: 6,
@@ -336,7 +337,8 @@ export default function App() {
     setMerchant(null); setAuthChecked(true);
   }
 
-  const title = nav.find(item => item.id === section)?.label ?? "Overview";
+  const title = nav.find(item => item.id === section)?.label ??
+    ({ profile: "Profile", settings: "Settings", subscription: "Subscription" } as Record<string, string>)[section] ?? "Overview";
   const settledCount = orders.filter(order => order.status === "settled").length;
   const activeCount = orders.filter(order => ["quote_committed", "awaiting_deposit", "deposit_detected", "processing"].includes(order.status)).length;
   const attentionCount = orders.filter(order => ["needs_review", "failed", "expired", "cancelled", "verification_failed"].includes(order.status)).length;
@@ -367,7 +369,24 @@ export default function App() {
       <header className="workspace-topbar">
         <button className="workspace-mobile-menu" onClick={() => setMobileNavOpen(!mobileNavOpen)} aria-label="Toggle navigation"><Menu size={20} /></button>
         <div className="workspace-breadcrumb"><span>Workspace</span><span className="breadcrumb-slash">/</span><strong>{title}</strong></div>
-        <div className="workspace-topbar-right"><span className="environment-pill"><i /> Testnet checkout</span></div>
+        <div className="workspace-topbar-right">
+           <span className="environment-pill"><i /> Testnet checkout</span>
+           <div className="account-menu-wrap">
+             <button className={`account-menu-trigger ${accountMenuOpen ? "is-open" : ""}`} type="button" aria-haspopup="menu" aria-expanded={accountMenuOpen} onClick={() => setAccountMenuOpen(!accountMenuOpen)}>
+               <span className="workspace-avatar">{merchant.name.slice(0, 2).toUpperCase()}</span>
+               <span className="account-trigger-name">{merchant.name}</span>
+               <ChevronDown size={14}/>
+             </button>
+             {accountMenuOpen && <div className="account-menu" role="menu">
+               <div className="account-menu-identity"><strong>{merchant.name}</strong><span>{merchant.email}</span></div>
+               <button type="button" role="menuitem" onClick={() => { setSection("profile"); setAccountMenuOpen(false); }}><UserRound size={15}/> Profile</button>
+               <button type="button" role="menuitem" onClick={() => { setSection("settings"); setAccountMenuOpen(false); }}><SlidersHorizontal size={15}/> Settings</button>
+               <button type="button" role="menuitem" onClick={() => { setSection("subscription"); setAccountMenuOpen(false); }}><CreditCard size={15}/> Subscription</button>
+               <div className="account-menu-divider"/>
+               <button type="button" role="menuitem" className="account-menu-signout" onClick={() => { setAccountMenuOpen(false); void logout(); }}><LogOut size={15}/> Sign out</button>
+             </div>}
+           </div>
+         </div>
       </header>
       <div className="workspace-content">
         {error && <div className="notice-panel auth-error" role="alert">{error}</div>}
@@ -573,6 +592,38 @@ const { token, session } = await response.json();
           </section>
           <div className="notice-panel"><strong>Testnet only.</strong><p>This integration points to the Pelargo Preview host. Committed quotes create real testnet deposit instructions. Buyers must manually send the exact asset and amount. Never use this example for mainnet or real customer funds. The current bundle URL is a Preview integration target, not a stable production CDN.</p></div>
         </>}
+        {section === "profile" && <section className="account-page">
+          <div className="workspace-heading-row"><div><div className="eyebrow">ACCOUNT</div><h1>Profile</h1><p className="workspace-subtitle">Your merchant identity and workspace account.</p></div></div>
+          <div className="account-detail-card">
+            <div className="account-detail-avatar">{merchant.name.slice(0, 2).toUpperCase()}</div>
+            <div className="account-detail-main"><span className="eyebrow">MERCHANT PROFILE</span><h2>{merchant.name}</h2><p>{merchant.email}</p></div>
+            <span className="account-state-pill">Signed in</span>
+          </div>
+          <div className="account-info-grid">
+            <article className="account-info-card"><Building2 size={17}/><span>Business name</span><strong>{settings.name || merchant.name}</strong><small>Managed in Payment destination settings.</small></article>
+            <article className="account-info-card"><Mail size={17}/><span>Account email</span><strong>{merchant.email}</strong><small>Used to identify this merchant account.</small></article>
+          </div>
+          <div className="account-page-actions"><button className="quiet-button" type="button" onClick={() => setSection("settings")}><SlidersHorizontal size={14}/> Account settings</button><button className="quiet-button account-signout-button" type="button" onClick={() => void logout()}><LogOut size={14}/> Sign out</button></div>
+        </section>}
+        {section === "settings" && <section className="account-page">
+          <div className="workspace-heading-row"><div><div className="eyebrow">WORKSPACE PREFERENCES</div><h1>Settings</h1><p className="workspace-subtitle">Manage the configuration connected to this merchant workspace.</p></div></div>
+          <div className="settings-link-list">
+            <button type="button" onClick={() => setSection("destination")}><span className="settings-link-icon"><Wallet size={17}/></span><span><strong>Payment destination</strong><small>Change the receiving asset, network and recipient address.</small></span><ArrowUpRight size={16}/></button>
+            <button type="button" onClick={() => setSection("developers")}><span className="settings-link-icon"><Code2 size={17}/></span><span><strong>Developer credentials</strong><small>Generate or rotate the server-side merchant API key.</small></span><ArrowUpRight size={16}/></button>
+            <button type="button" onClick={() => setSection("profile")}><span className="settings-link-icon"><UserRound size={17}/></span><span><strong>Account profile</strong><small>View the business identity and sign-in email for this account.</small></span><ArrowUpRight size={16}/></button>
+          </div>
+          <div className="settings-security-note"><ShieldCheck size={17}/><p>Account email and password changes are not currently exposed in this testnet workspace. Do not assume these controls are available here.</p></div>
+        </section>}
+        {section === "subscription" && <section className="account-page">
+          <div className="workspace-heading-row"><div><div className="eyebrow">PLANS & BILLING</div><h1>Subscription</h1><p className="workspace-subtitle">Manage your Pelargo plan and billing status.</p></div></div>
+          <div className="subscription-preview-card">
+            <span className="subscription-icon"><CreditCard size={20}/></span>
+            <span className="eyebrow">TESTNET PREVIEW</span>
+            <h2>Subscriptions are not enabled yet.</h2>
+            <p>Pelargo does not currently charge subscription fees or provide plan management, invoices or payment methods. This section is reserved for billing when the product is ready for it.</p>
+            <span className="subscription-state">No active subscription · No billing configured</span>
+          </div>
+        </section>}
         <footer className="workspace-footer"><span>Pelargo</span><span>Merchant checkout infrastructure</span><span>Testnet · Mainnet deposits disabled</span></footer>
       </div>
     </main>
