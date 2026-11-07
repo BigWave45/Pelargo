@@ -251,3 +251,8 @@ Updated the Developer workspace to explain the actual integration path with a se
 Filled the unused lower sidebar area with persistent account navigation: Profile, Settings, Subscription and Sign out. Profile is view-only, Settings links to existing destination and developer credential controls, and Subscription is informational because billing is not implemented. No unsupported account editing or billing functionality is implied.
 
 Changes are on design/blue-white-premium only. No production branch, production database, mainnet setting, or production deployment was changed.
+
+
+## Preview checkout-session signing configuration
+
+Configured a dedicated random `ORDER_SESSION_SECRET` as a Cloudflare Pages Preview-only encrypted secret. This enables signed checkout session creation in the isolated Preview environment. Production environment configuration and production D1 remain unchanged. A new Preview deployment is required for the updated environment binding to become active.
