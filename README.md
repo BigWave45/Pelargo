@@ -6,7 +6,7 @@ Pelargo is an embeddable, non-custodial crypto checkout layer. Its long-term dir
 
 **Provider strategy:** Pelargo uses an explicit provider-adapter registry for official NEAR 1Click (mainnet) and Tidepool (testnet). Preview currently uses Tidepool; official 1Click is the default when `INTENTS_API_BASE_URL` is unset. These are different network environments, not interchangeable failover endpoints. One provider is selected per environment. Automatic multi-provider failover, quote comparison and provider health routing are not implemented. Additional providers must receive an adapter and pass contract, auth, lifecycle and settlement-compatibility tests.
 
-**Current wallet limitation:** the connected-wallet path is currently limited to injected EIP-1193 wallets on Base Sepolia for provider-listed Base Sepolia ERC-20 assets. MetaMask's asynchronous provider-injection detection is implemented; WalletConnect and other mobile connection methods are not implemented. Wallet connection is independent of provider selection and does not expand supported assets or routes.
+**Current wallet limitation:** the connected-wallet path is limited to injected EIP-1193 wallets on Base Sepolia for provider-listed Base Sepolia ERC-20 assets. MetaMask's asynchronous provider-injection detection is implemented; Reown AppKit / WalletConnect remains pending configuration and build integration. Wallet connection is independent of provider selection and does not expand supported assets or routes.
 
 **What Pelargo owns:** merchant accounts and API credentials, signed checkout sessions, order binding and lifecycle, checkout UI, provider integration boundary, and independent NEAR NEP-141 destination settlement verification. The configured 1Click-compatible provider supplies source-asset discovery, quote/routing and deposit instructions. Pelargo's only implemented destination settlement verifier is NEAR NEP-141; a source route being offered does not imply that Pelargo can verify every possible destination.
 
@@ -15,6 +15,14 @@ Pelargo is an embeddable, non-custodial crypto checkout layer. Its long-term dir
 - **Hackathon implementation:** validate the Base Sepolia wallet path against the existing provider-generated committed quote; preserve manual deposit instructions as fallback.
 - **Design:** continue the blue-and-white redesign, modern infrastructure with editorial minimalism, and product-led diagrams rather than generic AI illustrations.
 - **Release controls:** do not merge, deploy Production, enable mainnet or initiate a payment without explicit approval.
+
+## Current Preview verification — 7 November 2026
+
+The Base Sepolia → NEAR testnet payment route has completed a live testnet demonstration. `ORDER-35541967` is recorded as paid/settled with both immutable Base Sepolia source-deposit evidence and independently verified NEAR NEP-141 settlement evidence. The buyer received exactly 1 USDC on `agentg.testnet`.
+
+A later Preview order, `ORDER-45723806`, is also recorded as paid/settled with provider `SUCCESS` and destination settlement evidence, but its source-deposit evidence table has no corresponding row. Do not describe that later order as having complete source-and-destination evidence. No new test order is needed merely to repeat the already demonstrated route.
+
+The active design branch remains `design/blue-white-premium`. Its latest Reown experiment was reverted because Cloudflare's frozen Bun install rejected the package.json change without a matching `bun.lock` update. Reown is not currently enabled in Preview. Add the Project ID only as a public build-time `VITE_REOWN_PROJECT_ID`; update and commit the lockfile before expecting a successful build. No production branch, production D1, mainnet setting or payment execution was changed.
 
 Read `docs/PROJECT_STATUS.md` for the engineering record and `docs/INTEGRATION.md` for the integration contract and provider limitations.
 
