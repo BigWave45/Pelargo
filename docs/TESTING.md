@@ -58,11 +58,35 @@ This test creates a pending Preview order only. It does not commit a quote, requ
 
 - `ORDER-35541967`: completed Base Sepolia USDC to NEAR testnet USDC route. Preview records both immutable source-deposit evidence and independently verified NEAR NEP-141 destination-settlement evidence. Exactly 1 USDC was delivered to `agentg.testnet`. This is the strongest complete dual-chain payment evidence in the current record.
 - `ORDER-45723806`: recorded as paid/settled with destination evidence, but no source-deposit evidence row is recorded. Do not describe it as complete dual-chain evidence.
-- `ORDER-49053014`: a strong temporal match to the user-reported Reown/MetaMask mobile checkout. It records 1 USDC delivered to `agentg.testnet` and independently verified destination transaction `3uZtiZpnhUd4r2wzbmUhPHwW6CAVBfsLLwWuUyfRrZPC` (block 276622029; 68 confirmations). The user has not explicitly confirmed this order ID, and no source-deposit evidence row or source transaction hash is recorded. Do not claim complete dual-chain evidence for this order.
-- The user reported completing a mobile checkout using MetaMask through Reown on Base Sepolia. The checkout UI displayed `Settled`, provider `SUCCESS` and settlement check `verified`. This is a user-observed manual acceptance, not an automated browser test.
+- `ORDER-68886375`: user-confirmed successful checkout from the external iPhone browser after the MetaMask Connect SDK integration. The user reports that MetaMask opened, the transaction completed, deposit detection was fast, and the merchant dashboard also displayed `Settled`. Preview D1 confirms order status `paid`, lifecycle status `settled`, provider status `SUCCESS`, and independently verified NEAR NEP-141 destination evidence for exactly 1 USDC to `agentg.testnet`: transaction `8Fk5Qcckscd9No9UhybLsgxqBsN62vpw51KLpDX38973`, block 276656102, 80 confirmations, verification source `chain_rpc`. Destination verification timestamp: 2026-11-07 16:31:49.321 UTC; order creation timestamp: 16:28:54.000 UTC (2 minutes 55.321 seconds create-to-settlement). No matching Base Sepolia origin-deposit evidence row is present for this order, so it is not complete dual-chain evidence. This is user-observed manual mobile acceptance plus server-side destination evidence, not an automated browser test.
+- `ORDER-49053014`: a strong temporal match to the earlier user-reported Reown/MetaMask mobile checkout. It records 1 USDC delivered to `agentg.testnet` and independently verified destination transaction `3uZtiZpnhUd4r2wzbmUhPHwW6CAVBfsLLwWuUyfRrZPC` (block 276622029; 68 confirmations). The user has not explicitly confirmed this order ID, and no source-deposit evidence row or source transaction hash is recorded. Do not claim complete dual-chain evidence for this order.
+- The user previously reported completing a mobile checkout using MetaMask through Reown on Base Sepolia. The checkout UI displayed `Settled`, provider `SUCCESS` and settlement check `verified`. This is a user-observed manual acceptance, not an automated browser test.
 - The observed ORDER-49053014 lifecycle duration was 2 minutes 20.6 seconds from order creation to settlement, including 23.2 seconds from deposit detection to settlement. This is one observation, not a latency benchmark or guarantee.
 
 No additional payment is required merely to repeat the demonstrated route.
+
+## Preview merchant workspace status snapshot
+
+Observed on 7 November 2026 at 16:49 UTC in the integrated Preview merchant workspace:
+
+- All orders: **9**
+- In progress: **0**
+- Settled: **3**
+- Needs attention: **6**
+
+The Preview D1 cross-check confirmed that the six needs-attention orders were all terminal: `checkout_orders.status = expired` and `payment_lifecycle.status = expired` for all six. The three settled orders had `checkout_orders.status = paid` and `payment_lifecycle.status = settled`. These are point-in-time workspace counts, not hard-coded CI expectations; future tests should assert lifecycle consistency and derive counts from the fixture/database rather than assume these exact totals.
+
+### Provider status and Pelargo lifecycle are separate fields
+
+A provider status is an externally reported status persisted by the provider adapter. `payment_lifecycle.status` is Pelargo's own lifecycle state. They are not interchangeable: a provider status is not Pelargo's response, and a Pelargo lifecycle state must not be described as a provider-reported result. In particular, Pelargo requires independently verified destination-chain settlement evidence; provider `SUCCESS` alone is not sufficient to mark a payment settled.
+
+A read-only Preview D1 snapshot of the same nine orders showed:
+
+- All six expired orders had `provider_status = NULL` and `provider_updated_at = NULL`. The database therefore contains no persisted provider status for these six orders. Their expired state is Pelargo's recorded lifecycle outcome; this snapshot does not establish that the provider returned `FAILED`, reported a limitation, or caused the expiry.
+- Two settled orders had persisted `provider_status = SUCCESS`.
+- One settled order, `ORDER-51017560`, had persisted `provider_status = PROCESSING` while its Pelargo order/lifecycle states were `paid`/`settled`.
+
+The `ORDER-51017560` combination is a status discrepancy that requires investigation against its provider-status update history, reconciliation events and destination evidence before drawing a conclusion. Do not normalize it as an expected provider response or use it as evidence of a provider limitation. These provider fields are a point-in-time database snapshot, not a complete record of every raw provider payload or response. The exact provider response schema and adapter mapping must be established from the implementation and relevant logs before naming provider enums or interpreting a missing value.
 
 ## Deployment and scheduled-worker checks
 
@@ -84,3 +108,10 @@ Cloudflare Pages Preview deployment and GitHub CI success are deployment/build e
 ## Safety and interpretation
 
 All demonstrated payment activity is testnet activity. Keep mainnet deposits disabled and do not use Preview to collect customer funds. Do not infer universal chain/token support, production readiness, provider-independent liquidity or guaranteed settlement times from this test record.
+
+## Mobile MetaMask connection integration
+
+- External mobile browsers use the official `@metamask/connect-evm` EVM client. The SDK is initialized before the buyer taps Connect; the tap calls `client.connect({ chainIds: ["0x14a34"] })` and the returned EIP-1193 provider is used for account, chain, balance, and transaction requests.
+- The injected-provider path inside MetaMask Mobile remains in place. Reown AppKit remains the connection path for non-mobile-browser sessions and other supported wallets.
+- The prior `link.metamask.io/dapp/` handoff was removed because it only opens the dapp in MetaMask's in-app browser and does not itself establish a wallet session.
+- Automated CI verifies type-checking and production builds. On 7 November 2026, the user manually verified the external iPhone browser to MetaMask app handoff and completed a subsequent Preview testnet checkout (see `ORDER-68886375` above). This confirms the reported device flow on that test, but does not constitute automated browser coverage or exhaustive compatibility testing across iOS browsers and wallet versions.
