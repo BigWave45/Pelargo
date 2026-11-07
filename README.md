@@ -28,6 +28,8 @@ ORDER-35541967 completed the Base Sepolia → NEAR testnet route. Preview record
 
 ORDER-45723806 is also recorded as paid/settled with destination evidence, but has no corresponding source-deposit evidence row. Do not describe that order as having complete dual-chain evidence.
 
+The latest settled Preview record found during the 7 November 2026 Reown acceptance follow-up is ORDER-49053014: 1 USDC delivered to agentg.testnet, provider SUCCESS, lifecycle settled, with independently verified NEAR destination transaction `3uZtiZpnhUd4r2wzbmUhPHwW6CAVBfsLLwWuUyfRrZPC` (block 276622029; 68 confirmations). Database events show 2 minutes 20.6 seconds from order creation to settlement, including 23.2 seconds from deposit detection to settlement. This is a strong temporal match to the user-reported Reown checkout, but the user has not explicitly confirmed the order ID. No source-deposit evidence row or source transaction hash is recorded for this order, so do not claim dual-chain evidence for it.
+
 No additional payment is needed merely to repeat the already demonstrated route. These testnet results do not establish mainnet or production readiness.
 
 ## Wallet connection
