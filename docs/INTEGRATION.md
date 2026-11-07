@@ -35,7 +35,7 @@ For server integrations, the merchant server owns the merchant API key and decid
 
 Never expose the merchant API key, `MERCHANT_PROVISIONING_SECRET`, `ORDER_SESSION_SECRET` or `NEAR_INDEXER_API_KEY` to browser code, HTML attributes, public repositories or Vite `VITE_*` variables. The short-lived signed checkout-session token is the deliberate exception: it is a one-order bearer credential and must be delivered to the buyer widget for quote and status authorization. Do not confuse it with a merchant API key. Keep its lifetime short, avoid logging it, and do not reuse it. The hosted checkout currently carries it in the URL fragment, removes it from browser history immediately, and sends it to the API in an Authorization header. A fragment is not sent in the HTTP request, but the link remains transferable to anyone who obtains it. The server validates its signature, stored hash, status, expiry and order binding on every protected operation.
 
-The signed session binds the merchant, order, amount, destination asset and recipient. Do not accept those authorization values from untrusted browser input. The buyer may select a supported source asset and provide a source refund address.
+The signed session binds the merchant, order, amount, destination asset and recipient. Do not accept those authorization values from untrusted browser input. The buyer may select a supported source asset and provide a source refund address for the source-chain side of the route. This is distinct from the merchant's NEAR settlement recipient; it does not guarantee that a provider-side refund will be available or completed.
 
 ## Self-service merchant accounts
 
@@ -210,7 +210,7 @@ Returns HTTP 410. Do not integrate with this legacy unauthenticated provider pro
 
 ## 4. Payment lifecycle and failure handling
 
-A quote or deposit address is not proof of payment. A provider status of `SUCCESS` is only a candidate until the destination transaction is independently verified. The database only synchronizes an order to `paid` after matching settlement evidence is persisted.
+A quote or deposit address is not proof of payment. A provider status of `SUCCESS` is only a candidate until the destination transaction is independently verified. The database only synchronizes an order to `paid` after matching NEAR destination settlement evidence is persisted. Source-deposit evidence is a separate provenance record and is not a prerequisite for the destination settlement decision.
 
 `FAILED`, `REFUNDED` and `INCOMPLETE_DEPOSIT` must never be presented as paid. If a committed quote request times out or returns an ambiguous response, do not create a second quote using the same order/session. Pelargo records stale uncertain commit cases for operator investigation; it does not automatically retry or reactivate the session.
 
@@ -259,3 +259,13 @@ The GitHub default branch is `main`. PR #7 merged the curated release candidate 
 The Preview reconciliation Worker deployment workflow is manual-only and guarded to the `reliability/background-reconciliation` branch. The deployed Worker is `pelargo-expiry-sweeper-preview`, uses the isolated Preview D1 binding `0335acdc-f0e0-42f6-ba87-e3448fb91728`, has an encrypted `RECONCILIATION_SECRET`, and has a five-minute Cron Trigger. Read-only configuration inspection confirmed these settings on 7 November 2026. A configured Cron Trigger does not prove that a scheduled invocation has claimed and processed an eligible payment; run-level evidence is still required. Keep this operational Worker distinct from the public `main` demo. Before relying on any Preview URL, confirm its current deployment commit and environment configuration.
 
 Keep ALLOW_MAINNET_DEPOSITS unset. Do not use Preview to collect real customer funds. Do not initiate another test payment solely to repeat the route already demonstrated.
+
+
+## Merchant reconciliation actions
+
+The merchant order table provides two distinct actions:
+
+- **Check status** calls the payment-status reconciliation path. Pelargo reads the latest provider status and verifies candidate NEAR destination evidence against the configured NEP-141 token, recipient and exact amount. Provider `SUCCESS` alone is not sufficient. For an already settled order, the endpoint returns persisted immutable settlement evidence rather than polling the provider again.
+- **Verify source** lets the merchant submit the original Base Sepolia transaction hash for an order. Pelargo verifies the source ERC-20 contract, committed-quote deposit address and exact quoted amount, persists source evidence, and checks/notifies the provider as appropriate. If provider status is already `SUCCESS`, the source transaction is not resubmitted. This can add missing source evidence after settlement without reopening or changing the paid state.
+
+The two actions answer different questions: **Check status** reconciles what happened to the payment and whether the merchant's NEAR settlement is verified; **Verify source** records where the buyer's source payment came from. The source evidence record is not required for the current NEAR destination settlement path to mark an order paid.
