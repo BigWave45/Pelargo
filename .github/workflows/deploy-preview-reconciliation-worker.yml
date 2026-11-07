@@ -1,6 +1,15 @@
 name: Deploy Preview reconciliation Worker
 
 on:
+  push:
+    branches:
+      - design/blue-white-premium
+    paths:
+      - 'workers/expiry-sweeper.ts'
+      - 'functions/**'
+      - 'wrangler.expiry.preview.toml'
+      - 'wrangler.expiry.preview.staged.toml'
+      - '.github/workflows/deploy-preview-reconciliation-worker.yml'
   workflow_dispatch:
 
 permissions:
@@ -13,14 +22,14 @@ concurrency:
 jobs:
   deploy-preview:
     # A manual dispatch from any other branch must never deploy this Worker.
-    if: github.ref == 'refs/heads/reliability/background-reconciliation'
+    if: github.ref == 'refs/heads/design/blue-white-premium'
     runs-on: ubuntu-latest
     environment: preview
     steps:
       - name: Check out the reviewed branch
         uses: actions/checkout@v4
         with:
-          ref: reliability/background-reconciliation
+          ref: design/blue-white-premium
 
       - name: Require Preview-only deployment credentials
         env:
