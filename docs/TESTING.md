@@ -84,3 +84,11 @@ Cloudflare Pages Preview deployment and GitHub CI success are deployment/build e
 ## Safety and interpretation
 
 All demonstrated payment activity is testnet activity. Keep mainnet deposits disabled and do not use Preview to collect customer funds. Do not infer universal chain/token support, production readiness, provider-independent liquidity or guaranteed settlement times from this test record.
+
+
+## Mobile MetaMask connection integration
+
+- External mobile browsers use the official `@metamask/connect-evm` EVM client. The SDK is initialized before the buyer taps Connect; the tap calls `client.connect({ chainIds: ["0x14a34"] })` and the returned EIP-1193 provider is used for account, chain, balance, and transaction requests.
+- The injected-provider path inside MetaMask Mobile remains in place. Reown AppKit remains the connection path for non-mobile-browser sessions and other supported wallets.
+- The prior `link.metamask.io/dapp/` handoff was removed because it only opens the dapp in MetaMask's in-app browser and does not itself establish a wallet session.
+- Automated CI verifies type-checking and production builds. Actual iPhone Chrome/Safari to MetaMask app handoff still requires a manual device test; it is not claimed as verified until that test succeeds.
