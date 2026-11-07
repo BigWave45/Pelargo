@@ -28,7 +28,7 @@ The merchant dashboard uses a separate opaque, server-side session stored in an 
 
 For server integrations, the merchant server owns the merchant API key and decides the trusted order amount, destination asset and receiving address. The browser receives only a short-lived signed checkout-session token and public order claims.
 
-Never expose the merchant API key, `MERCHANT_PROVISIONING_SECRET`, `ORDER_SESSION_SECRET` or `NEAR_INDEXER_API_KEY` to browser code, HTML attributes, public repositories or Vite `VITE_*` variables. The short-lived signed checkout-session token is the deliberate exception: it is a one-order bearer credential and must be delivered to the buyer widget for quote and status authorization. Do not confuse it with a merchant API key. Keep its lifetime short, avoid logging it, do not put it in URLs, do not reuse it, and avoid exposing it to unrelated third-party scripts. The server validates its signature, stored hash, status, expiry and order binding on every protected operation.
+Never expose the merchant API key, `MERCHANT_PROVISIONING_SECRET`, `ORDER_SESSION_SECRET` or `NEAR_INDEXER_API_KEY` to browser code, HTML attributes, public repositories or Vite `VITE_*` variables. The short-lived signed checkout-session token is the deliberate exception: it is a one-order bearer credential and must be delivered to the buyer widget for quote and status authorization. Do not confuse it with a merchant API key. Keep its lifetime short, avoid logging it, and do not reuse it. The hosted checkout currently carries it in the URL fragment, removes it from browser history immediately, and sends it to the API in an Authorization header. A fragment is not sent in the HTTP request, but the link remains transferable to anyone who obtains it. The server validates its signature, stored hash, status, expiry and order binding on every protected operation.
 
 The signed session binds the merchant, order, amount, destination asset and recipient. Do not accept those authorization values from untrusted browser input. The buyer may select a supported source asset and provide a source refund address.
 
@@ -193,7 +193,7 @@ Returns the authenticated merchant's stored order and current database status. A
 
 Polls the configured Intents provider using the persisted deposit address and optional memo. Merchant requests authenticate with `x-pelargo-merchant-key`; buyer requests authenticate with the signed checkout session in `Authorization: Bearer`. Buyer sessions are restricted to their own committed order. Provider status and destination transaction candidate are stored with concurrency guards. Provider `SUCCESS` is not sufficient to mark an order paid.
 
-For NEAR NEP-141 destinations, Pelargo selects the signer lookup and canonical NEAR RPC for the configured provider network. Mainnet signer lookup uses NearScanner; testnet lookup is configured for NearBlocks v3 `GET /v3/txns/{hash}`. These external response contracts are currently mocked in CI and have not been validated against a live Pelargo transaction. Canonical NEAR RPC must independently verify finalized transaction/receipt execution and the exact token contract, recipient and net amount. Verified evidence must match the order and stored transaction candidate before the database marks it paid. Other destination networks/token standards fail closed.
+For NEAR NEP-141 destinations, Pelargo resolves a transaction signer and then uses canonical NEAR RPC to verify finalized transaction/receipt execution and the exact token contract, recipient and net amount. Signer lookup and provider transaction candidates are hints, not settlement proof. Verified evidence must match the order and stored transaction candidate before the database marks it paid. Other destination networks/token standards fail closed.
 
 ### `GET /api/operator/recovery-cases`
 
@@ -211,161 +211,38 @@ A quote or deposit address is not proof of payment. A provider status of `SUCCES
 
 Merchant webhooks/callbacks are not implemented. Merchants must currently poll their authenticated order/payment endpoints.
 
-## 5. Deployment prerequisites and current limits
+## 5. Current deployment requirements and limits
 
-The target Preview Pages environment needs:
-- D1 binding named `DB`, with the required migrations applied.
-- `MERCHANT_PROVISIONING_SECRET` for operator provisioning and recovery access.
-- `ORDER_SESSION_SECRET` with high entropy (at least 32 characters).
-- A provisioned merchant and its API key stored server-side.
-- `NEARSCANNER_API_KEY` for NearScanner signer lookup; the user reports that this secret has been added to Cloudflare.
-- Optional `NEAR_RPC_URL` and `NEARSCANNER_TX_API_URL` endpoint overrides.
+The Preview Pages environment requires:
+- A D1 binding named DB with the migrations required by the deployed code.
+- MERCHANT_PROVISIONING_SECRET and ORDER_SESSION_SECRET configured as server-side secrets.
+- The appropriate NEAR RPC and signer-indexer configuration for the selected provider network.
+- A provisioned merchant account and its API key stored only on the merchant server.
 
-The active branch contains migrations `0001` through `0020`. A read-only query of the Preview D1 `d1_migrations` table on 7 November confirmed migrations `0001` through `0019` were applied before the new resumable-scan migration was added. Migration `0020_persisted_near_signer_scan.sql` is pending Preview application and verification. The records for `0019_reconciliation_backfill_eligible_states.sql` and `0018_preview_password_reset.sql` appear as IDs 18 and 19 respectively because they were applied in that order. This confirms the migration ledger, not the correctness of every runtime behavior. Production migration state is separate and was not queried or changed.
+Do not copy secret values into this guide, browser code, Vite VITE_* variables or public repositories. Preview and Production use separate resources; do not apply migrations or change bindings in Production as part of Preview testing.
 
-A Preview-only background reconciliation Worker is deployed as `pelargo-expiry-sweeper-preview` (deployment `52733dc2-06be-4c7d-9a51-7e7c1a433074`), and Cloudflare previously confirmed its five-minute cron (`*/5 * * * *`) is active. The encrypted `RECONCILIATION_SECRET` value cannot be read back through the Cloudflare API; its installation must be confirmed through a successful authenticated Worker invocation or equivalent runtime evidence. A successful scheduled settlement run has not been established. The Worker also runs abandoned-checkout expiry and uncertain quote-commit recovery sweeps, so any redeployment or activation must account for those side effects.
+The supported destination settlement verifier is NEAR NEP-141. The direct wallet transfer path is limited to eligible provider-listed Base Sepolia ERC-20 source assets. Provider route availability is dynamic. Pelargo does not currently provide arbitrary-chain settlement verification, automatic provider failover, route comparison or a Pelargo-operated liquidity engine.
 
-Tests in `bun run test:security` and `bun run test:api` use in-memory SQLite and mocked provider/indexer/RPC responses. They do not prove live provider, indexer, RPC or scheduled Worker behavior. One live testnet payment, ORDER-83587591, has completed canonical NEAR NEP-141 settlement verification and immutable evidence persistence in Preview D1. The merchant has signed in successfully and reports the latest status read as settled. CI and Preview deployment for the subsequent settled-read immutability commits still need verification.
+The testnet route demonstrated on ORDER-35541967 has both source and destination evidence. ORDER-45723806 has destination evidence but no source-evidence row. These are distinct records and must not be conflated. A successful scheduled reconciliation run and independent external merchant-origin acceptance are separate checks; do not infer either from the successful payment record.
 
-Current product limitations:
-- NEAR NEP-141 is the only implemented destination settlement verifier; the active demo is on NEAR testnet.
-- EVM, Solana, Bitcoin, native NEAR and other destination settlement verifiers are not implemented.
-- Email delivery for password recovery is not configured; Preview recovery is operator-assisted.
-- Merchant webhooks are not implemented.
-- Multi-user merchant accounts are not implemented. API-key issuance and rotation are implemented, but the authenticated rotation flow has not yet been exercised end-to-end in a merchant browser session.
-- No published stable SDK/CDN package.
-- The complete merchant-to-embedded-widget flow still needs an independent merchant-origin browser acceptance test using a real merchant-created session. A Preview deployment and a bundle smoke test do not prove this end-to-end flow.
+## 6. Wallet connection status
 
-Keep `ALLOW_MAINNET_DEPOSITS` unset. Do not use this prototype to collect real customer funds.
+The current implementation supports injected EIP-1193 wallets on Base Sepolia for eligible ERC-20 quotes. The manual deposit-address path remains available.
 
+Reown AppKit / WalletConnect is planned but is not enabled yet. It requires a Reown Project ID, matching dependency and bun.lock updates, a successful frozen-lockfile Preview build, and mobile acceptance tests for connection, network switching, account changes, disconnect and exact quoted transfer. Keep the connector restricted to Base Sepolia. Reown adds wallet-connection options only; it does not expand supported assets, routes or destination verifiers.
 
-### Base Sepolia connected-wallet payment (implemented in the current draft branch; end-to-end verification pending)
+## 7. Hosted checkout URL and current integration status
 
-The embedded buyer checkout now supports an injected EIP-1193 wallet on Base Sepolia for source assets whose provider asset ID matches the Base Sepolia OMFT ERC-20 format. The buyer explicitly connects a wallet, the widget detects the account and chain, and the widget reads the exact token balance through `eth_call`. The wallet must be on Base Sepolia (chain ID 84532 / `0x14a34`). The widget derives the token contract from the selected provider asset ID, not from a user-entered contract address.
+The hosted checkout receives the short-lived buyer token in the URL fragment (for example, #checkout=<token>). The browser reads the fragment, removes it from browser history and then calls GET /api/checkout-session with Authorization: Bearer <token>. New integrations should use this fragment pattern, not a query-string token.
 
-After the existing committed 1Click quote returns a deposit address and exact `amountIn`, the buyer may approve a standard ERC-20 `transfer(address,uint256)` through the wallet. The recipient and amount are taken from the committed provider quote. The wallet account must match the refund address used to create the quote. Quotes with a deposit memo are excluded from direct wallet transfer and retain the manual instructions path. A connected wallet, visible balance or submitted transaction hash is not proof of payment.
+The fragment reduces exposure through ordinary HTTP request logs and referrer headers. It does not make the link private: anyone who obtains an unexpired checkout URL can use that bearer token. Do not publish checkout links or send them to analytics.
 
-The current flow relies on provider deposit detection and existing `GET /api/payment-status` polling. Pelargo's independent destination-chain verifier remains the only authority for marking an order paid. The manual deposit-address flow remains available as fallback. The implementation is deployed to Cloudflare Pages Preview at `https://design-blue-white-premium.pelargo.pages.dev`. Provider detection now waits for MetaMask's asynchronous `ethereum#initialized` event and rechecks the injected provider. This addresses a likely mobile initialization race but does not prove on-device connection. It supports injected EVM wallets only; WalletConnect, mobile deep links, Solana/NEAR signing and arbitrary-chain execution are not implemented. Preview browser acceptance and a fresh end-to-end wallet payment test remain outstanding.
+The custom-element embed exists in the repository, but no stable versioned SDK/CDN package, Shopify/WooCommerce plugin or merchant webhook delivery is released. Confirm the actual deployed pelargo.js artifact before using it. The external merchant-origin flow still requires a separate acceptance test.
 
+## 8. Current Preview route and release safeguards
 
-## Provider dependency and supported-coverage limits
+The current Preview URL is https://design-blue-white-premium.pelargo.pages.dev. Verify that the latest successful Cloudflare Pages deployment corresponds to the intended branch head before using the URL for acceptance testing.
 
-Pelargo's current source routing and deposit execution are coupled to the configured NEAR Intents / 1Click integration through Tidepool's testnet environment. The provider supplies the supported source-token catalogue, route availability, quote data, deposit address, exact source amount and provider-side deposit lifecycle. The `GET /api/tokens` response is therefore a provider-derived catalogue, not a Pelargo guarantee of universal token or network support.
+The current development branch is design/blue-white-premium. The existing Cloudflare Pages production branch is build/live-intents; GitHub main contains an older generated version. Do not merge, change the production branch, configure a public domain, deploy Production, modify Production D1 or enable mainnet without explicit approval.
 
-A source token appearing in the catalogue does not guarantee that every destination can be reached, that every route will be quotable at all times, or that Pelargo can independently verify the destination settlement. The only implemented destination settlement verifier is NEAR NEP-141. Other destination standards fail closed.
-
-The current wallet transfer path is narrower still: injected EIP-1193 wallets on Base Sepolia, for provider-listed Base Sepolia ERC-20 assets matching the recognized asset-ID format. Wallet connection compatibility and provider route compatibility are independent. Adding WalletConnect or another wallet connector would not add provider liquidity, new supported assets, new routes or new destination verifiers.
-
-There is no second live provider, automatic provider failover or Pelargo-operated routing/liquidity engine in the current build. The provider adapter boundary is a future extension point, not evidence of provider independence today. Merchant integrations should treat the supported-token endpoint and quote response as authoritative at checkout time and must not hardcode assumptions about universal coverage.
-
-
-## Provider selection, fallback and network pinning
-
-The Worker supports two allowlisted provider origins through the server-side `INTENTS_API_BASE_URL` setting:
-
-- Official NEAR 1Click mainnet: `https://1click.chaindefuser.com`. This is selected when the setting is unset. Configure the partner JWT only as the encrypted server-side `ONECLICK_JWT` secret when required.
-- Tidepool community testnet: `https://www.usetidepool.tech`. This is explicitly configured in the current Preview environment and is the testnet/development fallback.
-
-The provider selector in `functions/_lib/intents.ts` validates the exact HTTPS origin and assigns the network classification. Mainnet committed quotes require the separate `ALLOW_MAINNET_DEPOSITS=true` gate; keep it unset for the hackathon. Testnet commits use `ALLOW_TESTNET_DEPOSITS=true` in Preview.
-
-Only one provider is selected for a given environment/configuration. There is no runtime provider race, health-based failover, quote comparison or automatic retry against a second provider. Tidepool testnet is not a transparent failover for an official 1Click mainnet quote. Provider and network identity must be pinned to every committed quote/order. If a provider is unavailable before quote commitment, an operator may deliberately switch configuration and create a new dry quote in the same supported network environment. Never switch a committed quote, reuse its deposit address with another provider, or automatically create a second committed quote.
-
-Additional providers can be supported through explicit adapters. Before enabling one, validate token ID namespace, chain/network IDs, quote amount semantics, quote signatures, deposit address and memo behavior, deadlines, status transitions, deposit-submit semantics, refund behavior, authentication, fee model and independent destination verification. Do not expose an asset merely because a provider lists it; Pelargo must support its source-deposit handling and destination settlement verification.
-
-
-## Testnet settlement indexer dependency and recovery
-
-For Tidepool testnet orders, `GET /v0/status` may return both generic `swapDetails` transaction-hash arrays and a Tidepool-specific `tidepool.explorer` array. The latter contains labelled transaction links, including the `swap (execute_intents)` transaction. These labels are useful for candidate selection and operator diagnostics, but they do not prove settlement and do not expose the transaction signer in the documented response.
-
-The current verifier resolves the signer through the configured testnet transaction indexer (NearBlocks v3 by default), then asks canonical NEAR RPC for the exact transaction and verifies finalized execution plus the exact NEP-141 transfer. A public indexer HTTP 429 therefore makes verification temporarily unavailable; it must never cause Pelargo to mark the order paid or to assume the transfer failed.
-
-FastNear Transactions API offers direct transaction lookup by hash on testnet, but its documentation requires an API key. It is not configured as a dependency in the current Preview environment. FastNear NEAR Data API exposes finalized testnet block documents by height and may support a bounded block-window scan to discover a transaction signer without a paid direct-lookup API. That recovery path is not implemented or live-validated. NearScanner's documented indexed API is currently described for mainnet and must not be treated as a testnet fallback without separate confirmation.
-
-Do not weaken settlement verification to accept provider `SUCCESS`, an explorer URL, a transaction hash, or an indexer response as proof. Any discovered signer remains an untrusted hint; canonical NEAR RPC must independently verify finality, successful receipt execution, the configured NEP-141 token contract, exact recipient and exact net amount. Never resubmit a source deposit merely because destination verification is unavailable.
- 
-
-## Testnet signer recovery without a paid indexer
-
-For Tidepool testnet only, the verifier now attempts a bounded signer lookup through the configured canonical NEAR RPC when NearBlocks returns a transient 429/5xx/network/timeout error or does not return a matching signer. It uses the provider status `updatedAt` timestamp to binary-search finalized block timestamps, inspects a bounded ±8 block window, and fetches non-empty chunks with bounded concurrency. A signer is accepted only when exactly one transaction matches the requested transaction hash.
-
-The signer recovered from a block/chunk is not settlement evidence. Pelargo must still call canonical `EXPERIMENTAL_tx_status` with `wait_until: FINAL` and verify successful execution plus the exact NEP-141 token contract, recipient, and net amount from successful receipts. If the timestamp is missing/outside the bounded scan window, RPC calls fail, or the hash is not found uniquely, verification remains pending and fails closed. This fallback is not a replacement for a healthy indexer and has not yet been live-validated against the recorded stuck order.
-
-Tidepool's labelled `tidepool.explorer` metadata is preserved in bounded provider diagnostics. A URL labelled `execute_intents` may prioritize its final path-segment hash as a candidate, but the URL and label are untrusted provider hints only. Never infer settlement from them.
-
-
-The block/chunk fallback is capped to one prioritized candidate per payment-status poll to limit public RPC load. If that candidate is not found, the order remains pending verification; later polls may retry. This deliberately avoids scanning every intermediate provider hash in one request.
-
-
-### Bounded testnet signer-recovery diagnostics (7 November 2026)
-
-The testnet fallback now scans a configurable, bounded window ending eight blocks after the first finalized block at or after Tidepool's provider update timestamp. The default is 120 blocks (mostly before the provider timestamp), configurable with the server-side `NEAR_TX_RECOVERY_WINDOW_BLOCKS` setting from 8 to 600. The fallback reports the searched height range, block count, and non-empty chunk count in bounded verification diagnostics. It still requires a unique matching transaction signer followed by canonical `EXPERIMENTAL_tx_status` finality and exact NEP-141 receipt verification. The merchant workspace now displays candidate-specific verification stages and bounded scan details on 503 responses. This is diagnostic and recovery coverage, not proof that the existing stuck payment will settle; the fallback has not yet been live-validated against that order. Do not resubmit its source deposit.
-
-
-### Resumable NEAR signer recovery (7 November 2026)
-
-Migration `0020_persisted_near_signer_scan.sql` is applied to Preview D1. The `pelargo-expiry-sweeper-preview` Worker has been redeployed from `design/blue-white-premium` with the resumable scanner, encrypted `RECONCILIATION_SECRET`, Preview-only D1 binding and five-minute Cron Trigger. GitHub CI and the deployment workflow passed for deployment commit `68680b86`. Each invocation processes at most eight blocks or four chunks and persists the exact candidate, timestamp, search bounds, next height, chunk list/offset and recovered signer. Canonical NEAR RPC finality and exact NEP-141 receipt verification remain mandatory. The deployed Worker reschedules scan-progress jobs four minutes after a run, leaving margin before the next five-minute Cron tick and avoiding a missed tick caused by execution-time jitter. When a candidate's persisted scan is exhausted without a match, payment-status now advances to the next provider-supplied NEAR candidate instead of repeatedly stopping on the exhausted candidate. Live Preview evidence: the 08:10:27 UTC Cron invocation ran the new Worker version, claimed ORDER-35541967, scanned eight finalized blocks and persisted 18 non-empty chunk hashes for the exact candidate. The job was released for the next five-minute run; no signer or settlement has been confirmed yet. The 08:50:28 UTC Cron run processed four chunks from the older block batch (cursor offset 4/11) and scheduled the next attempt for 08:54:28 UTC. No signer has been recovered; the order remains processing. The 08:45:28 UTC Cron run advanced to the next older eight-block batch and persisted 11 additional non-empty chunk hashes for the same candidate. The next attempt is scheduled for 08:49:28 UTC; the order remains processing. The 08:40:28 UTC Cron run completed the remaining two chunks from the first eight-block batch (cursor offset reset to 0/18) without finding the candidate. The next run will continue with the next older eight-block batch; the candidate scan is still within its configured 120-block window. The 08:35:28 UTC Cron run inspected four more chunks for ORDER-35541967 (cursor offset 16/18) and rescheduled the next attempt for 08:39:28 UTC. No signer has been recovered from the first 18 chunks; the next run will finish that batch before moving to older blocks or the next provider candidate. The 08:30:28 UTC Cron run inspected four more chunks for ORDER-35541967 (cursor offset 12/18) and rescheduled the next attempt for 08:34:28 UTC. Provider status remains SUCCESS, but the order is still processing because no exact destination transfer has yet passed canonical verification. The 08:25:28 UTC Cron run inspected four additional chunks for ORDER-35541967 (cursor offset 8/18), returned to the queue without settlement, and scheduled the next run for 08:29:28 UTC. The candidate remains unresolved; canonical transaction status and NEP-141 receipt checks have not passed. The 08:20:28 UTC Cron run claimed ORDER-35541967 again, inspected the next four chunks (cursor offset 4/18), and scheduled the next attempt for 08:24:28 UTC. It also polled the separate ORDER-34416645, which remains awaiting deposit with provider status PENDING_DEPOSIT. ORDER-35541967 remains processing; no signer or exact destination transfer has been verified. ORDER-35541967 has not yet been independently verified or marked paid. Do not resubmit its source deposit.
-
-The testnet fallback stores a durable scan cursor in `payment_reconciliation_jobs` through migration `0020_persisted_near_signer_scan.sql`. Each status poll or scheduled reconciliation invocation processes at most one bounded unit: up to eight blocks or four non-empty chunks. It persists the exact candidate hash, provider timestamp, scan bounds, next block height, chunk list and offset, plus a recovered signer when found. Later invocations resume from that state instead of restarting the full block/chunk scan. This is only signer discovery. The canonical NEAR RPC transaction-status and exact NEP-141 receipt checks remain mandatory before settlement. Preview migration, deployment and live validation remain outstanding; never resubmit ORDER-35541967's source deposit.
-
-The testnet RPC signer-recovery scan now processes blocks nearest the provider timestamp first in batches of eight, inspects non-empty chunks in batches of four, and stops after the first exact transaction-hash match. This avoids fetching every block and chunk in the configured recovery window before checking for a match. Automated verification passed for commit `c021cc9`; Cloudflare Preview deployment is still running at the time of this note. Live validation against ORDER-35541967 remains outstanding. The fallback still does not establish payment until canonical NEAR RPC confirms finality and the exact NEP-141 transfer.
-
-
-### Recovery of source evidence after provider success
-
-`POST /api/deposit-submit` can now independently verify and persist a Base Sepolia source-deposit receipt even when the provider already reports `SUCCESS`. This recovery path is deliberately non-submitting: after provider success it must not call `deposit/submit` again. It still requires merchant authentication, exact committed quote correlation, the source token contract derived from the committed asset ID, the exact quoted input amount and deposit address, a successful Base Sepolia receipt, at least 12 confirmations, and matching ERC-20 Transfer logs. The immutable source evidence row records the provider's already-successful status. This closes the code-path gap for source evidence recovery; it does not automatically backfill old orders. An authenticated request with the original source transaction hash is required, and no new payment should be sent for recovery.
-
-
-For an order whose Pelargo lifecycle is already `settled`, the recovery endpoint accepts the request only if the provider status still independently reports `SUCCESS`. Any other provider state is rejected with `SETTLED_ORDER_PROVIDER_MISMATCH`. This allows source-evidence backfill without reopening settlement or resubmitting the already-completed source transfer.
-
-## Verified source and destination evidence for ORDER-35541967
-
-As of 7 November 2026, Preview D1 contains both the source-deposit evidence and destination-settlement evidence for testnet order `ORDER-35541967`. Integrators should distinguish these records: the Base Sepolia source receipt proves the quoted input reached the provider deposit address; the NEAR settlement receipt independently proves the exact destination token transfer to the merchant recipient. Neither provider `SUCCESS` nor a source receipt alone is sufficient to mark the order paid.
-
-The source record is for Base Sepolia transaction `0x886ff617f13d6eddb23d376eaf2437a90082b610f8c006de743b5df1a5464d5c`, token `0x38d81431b9f76d9699af7517040d5221d9dea252`, deposit address `0x8bdce93d4ff3cd7555f5eb1c29dc229e7c719178`, amount `1012633` atomic units (1.012633 USDC), block `55569210`, with 37,260 confirmations and `chain_rpc` verification.
-
-The destination record is for NEAR testnet transaction `9myMAuSbY4NAcCWDkhZUWqQLGTW47Z2dkrxjhGgtJspS`, token contract `usdc.tidepool-sandbox.testnet`, recipient `agentg.testnet`, amount `1000000` atomic units (1 USDC), block `276599398`, with 10,063 confirmations and `chain_rpc` verification. The order reads back as `paid` in `checkout_orders` and `settled` in `payment_lifecycle`.
-
-The post-success source-evidence recovery request is non-submitting: when the provider already reports `SUCCESS`, it verifies and records the original source transaction but does not call `deposit/submit`, re-run destination settlement, or change the existing destination evidence. For this order, the UI confirmed that the provider was not notified again. These values are a verified Preview testnet example, not a guarantee of future route availability or mainnet behavior.
-
-
-## Buyer checkout link and browser integration security
-
-Create a checkout session server-to-server with POST /api/checkout-session, authenticated using the merchant API key in the x-pelargo-merchant-key header. Keep that merchant key exclusively in the merchant backend. The response includes a signed, short-lived buyer session token and public order details.
-
-For a buyer-facing Pelargo-hosted link, place the buyer token in the URL fragment, not the query string. The browser application reads the fragment and removes it from the visible URL/history before making the session request. It then retrieves the public session with GET /api/checkout-session and an Authorization: Bearer header.
-
-The GET endpoint does not accept the token in a query parameter. The frontend currently supports older ?checkout= links for migration compatibility, but immediately removes the query parameter and sends the token in the Authorization header. New integrations should generate fragment-based links only.
-
-A URL fragment is not included in the HTTP request target and is not ordinarily sent as a referrer. This reduces accidental credential exposure in server access logs and referrer propagation; it does not make the link non-transferable. The signed token is a bearer credential scoped to one merchant order and expires. Anyone who obtains the active link can use it. Do not publish it, log it, place it in analytics events, or store it in persistent browser storage.
-
-The buyer session token is also supplied to the quote API in its request body and to payment-status polling through the Authorization header. Do not expose the merchant API key to buyer-side code.
-
-The embedded checkout currently has no stable published SDK/CDN package or official platform plugins. Treat existing embed examples as implementation guidance for the current Preview build, not as a versioned production distribution. The complete external merchant-origin flow still requires an independent acceptance test.
-
-
-## Current developer integration pattern (Preview)
-
-The supported Preview integration is server-to-server session creation followed by a redirect to Pelargo-hosted buyer checkout:
-
-1. Create the order in the merchant's own backend.
-2. From that backend, call `POST /api/checkout-session` with the merchant API key in `x-pelargo-merchant-key`. Never expose the merchant key in browser code or a mobile app.
-3. Return a buyer checkout URL using the signed session token in the URL fragment: `https://design-blue-white-premium.pelargo.pages.dev/#checkout=<token>`.
-4. Redirect the authenticated buyer to that URL.
-5. After checkout, retrieve the merchant-scoped order/payment status from the merchant backend and fulfil only after independently verified destination settlement.
-
-The frontend's buyer checkout reads the fragment and strips it from the visible URL/history before requesting the session. The session endpoint accepts the buyer token in an Authorization Bearer header, not a query parameter.
-
-There is no stable published JavaScript SDK, CDN bundle, custom-element package, Shopify/WooCommerce plugin, or merchant webhook delivery in this Preview. Do not copy or deploy a guessed `pelargo.js` script tag. An external merchant integration must implement its own authenticated backend route for creating the Pelargo session and returning the checkout URL to the buyer.
-
-The currently implemented and independently verified route is Base Sepolia source to NEAR testnet destination. Do not infer support for arbitrary networks or tokens. The Preview is testnet-only and must not be used to collect real customer funds.
-
-
-## Current acceptance handoff — 7 November 2026
-
-- The Base Sepolia → NEAR testnet payment path has been completed at least once with both source and destination evidence on ORDER-35541967.
-- ORDER-45723806 is separately marked paid/settled with destination evidence, but no source evidence row is recorded. Do not describe that order as fully evidenced on both chains.
-- The current buyer URL carries the short-lived checkout bearer token in the fragment, not a query parameter. The app removes it from browser history before API access. Protected checkout-session retrieval uses the Authorization header.
-- Reown AppKit / WalletConnect is pending. Do not claim it is available until the Project ID is configured, `bun.lock` is regenerated with the exact package manifest, Preview build succeeds, and mobile connection/transfer behavior is tested.
-- The direct wallet execution path remains Base Sepolia-only for recognized provider-listed ERC-20 assets. Reown does not expand token catalogue, route availability or destination verification support.
-- No stable public SDK/CDN package, Shopify/WooCommerce plugin or merchant webhook delivery is currently released.
-- Do not initiate another payment merely to repeat the demonstrated route. Preserve testnet-only scope and all Production/mainnet safeguards.
+Keep ALLOW_MAINNET_DEPOSITS unset. Do not use Preview to collect real customer funds. Do not initiate another test payment solely to repeat the route already demonstrated.
