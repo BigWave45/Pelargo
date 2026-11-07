@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { createEVMClient, type MetamaskConnectEVM } from "@metamask/connect-evm";
 import { useAppKit, useAppKitAccount, useAppKitProvider, useAppKitNetwork } from "@reown/appkit/react";
 import { AlertCircle, ArrowRight, Clock3, LoaderCircle, RefreshCw, Wallet, CheckCircle2 } from "lucide-react";
 
@@ -140,6 +141,10 @@ export function PelargoCheckout({
   sessionExpiresAt = "",
 }: PelargoCheckoutProps) {
   const { open: openWalletModal } = useAppKit();
+  const metaMaskClientRef = useRef<MetamaskConnectEVM | null>(null);
+  const metaMaskClientPromiseRef = useRef<Promise<MetamaskConnectEVM> | null>(null);
+  const [metaMaskClientReady, setMetaMaskClientReady] = useState(false);
+  const [metaMaskSdkProvider, setMetaMaskSdkProvider] = useState<Eip1193Provider | undefined>(undefined);
   const { address: appKitAddress, isConnected: appKitConnected } = useAppKitAccount({ namespace: "eip155" });
   const { walletProvider } = useAppKitProvider<Eip1193Provider>("eip155");
   const { chainId: appKitChainId } = useAppKitNetwork();
@@ -151,7 +156,7 @@ export function PelargoCheckout({
     : undefined;
   const activeWalletProvider = injectedMetaMask?.isMetaMask
     ? injectedMetaMask
-    : walletProvider as Eip1193Provider | undefined;
+    : metaMaskSdkProvider ?? walletProvider as Eip1193Provider | undefined;
   const recoveryKey = `pelargo:checkout-recovery:v1:${orderId}:${sessionExpiresAt}:${recipient}`;
   type RecoveryState = {
     version: 1;
@@ -344,10 +349,36 @@ export function PelargoCheckout({
   const isMobileExternalBrowser =
     /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) &&
     !(window as Window & { ethereum?: { isMetaMask?: boolean } }).ethereum?.isMetaMask;
-  // Use a real anchor for the universal link. Mobile browsers are more likely
-  // to hand off to the installed app when navigation is a direct user tap.
-  // Encode the complete checkout URL so signed query parameters survive.
-  const metaMaskDappUrl = `https://link.metamask.io/dapp/${encodeURIComponent(window.location.href)}`;
+  // Pre-initialize MetaMask Connect before the buyer taps Connect. Its
+  // connect() call must run directly from the tap to preserve mobile browser
+  // user activation while the SDK hands off to the MetaMask app.
+  useEffect(() => {
+    if (!isMobileExternalBrowser) return;
+    let cancelled = false;
+    if (!metaMaskClientPromiseRef.current) {
+      metaMaskClientPromiseRef.current = createEVMClient({
+        dapp: { name: "Pelargo", url: window.location.origin },
+        api: {
+          supportedNetworks: {
+            "0x1": "https://cloudflare-eth.com",
+            [BASE_SEPOLIA_CHAIN_ID]: "https://sepolia.base.org",
+          },
+        },
+        analytics: { enabled: false },
+      });
+    }
+    void metaMaskClientPromiseRef.current.then((client) => {
+      if (cancelled) return;
+      metaMaskClientRef.current = client;
+      setMetaMaskClientReady(true);
+    }).catch((cause) => {
+      if (!cancelled) {
+        setMetaMaskClientReady(false);
+        setError(cause instanceof Error ? cause.message : "MetaMask Connect could not initialize.");
+      }
+    });
+    return () => { cancelled = true; };
+  }, [isMobileExternalBrowser]);
 
   async function connectWallet() {
     setError("");
@@ -363,6 +394,20 @@ export function PelargoCheckout({
         setWalletAddress(address);
         setWalletChainId(normalizeChainId(chainId));
         if (!refundTo.trim()) setRefundTo(address);
+        return;
+      }
+      if (isMobileExternalBrowser) {
+        const client = metaMaskClientRef.current;
+        if (!client) throw new Error("MetaMask Connect is still initializing. Wait a moment and retry.");
+        const { accounts, chainId } = await client.connect({ chainIds: [BASE_SEPOLIA_CHAIN_ID] });
+        if (!Array.isArray(accounts) || typeof accounts[0] !== "string") {
+          throw new Error("MetaMask did not return an account. Approve the connection in the MetaMask app and retry.");
+        }
+        const provider = client.getProvider() as Eip1193Provider;
+        setMetaMaskSdkProvider(provider);
+        setWalletAddress(accounts[0]);
+        setWalletChainId(normalizeChainId(chainId));
+        if (!refundTo.trim()) setRefundTo(accounts[0]);
         return;
       }
       await openWalletModal({ view: "Connect", namespace: "eip155" });
@@ -523,7 +568,8 @@ export function PelargoCheckout({
   useEffect(() => {
     let cancelled = false;
     const usingInjectedMetaMask = Boolean(injectedMetaMask?.isMetaMask);
-    if (!activeWalletProvider || (!usingInjectedMetaMask && (!appKitConnected || !appKitAddress))) {
+    const usingMetaMaskConnect = Boolean(metaMaskSdkProvider);
+    if (!activeWalletProvider || (!usingInjectedMetaMask && !usingMetaMaskConnect && (!appKitConnected || !appKitAddress))) {
       setWalletAddress("");
       setWalletChainId("");
       setWalletBalance("");
@@ -538,7 +584,7 @@ export function PelargoCheckout({
       if (cancelled) return;
       setWalletChainId(normalizeChainId(chainId));
       const address = Array.isArray(accounts) && typeof accounts[0] === "string" ? accounts[0] : "";
-      const matchesAppKit = usingInjectedMetaMask || (appKitAddress && address.toLowerCase() === appKitAddress.toLowerCase());
+      const matchesAppKit = usingInjectedMetaMask || usingMetaMaskConnect || (appKitAddress && address.toLowerCase() === appKitAddress.toLowerCase());
       if (address && matchesAppKit) {
         setWalletAddress(address);
         if (!refundTo.trim()) setRefundTo(address);
@@ -550,7 +596,7 @@ export function PelargoCheckout({
     });
 
     return () => { cancelled = true; };
-  }, [appKitConnected, appKitAddress, activeWalletProvider, injectedMetaMask]);
+  }, [appKitConnected, appKitAddress, activeWalletProvider, injectedMetaMask, metaMaskSdkProvider]);
 
   async function requestDryQuote() {
     setError("");
@@ -798,20 +844,18 @@ export function PelargoCheckout({
           <div className="pelargo-wallet-heading"><Wallet size={17} /><strong>Pay from your Base wallet</strong></div>
           <p>Connect an EVM wallet to pay the exact quoted USDC amount on Base Sepolia. Pelargo never receives your private key.</p>
           {!walletAddress ? (
-            isMobileExternalBrowser ? (
-              <a
-                className="pelargo-quote-button"
-                href={metaMaskDappUrl}
-                aria-disabled={sessionExpired}
-                onClick={(event) => { if (sessionExpired) event.preventDefault(); }}
-              >
-                Connect MetaMask <ArrowRight size={15} />
-              </a>
-            ) : (
-              <button type="button" className="pelargo-quote-button" onClick={connectWallet} disabled={walletBusy || sessionExpired}>
-                {walletBusy ? <><LoaderCircle size={15} className="pelargo-spin" /> Connecting…</> : <>Connect wallet <ArrowRight size={15} /></>}
-              </button>
-            )
+            <button
+              type="button"
+              className="pelargo-quote-button"
+              onClick={connectWallet}
+              disabled={walletBusy || sessionExpired || (isMobileExternalBrowser && !metaMaskClientReady)}
+            >
+              {walletBusy
+                ? <><LoaderCircle size={15} className="pelargo-spin" /> Connecting…</>
+                : isMobileExternalBrowser && !metaMaskClientReady
+                  ? <><LoaderCircle size={15} className="pelargo-spin" /> Preparing MetaMask…</>
+                  : <>{isMobileExternalBrowser ? "Connect MetaMask" : "Connect wallet"} <ArrowRight size={15} /></>}
+            </button>
           ) : (
             <>
               <div className="pelargo-quote-detail"><span>Connected account</span><code>{walletAddress.slice(0, 8)}…{walletAddress.slice(-6)}</code></div>
