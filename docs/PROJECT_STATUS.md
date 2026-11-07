@@ -200,3 +200,5 @@ The testnet RPC signer-recovery scan now processes blocks nearest the provider t
 - Production resources, production branch and production deployment were not changed.
 
 - Follow-up correction: the order's lifecycle is already `settled`, so the original recovery handler's status allowlist would still reject the backfill before reaching verification. The handler now permits `settled` only as an evidence-recovery state and requires the provider to independently still report `SUCCESS`; otherwise it returns `SETTLED_ORDER_PROVIDER_MISMATCH`. Provider-success orders remain strictly non-submitting. Commit: `33767837654267468c3b0c3f89bdb2df265c2dd0`. This change is on Preview branch only; CI and Pages Preview deployment must be checked before use.
+
+- Merchant dashboard recovery action now also appears for `settled` orders. This exposes the authenticated source-evidence backfill form for completed payments; the server verifies the original Base Sepolia transaction and will not resubmit when the provider already reports `SUCCESS`. Preview-only UI change, commit `3a0d6199ffb2dd9be671388f8d75e64285d60fd5`.
