@@ -242,3 +242,12 @@ Checkout-link handling was hardened. Newly generated buyer links use a URL fragm
 A URL fragment is not sent in the HTTP request and therefore avoids the ordinary query-string exposure path in server request logs and referrer headers. It remains a bearer credential: anyone with the unexpired link can access that checkout. It must still be handled as private order data.
 
 This is a code change on design/blue-white-premium, not evidence of a completed end-to-end merchant-origin checkout test. The external merchant integration still needs independent acceptance testing. No production branch, production D1 database, mainnet gate or production deployment was changed. Keep ALLOW_MAINNET_DEPOSITS unset.
+
+
+## Developer workspace and sidebar account navigation
+
+Updated the Developer workspace to explain the actual integration path with a server-side API key, server-created checkout session, buyer redirect to Pelargo-hosted checkout, and merchant-side status verification before fulfilment. Removed the stale bundle/custom-element CDN embed sample, which referred to a bundle that is not published. Examples now target the current Preview host and use the fragment-based checkout link. The page clearly states that SDK/CDN packaging, Shopify/WooCommerce plugins and merchant webhooks are not available, and that current route verification is limited to Base Sepolia source to NEAR testnet destination.
+
+Filled the unused lower sidebar area with persistent account navigation: Profile, Settings, Subscription and Sign out. Profile is view-only, Settings links to existing destination and developer credential controls, and Subscription is informational because billing is not implemented. No unsupported account editing or billing functionality is implied.
+
+Changes are on design/blue-white-premium only. No production branch, production database, mainnet setting, or production deployment was changed.
