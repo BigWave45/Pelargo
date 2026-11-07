@@ -162,10 +162,10 @@ export function PelargoCheckout({
       return saved;
     } catch { return null; }
   }
-  const [recovery] = useState<RecoveryState | null>(readRecovery);
+  const [recoveryLoaded, setRecoveryLoaded] = useState(false);
   const [tokens, setTokens] = useState<Token[]>([]);
-  const [sourceAssetId, setSourceAssetId] = useState(recovery?.sourceAssetId ?? "");
-  const [refundTo, setRefundTo] = useState(recovery?.refundTo ?? "");
+  const [sourceAssetId, setSourceAssetId] = useState("");
+  const [refundTo, setRefundTo] = useState("");
   const [amount, setAmount] = useState(initialAmount);
 
   const initialAmountInitialized = useRef(false);
@@ -185,14 +185,14 @@ export function PelargoCheckout({
   const [quoteId, setQuoteId] = useState("");
   const [requestedAt, setRequestedAt] = useState("");
   const [committing, setCommitting] = useState(false);
-  const [paymentInstructions, setPaymentInstructions] = useState<RecoveryState["paymentInstructions"]>(recovery?.paymentInstructions ?? null);
+  const [paymentInstructions, setPaymentInstructions] = useState<RecoveryState["paymentInstructions"]>(null);
   const [paymentStatus, setPaymentStatus] = useState<{ paymentStatus: string; providerStatus?: string; settlement?: string } | null>(null);
   const [walletAddress, setWalletAddress] = useState("");
   const [walletChainId, setWalletChainId] = useState("");
   const [walletBusy, setWalletBusy] = useState(false);
   const [walletBalance, setWalletBalance] = useState("");
   const [walletBalanceLoading, setWalletBalanceLoading] = useState(false);
-  const [walletTxHash, setWalletTxHash] = useState(recovery?.walletTxHash ?? "");
+  const [walletTxHash, setWalletTxHash] = useState("");
   const [statusError, setStatusError] = useState("");
   const quoteRequestRef = useRef(0);
   const [clockNow, setClockNow] = useState(Date.now());
@@ -231,9 +231,23 @@ export function PelargoCheckout({
     clearQuote();
   }, [destinationSymbol, destinationNetwork, recipient, orderId]);
 
+  // Read recovery state after mount to avoid touching browser storage during
+  // server rendering and to keep the server/client initial render identical.
+  useEffect(() => {
+    const saved = readRecovery();
+    if (saved) {
+      setSourceAssetId(saved.sourceAssetId ?? "");
+      setRefundTo(saved.refundTo ?? "");
+      setPaymentInstructions(saved.paymentInstructions ?? null);
+      setWalletTxHash(saved.walletTxHash ?? "");
+    }
+    setRecoveryLoaded(true);
+  }, [recoveryKey]);
+
   // Persist only the buyer's non-secret recovery state. Never store the signed
   // checkout bearer token or wallet credentials in browser storage.
   useEffect(() => {
+    if (!recoveryLoaded) return;
     try {
       if (!paymentInstructions) {
         window.localStorage.removeItem(recoveryKey);
@@ -247,7 +261,7 @@ export function PelargoCheckout({
     } catch {
       // Storage can be unavailable in private browsing; the active checkout remains usable.
     }
-  }, [recoveryKey, orderId, sessionExpiresAt, recipient, sourceAssetId, refundTo, paymentInstructions, walletTxHash]);
+  }, [recoveryLoaded, recoveryKey, orderId, sessionExpiresAt, recipient, sourceAssetId, refundTo, paymentInstructions, walletTxHash]);
 
   useEffect(() => {
     const controller = new AbortController();
