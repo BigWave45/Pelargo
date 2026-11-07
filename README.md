@@ -51,6 +51,10 @@ Merchants need one checkout they can place inside an existing storefront, withou
 
 The provider supplies route discovery, quotes, deposit instructions and provider-side transfer status. Pelargo owns merchant/order binding, checkout sessions, payment lifecycle and destination settlement verification. Provider SUCCESS alone is insufficient to mark an order paid.
 
+### Settlement verification is an enforced boundary
+
+A provider's SUCCESS response is treated as a candidate signal, not settlement proof. Pelargo independently checks the candidate NEAR transaction for final execution and the expected NEP-141 token contract, recipient and exact atomic amount. If the transfer is missing, mismatched or temporarily unverifiable, the order remains unsettled and no settlement evidence is written. The API integration suite includes a provider-SUCCESS case where the finalized NEAR transaction transfers the wrong amount; Pelargo keeps the lifecycle in processing, records no settlement evidence and the database rejects an evidence insert that does not match the verified candidate. It also tests an unavailable verifier and an atomic ledger-write rollback. See [the detailed test record](docs/TESTING.md#provider-success-is-not-settlement-proof).
+
 ## Demonstrated route and limitations
 
 The current Preview demonstration uses a provider-supported **Base Sepolia ERC-20 source asset to NEAR testnet NEP-141 destination asset** route through the Tidepool / NEAR Intents-compatible testnet environment. The demonstrated destination is 1 USDC to `agentg.testnet`.
@@ -119,15 +123,15 @@ Automated tests, hosted merchant acceptance and manual payment evidence are docu
 ## Branch and release status
 
 - GitHub default branch: `main`.
-- Merged release candidate: `release/hackathon-candidate`, merged through PR #7.
+- Latest merged judge-readiness update: PR #11, merge commit `707b10360dd52c9bd5184610fe817eaa50114160`.
 - Integrated non-production branch: `reliability/background-reconciliation`.
 - Cloudflare Pages production branch: `build/live-intents` (unchanged).
 - Cloudflare Pages main-branch Preview alias: `https://main.pelargo.pages.dev`.
 - Cloudflare Pages project: `pelargo`.
 
-PR #7 merged the reviewed release candidate into `main` at merge commit `d18ae93a3eda3263eadc420cb951f4ebe52b2764`. Cloudflare successfully built and deployed that exact merge commit as a Preview deployment using the isolated Preview configuration and Preview D1 database. A GitHub merge does not change the Cloudflare production branch or production database.
+PR #11 added the hosted judge walkthrough and aligned the package and application metadata with Pelargo's product positioning. GitHub merged it into `main` at `707b10360dd52c9bd5184610fe817eaa50114160`. GitHub Actions passed for the PR, and Cloudflare Pages successfully built and deployed the merged `main` commit as Preview deployment `231e1a4e-682b-4591-a64a-ef48bbc84735`, with `https://main.pelargo.pages.dev` as its alias. This is a Preview deployment using isolated Preview configuration and Preview D1. A GitHub merge does not change the Cloudflare production branch or production database.
 
-The main-branch Preview is the cleanest current demo URL. The built-in production hostname `pelargo.pages.dev` remains attached to `build/live-intents` until production configuration and data migration are separately reviewed and explicitly approved.
+The main-branch Preview is the current hackathon demo URL. The built-in production hostname `pelargo.pages.dev` remains attached to `build/live-intents`; no production promotion or production database change is part of this release.
 
 ## Safety
 
