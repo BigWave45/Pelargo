@@ -9,6 +9,25 @@ type Eip1193Provider = {
 declare global { interface Window { ethereum?: Eip1193Provider } }
 
 const BASE_SEPOLIA_CHAIN_ID = "0x14a34";
+
+function waitForInjectedProvider(timeoutMs = 3000): Promise<Eip1193Provider | null> {
+  if (window.ethereum) return Promise.resolve(window.ethereum);
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (provider: Eip1193Provider | null) => {
+      if (settled) return;
+      settled = true;
+      window.removeEventListener("ethereum#initialized", handleInitialized);
+      window.clearTimeout(timer);
+      resolve(provider);
+    };
+    const handleInitialized = () => finish(window.ethereum ?? null);
+    window.addEventListener("ethereum#initialized", handleInitialized, { once: true });
+    const timer = window.setTimeout(() => finish(window.ethereum ?? null), timeoutMs);
+    // Recheck after registering the event listener to close the injection race.
+    if (window.ethereum) finish(window.ethereum);
+  });
+}
 const BASE_SEPOLIA_CHAIN = {
   chainId: BASE_SEPOLIA_CHAIN_ID,
   chainName: "Base Sepolia",
@@ -245,17 +264,17 @@ export function PelargoCheckout({
 
   async function connectWallet() {
     setError("");
-    if (!window.ethereum) {
-      setError("No injected EVM wallet was detected. Open this checkout in a browser with MetaMask or another EIP-1193 wallet.");
-      return;
-    }
     setWalletBusy(true);
     try {
-      const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
+      const provider = await waitForInjectedProvider();
+      if (!provider) {
+        throw new Error("No injected EVM wallet was detected. Open this checkout in MetaMask's built-in browser, then retry.");
+      }
+      const accounts = await provider.request({ method: "eth_requestAccounts" });
       if (!Array.isArray(accounts) || typeof accounts[0] !== "string" || !/^0x[a-fA-F0-9]{40}$/.test(accounts[0])) {
         throw new Error("The wallet did not return a valid EVM account.");
       }
-      const chainId = await window.ethereum.request({ method: "eth_chainId" });
+      const chainId = await provider.request({ method: "eth_chainId" });
       if (typeof chainId !== "string") throw new Error("The wallet did not return its active network.");
       setWalletAddress(accounts[0]);
       setWalletChainId(chainId);
@@ -376,24 +395,31 @@ export function PelargoCheckout({
   }, [walletAddress, walletChainId, baseTokenContract, selectedSource?.decimals]);
 
   useEffect(() => {
-    const provider = window.ethereum;
-    if (!provider?.on) return;
-    const handleAccounts = (...args: unknown[]) => {
-      const accounts = args[0];
-      const address = Array.isArray(accounts) && typeof accounts[0] === "string" ? accounts[0] : "";
-      setWalletAddress(address);
-      setWalletTxHash("");
-      if (address) setRefundTo(address);
-    };
-    const handleChain = (...args: unknown[]) => {
-      const chainId = args[0];
-      if (typeof chainId === "string") setWalletChainId(chainId);
-    };
-    provider.on("accountsChanged", handleAccounts);
-    provider.on("chainChanged", handleChain);
+    let cancelled = false;
+    let detach = () => {};
+    void waitForInjectedProvider().then((provider) => {
+      if (cancelled || !provider?.on) return;
+      const handleAccounts = (...args: unknown[]) => {
+        const accounts = args[0];
+        const address = Array.isArray(accounts) && typeof accounts[0] === "string" ? accounts[0] : "";
+        setWalletAddress(address);
+        setWalletTxHash("");
+        if (address) setRefundTo(address);
+      };
+      const handleChain = (...args: unknown[]) => {
+        const chainId = args[0];
+        if (typeof chainId === "string") setWalletChainId(chainId);
+      };
+      provider.on("accountsChanged", handleAccounts);
+      provider.on("chainChanged", handleChain);
+      detach = () => {
+        provider.removeListener?.("accountsChanged", handleAccounts);
+        provider.removeListener?.("chainChanged", handleChain);
+      };
+    }).catch(() => {});
     return () => {
-      provider.removeListener?.("accountsChanged", handleAccounts);
-      provider.removeListener?.("chainChanged", handleChain);
+      cancelled = true;
+      detach();
     };
   }, []);
 
