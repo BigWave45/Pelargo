@@ -129,7 +129,9 @@ export function PelargoCheckout({
   const { address: appKitAddress, isConnected: appKitConnected } = useAppKitAccount({ namespace: "eip155" });
   const { walletProvider } = useAppKitProvider<Eip1193Provider>("eip155");
   const { chainId: appKitChainId } = useAppKitNetwork();
-  const activeWalletProvider = (walletProvider ?? window.ethereum) as Eip1193Provider | undefined;
+  // Use the provider supplied by the active Reown connection. Falling back to
+  // window.ethereum can silently query a different wallet session/network.
+  const activeWalletProvider = walletProvider as Eip1193Provider | undefined;
   const recoveryKey = `pelargo:checkout-recovery:v1:${orderId}:${sessionExpiresAt}:${recipient}`;
   type RecoveryState = {
     version: 1;
@@ -390,8 +392,14 @@ export function PelargoCheckout({
     setWalletBusy(true);
     try {
       const currentChain = await activeWalletProvider.request({ method: "eth_chainId" });
-      if (typeof currentChain !== "string" || currentChain.toLowerCase() !== BASE_SEPOLIA_CHAIN_ID) {
-        throw new Error("Wallet network changed. Switch back to Base Sepolia and retry.");
+      if (typeof currentChain !== "string") {
+        throw new Error("MetaMask did not return a readable chain ID. Reconnect the wallet and retry.");
+      }
+      setWalletChainId(currentChain);
+      if (currentChain.toLowerCase() !== BASE_SEPOLIA_CHAIN_ID) {
+        const numericChain = Number.parseInt(currentChain, 16);
+        const networkLabel = numericChain === 11155111 ? "Ethereum Sepolia" : `chain ID ${currentChain} (${numericChain})`;
+        throw new Error(`The connected Reown provider reports ${networkLabel}, while MetaMask should be on Base Sepolia (84532). Reconnect MetaMask through the wallet modal, then check the network again.`);
       }
       const accounts = await activeWalletProvider.request({ method: "eth_accounts" });
       if (!Array.isArray(accounts) || typeof accounts[0] !== "string" || accounts[0].toLowerCase() !== walletAddress.toLowerCase()) {
@@ -460,20 +468,35 @@ export function PelargoCheckout({
   }, [activeWalletProvider]);
 
   useEffect(() => {
-    if (appKitConnected && appKitAddress && /^0x[a-fA-F0-9]{40}$/.test(appKitAddress)) {
-      setWalletAddress(appKitAddress);
-      setWalletTxHash("");
-      if (!refundTo.trim()) setRefundTo(appKitAddress);
-    } else if (!appKitConnected) {
+    let cancelled = false;
+    if (!appKitConnected || !appKitAddress || !activeWalletProvider) {
       setWalletAddress("");
       setWalletChainId("");
       setWalletBalance("");
+      return;
     }
-    if (appKitChainId !== undefined && appKitChainId !== null) {
-      const numericChainId = Number(appKitChainId);
-      if (Number.isFinite(numericChainId)) setWalletChainId("0x" + numericChainId.toString(16));
-    }
-  }, [appKitConnected, appKitAddress, appKitChainId]);
+
+    // Hydrate state from the same EIP-1193 provider that will submit the transfer.
+    // AppKit's displayed network is not used as a substitute for this RPC check.
+    void Promise.all([
+      activeWalletProvider.request({ method: "eth_chainId" }),
+      activeWalletProvider.request({ method: "eth_accounts" }),
+    ]).then(([chainId, accounts]) => {
+      if (cancelled) return;
+      if (typeof chainId === "string") setWalletChainId(chainId);
+      const address = Array.isArray(accounts) && typeof accounts[0] === "string" ? accounts[0] : "";
+      if (address && address.toLowerCase() === appKitAddress.toLowerCase()) {
+        setWalletAddress(address);
+        if (!refundTo.trim()) setRefundTo(address);
+      } else {
+        setWalletAddress("");
+      }
+    }).catch(() => {
+      if (!cancelled) setError("Reown connected the wallet, but Pelargo could not read its active account and network. Reconnect the wallet and retry.");
+    });
+
+    return () => { cancelled = true; };
+  }, [appKitConnected, appKitAddress, activeWalletProvider]);
 
   async function requestDryQuote() {
     setError("");
