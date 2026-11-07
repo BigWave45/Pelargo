@@ -148,6 +148,8 @@ async function signerFromCanonicalRpcBlockWindow(
   rpcUrl: string,
   expectedHash: string,
   observedAt: string | undefined,
+  configuredWindowBlocks: string | undefined,
+  onDiagnostic?: (stage: string, detail?: string) => void,
 ): Promise<string | null> {
   if (!observedAt || !Number.isFinite(Date.parse(observedAt))) return null;
   const targetNs = BigInt(Date.parse(observedAt)) * 1_000_000n;
@@ -180,11 +182,23 @@ async function signerFromCanonicalRpcBlockWindow(
     else high = middle;
   }
 
-  const scanHeights: bigint[] = [];
-  for (let offset = -8n; offset <= 8n; offset++) {
-    const height = low + offset;
-    if (height >= lowerBound && height <= headHeight) scanHeights.push(height);
+  // Provider updatedAt commonly trails the destination transaction. Search
+  // mostly backwards from that timestamp, while retaining a small forward
+  // allowance for clock skew. The range is configurable but strictly capped.
+  const requestedWindow = configuredWindowBlocks?.trim()
+    ? Number(configuredWindowBlocks)
+    : 120;
+  if (!Number.isInteger(requestedWindow) || requestedWindow < 8 || requestedWindow > 600) {
+    throw new Error("NEAR_TX_RECOVERY_WINDOW_BLOCKS must be an integer from 8 to 600");
   }
+  const windowBlocks = BigInt(requestedWindow);
+  const scanStart = low - (windowBlocks - 8n);
+  const scanEnd = low + 8n;
+  const firstHeight = scanStart < lowerBound ? lowerBound : scanStart;
+  const lastHeight = scanEnd > headHeight ? headHeight : scanEnd;
+  const scanHeights: bigint[] = [];
+  for (let height = firstHeight; height <= lastHeight; height++) scanHeights.push(height);
+  onDiagnostic?.("testnet_rpc_block_scan_window", `heights=${firstHeight}-${lastHeight}; blocks=${scanHeights.length}; target=${observedAt}`);
   const blocks = await mapWithConcurrency(scanHeights, 5, (height) => rpcBlockByHeight(rpcUrl, height));
   const chunkRefs: string[] = [];
   for (const block of blocks) {
@@ -197,8 +211,9 @@ async function signerFromCanonicalRpcBlockWindow(
     }
   }
 
+  onDiagnostic?.("testnet_rpc_block_scan_chunks", `non_empty_chunks=${chunkRefs.length}`);
   const matchingSigners = new Set<string>();
-  await mapWithConcurrency(chunkRefs, 8, async (chunkHash) => {
+  await mapWithConcurrency(chunkRefs, 6, async (chunkHash) => {
     const chunkPayload = await postJson(rpcUrl, {
       jsonrpc: "2.0", id: "pelargo-near-chunk-scan", method: "chunk",
       params: { chunk_id: chunkHash },
@@ -228,7 +243,7 @@ export async function verifyNearNep141Settlement(
   env: Env,
   order: NearSettlementOrder,
   transactionHash: string,
-  onDiagnostic?: (stage: string) => void,
+  onDiagnostic?: (stage: string, detail?: string) => void,
   providerObservedAt?: string,
 ): Promise<NearSettlementEvidence | null> {
   const reject = (stage: string): null => {
@@ -295,7 +310,9 @@ export async function verifyNearNep141Settlement(
     }
     if (!signerId && provider.network === "testnet") {
       onDiagnostic?.("testnet_rpc_block_scan_started");
-      signerId = await signerFromCanonicalRpcBlockWindow(rpcUrl, transactionHash, providerObservedAt);
+      signerId = await signerFromCanonicalRpcBlockWindow(
+        rpcUrl, transactionHash, providerObservedAt, env.NEAR_TX_RECOVERY_WINDOW_BLOCKS, onDiagnostic,
+      );
       if (signerId) onDiagnostic?.("signer_resolved_from_canonical_rpc_block_scan");
     }
     if (!signerId) return reject(providerObservedAt
