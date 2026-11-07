@@ -14,7 +14,7 @@ jobs:
       - name: Checkout test branch
         uses: actions/checkout@v4
         with:
-          ref: test/external-merchant-integration
+          ref: reliability/background-reconciliation
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
