@@ -14,7 +14,7 @@ The GitHub Actions CI workflow runs on pushes and pull requests. Its required ch
 - Syntax validation of the external merchant smoke-test script.
 - Frontend production build via `bun run build`.
 
-The latest documented CI runs for the application-tree update and subsequent documentation commits on `main` completed successfully. CI success means these automated jobs passed for those commits; it is not a substitute for hosted end-to-end acceptance.
+The release-candidate head before the latest documentation alignment, `dc742880b4d41f8bf4a2234d7fe18852673195f0`, passed CI run 799. The run completed dependency installation, type-checking, checkout-session security tests, checkout/API integration tests, external merchant smoke-test syntax validation and frontend build: https://github.com/BigWave45/Pelargo/actions/runs/42394397895. The Cloudflare Pages candidate deployment for that same head also succeeded. Documentation-only commits have since been added to `release/hackathon-candidate`; their checks must complete before merge. CI success is not a substitute for hosted end-to-end acceptance.
 
 ## Automated security and API coverage
 
