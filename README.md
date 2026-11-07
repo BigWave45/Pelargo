@@ -75,7 +75,7 @@ bun run test:external-merchant
 bun run build
 ```
 
-The external merchant test requires `PELARGO_API_URL` and `PELARGO_MERCHANT_API_KEY`. For the hosted acceptance run, store the primary test merchant key as `PELARGO_TEST_MERCHANT_API_KEY` and a different merchant's key as `PELARGO_OTHER_TEST_MERCHANT_API_KEY` in GitHub Actions repository secrets. Run **External merchant acceptance** from the default branch; the workflow explicitly checks out `test/external-merchant-integration` and targets the test Preview URL. The 7 November 2026 run passed all checks, including cross-merchant isolation. Full instructions: [docs/EXTERNAL_MERCHANT_TEST.md](docs/EXTERNAL_MERCHANT_TEST.md).
+The external merchant test requires `PELARGO_API_URL` and `PELARGO_MERCHANT_API_KEY`. For the hosted acceptance run, store the primary test merchant key as `PELARGO_TEST_MERCHANT_API_KEY` and a different merchant's key as `PELARGO_OTHER_TEST_MERCHANT_API_KEY` in GitHub Actions repository secrets. Run **External merchant acceptance** from the default branch; the workflow now explicitly checks out `reliability/background-reconciliation` and targets its integrated Preview alias. The original pre-merge run passed all checks, including cross-merchant isolation; a post-merge rerun is pending. The 7 November 2026 run passed all checks, including cross-merchant isolation. Full instructions: [docs/EXTERNAL_MERCHANT_TEST.md](docs/EXTERNAL_MERCHANT_TEST.md).
 
 ## Safety
 
