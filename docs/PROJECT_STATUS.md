@@ -18,7 +18,7 @@ Use one release path. Do not merge the historical feature branches independently
 - `design/premium-ui`, `design/premium-checkout-widget`, `ops/*` and `reliability/near-verifier-diagnostics` are historical or superseded work branches. Their changes are not to be merged separately without identifying a concrete missing change first.
 - PR #4 is closed and unmerged. It targets `main` from the old integration branch and contains a very large historical commit range. Do not reopen or merge it as the release mechanism.
 
-The release candidate is currently a fast-forward extension of `main`, with eight commits and no divergence. Its CI run completed successfully: https://github.com/BigWave45/Pelargo/actions/runs/42394271750.
+The release candidate is currently a fast-forward extension of `main`, with ten commits and no divergence (10 ahead, 0 behind `main`). At candidate head `dc742880b4d41f8bf4a2234d7fe18852673195f0`, type-checking, checkout-session security tests, checkout/API integration tests, external merchant smoke-test syntax validation and frontend build all passed in CI: https://github.com/BigWave45/Pelargo/actions/runs/42394397895. Cloudflare Pages also completed the candidate Preview deployment successfully: https://release-hackathon-candidate.pelargo.pages.dev.
 
 ## Product and supported scope
 
@@ -37,11 +37,11 @@ See [TESTING.md](TESTING.md) for the full evidence record and limitations.
 
 ## Remaining release work
 
-1. Finish the release-candidate review and ensure the README, integration guide and test record all describe the same wallet flow and evidence.
+1. Keep the README, integration guide and testing record aligned with the implemented MetaMask Connect SDK handoff, injected MetaMask path, Reown fallback and exact evidence limitations.
 2. Reconcile the candidate against the existing Cloudflare production baseline before any production promotion. Do not overwrite `build/live-intents` blindly.
-3. Decide and configure the public domain and Pages routing. No final custom domain has been selected or configured.
+3. The free candidate Preview alias is available at `https://release-hackathon-candidate.pelargo.pages.dev`. The built-in `pelargo.pages.dev` address still serves the existing production branch; no custom domain is required.
 4. After explicit approval, merge the reviewed release candidate into GitHub `main`.
-5. Only after separate explicit approval, change Cloudflare Pages production branch/domain configuration and deploy.
+5. Only after separate explicit approval, change Cloudflare Pages production branch configuration so `pelargo.pages.dev` serves the approved release.
 6. Verify the resulting public deployment without using real customer funds or enabling mainnet.
 
 ## Safety and limitations
