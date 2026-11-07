@@ -13,6 +13,7 @@ The widget is the global payment interface. NEAR is the settlement home. Other n
 - **Integrated Preview (development/acceptance):** https://reliability-background-recon.pelargo.pages.dev
 - **Repository:** https://github.com/BigWave45/Pelargo
 - **Vision and development history:** [docs/VISION_AND_DEVELOPMENT_HISTORY.md](docs/VISION_AND_DEVELOPMENT_HISTORY.md) (product direction, parallel development branches and commit-history context)
+- **Judge guide and reproducible evidence:** [docs/JUDGE_GUIDE.md](docs/JUDGE_GUIDE.md)
 - **Testing and acceptance record:** [docs/TESTING.md](docs/TESTING.md)
 - **Merchant integration guide:** [docs/INTEGRATION.md](docs/INTEGRATION.md)
 
@@ -24,7 +25,7 @@ The main and candidate URLs are non-production Preview deployments using the iso
 Use the merged-main Preview deployment: **https://main.pelargo.pages.dev**. It is an isolated testnet demonstration, not a production payment endpoint.
 
 1. **Open the merchant workspace.** Select **Create an account**. Enter a business name, an email address you control and a password of at least 12 characters. Registration creates a merchant workspace; buyers do not need Pelargo accounts.
-2. **Configure the NEAR destination.** Open **Payment destination**. Enter the exact NEAR testnet NEP-141 asset ID and decimals supported by the active Tidepool testnet catalogue, plus a NEAR testnet recipient account. The form's example asset ID is illustrative, not a guarantee that the asset is currently routable. Use a public receiving address only. Save the destination.
+2. **Configure the NEAR destination.** Open **Payment destination**. For the previously verified route, enter asset ID `nep141:usdc.tidepool-sandbox.testnet`, symbol `USDC`, network `NEAR`, and decimals `6`, plus a NEAR testnet recipient. `agentg.testnet` is the recipient in the recorded end-to-end evidence. Confirm that the asset is still returned by the live Tidepool testnet catalogue before relying on it; provider availability can change. Use a public testnet receiving address only. Save the destination.
 3. **Create an order.** Open **Create checkout**, enter a unique order reference and an amount, then select **Create checkout link**. Creating a link creates a short-lived signed session; it does not move funds.
 4. **Open the buyer experience.** Copy the generated link and open it in a separate browser tab or private window. The buyer sees the merchant, requested amount, NEAR destination and source-asset selection. No buyer account is required.
 5. **Inspect a quote preview.** Select a currently supported Base Sepolia source asset and request the quote preview. The dry quote displays the source amount and route details; it does not create committed deposit instructions or send funds. Do not proceed to a committed quote or transfer for a documentation-only review.
@@ -32,7 +33,7 @@ Use the merged-main Preview deployment: **https://main.pelargo.pages.dev**. It i
 
 **What this walkthrough proves:** merchant registration, destination configuration, signed checkout-session creation, the hosted buyer surface and dry-quote presentation. It does not prove a live transfer, mainnet operation, broad route coverage or production readiness. A full payment is not required to inspect these surfaces.
 
-**Previously recorded end-to-end testnet evidence:** `ORDER-35541967` completed a 1 USDC Base Sepolia ERC-20 to NEAR testnet NEP-141 transfer to `agentg.testnet`. The test record contains both source-deposit evidence and independently verified NEAR destination-settlement evidence. This is a previously completed testnet transaction, not a new payment or a claim of mainnet operation. The detailed acceptance record and evidence limitations are documented in [docs/TESTING.md](docs/TESTING.md#hosted-payment-and-wallet-acceptance).
+**Previously recorded end-to-end testnet evidence:** `ORDER-35541967` completed a Base Sepolia ERC-20 to NEAR testnet NEP-141 route. Pelargo recorded the Base Sepolia source deposit and independently verified the NEAR destination transfer: exactly 1.000000 USDC reached `agentg.testnet`. Both transaction hashes and explorer links are in the [judge evidence guide](docs/JUDGE_GUIDE.md). This is a previously completed testnet transaction, not a new payment or a claim of mainnet operation.
 
 **Important constraints:** the currently demonstrated route is Base Sepolia ERC-20 to NEAR testnet NEP-141 through the configured Tidepool / NEAR Intents-compatible testnet environment. The evaluator must supply a valid testnet destination asset and recipient. Provider token availability can change. Mainnet committed quotes are disabled. Do not use this Preview to collect customer funds.
 
@@ -174,31 +175,31 @@ The implementation includes merchant-scoped API access, signed short-lived check
 
 ## Testing
 
-Local checks:
+Deterministic local checks:
 
 ```bash
-bun install
+bun install --frozen-lockfile
 bun run lint
 bun run test:security
 bun run test:api
-bun run test:external-merchant
 bun run build
 ```
 
-Automated tests, hosted merchant acceptance and manual payment evidence are documented separately in [docs/TESTING.md](docs/TESTING.md). Automated tests include mocked provider/RPC responses and an in-memory database; they do not prove production readiness.
+`bun run test:external-merchant` is a separate hosted smoke test. It requires merchant API keys in environment variables and creates a pending order in the integrated Preview; it does not commit a quote or initiate a payment. Do not run it as an ordinary local unit test. CI syntax-checks this script; the separately recorded hosted acceptance run passed seven checks. Automated API tests use mocked provider/RPC responses and an in-memory database. See [docs/TESTING.md](docs/TESTING.md) and the [judge guide](docs/JUDGE_GUIDE.md) for the distinction between automated tests, hosted acceptance and the completed testnet payment.
 
 ## Branch and release status
 
 - GitHub default branch: `main`.
-- Latest merged documentation update: PR #13, merge commit `5410acdca8753b9e32d571b5171de03cce46c811`.
-- PR #12 documents the independent NEAR settlement-verification boundary and adversarial provider-status tests.
-- PR #13 adds the system architecture diagram and clarifies the responsibility boundary between Pelargo, its execution provider, and the NEAR settlement verifier.
+- Latest merged documentation update: PR #15, merge commit `7a68207f73b4a6a0c8ef6bed678aec8dafe4a4d2`.
+- PRs #8–#13 aligned integration, product positioning, judge walkthrough, settlement-proof explanation and architecture documentation.
+- PR #14 removed unused Gemini capability metadata and an unused SDK dependency; it did not remove application functionality.
+- PR #15 refreshed the judge-facing release and payment-evidence record.
 - Integrated non-production branch: `reliability/background-reconciliation`.
 - Cloudflare Pages production branch: `build/live-intents` (unchanged).
 - Cloudflare Pages main-branch Preview alias: `https://main.pelargo.pages.dev`.
 - Cloudflare Pages project: `pelargo`.
 
-Cloudflare Pages successfully deployed the merged `main` commit `5410acdca8753b9e32d571b5171de03cce46c811` as Preview deployment `295a6ad3-5d85-4339-8dfd-c17242f68eef`, with `https://main.pelargo.pages.dev` as its alias. The deployment stage reported success. This is a Preview deployment using isolated Preview configuration and Preview D1. A GitHub merge does not change the Cloudflare production branch or production database.
+Cloudflare Pages successfully deployed the current merged `main` commit `aafe4575f17ec45be7ba1deac94b6f3372ac484a` as Preview deployment `e42e77f5-d371-4b86-84f6-e0df473a2b1f`, with `https://main.pelargo.pages.dev` as its alias. The deployment stage reported success on 7 November 2026. This is a Preview deployment using isolated Preview configuration and Preview D1. A GitHub merge does not change the Cloudflare production branch or production database.
 
 The main-branch Preview is the current hackathon demo URL. The built-in production hostname `pelargo.pages.dev` remains attached to `build/live-intents`; no production promotion or production database change is part of this release. Later documentation-only cleanup may produce additional Preview builds without changing the production branch or database.
 
