@@ -93,6 +93,132 @@ function indexedSigner(payload: JsonRecord, expectedHash: string): string | null
   return null;
 }
 
+
+const EMPTY_NEAR_TX_ROOT = "11111111111111111111111111111111";
+
+function blockHeader(payload: JsonRecord): JsonRecord | null {
+  return record(record(payload.result)?.header);
+}
+
+async function rpcBlockByHeight(rpcUrl: string, height: bigint): Promise<JsonRecord> {
+  const payload = await postJson(rpcUrl, {
+    jsonrpc: "2.0", id: "pelargo-near-block-scan", method: "block",
+    params: { block_id: Number(height) },
+  });
+  if (payload.error) throw new Error("NEAR RPC block lookup failed during signer recovery");
+  const result = record(payload.result);
+  const header = blockHeader(payload);
+  if (!result || !header) throw new Error("NEAR RPC returned an incomplete block during signer recovery");
+  return result;
+}
+
+function blockTimestampNs(block: JsonRecord): bigint | null {
+  const timestamp = blockHeader(block)?.timestamp_nanosec;
+  if (typeof timestamp !== "string" && typeof timestamp !== "number") return null;
+  try { return BigInt(timestamp); } catch { return null; }
+}
+
+async function mapWithConcurrency<T, R>(
+  values: T[],
+  concurrency: number,
+  task: (value: T) => Promise<R>,
+): Promise<R[]> {
+  const output = new Array<R>(values.length);
+  let cursor = 0;
+  const workers = Array.from({ length: Math.min(concurrency, values.length) }, async () => {
+    while (true) {
+      const index = cursor++;
+      if (index >= values.length) return;
+      output[index] = await task(values[index]);
+    }
+  });
+  await Promise.all(workers);
+  return output;
+}
+
+/**
+ * No-key testnet fallback for signer discovery. It uses only the configured
+ * canonical NEAR RPC: binary-search finalized block timestamps around the
+ * provider's status timestamp, inspect a small bounded block window, then read
+ * non-empty chunks until the exact transaction hash is found. The discovered
+ * signer is only a hint; EXPERIMENTAL_tx_status and receipt verification below
+ * remain mandatory.
+ */
+async function signerFromCanonicalRpcBlockWindow(
+  rpcUrl: string,
+  expectedHash: string,
+  observedAt: string | undefined,
+): Promise<string | null> {
+  if (!observedAt || !Number.isFinite(Date.parse(observedAt))) return null;
+  const targetNs = BigInt(Date.parse(observedAt)) * 1_000_000n;
+  const latestPayload = await postJson(rpcUrl, {
+    jsonrpc: "2.0", id: "pelargo-near-block-scan-head", method: "block",
+    params: { finality: "final" },
+  });
+  const latestHeader = blockHeader(latestPayload);
+  if (!latestHeader || (typeof latestHeader.height !== "number" && typeof latestHeader.height !== "string") ||
+      (typeof latestHeader.timestamp_nanosec !== "string" && typeof latestHeader.timestamp_nanosec !== "number")) {
+    throw new Error("NEAR RPC returned an incomplete finalized head for signer recovery");
+  }
+  const headHeight = BigInt(latestHeader.height);
+  const headTimestampNs = BigInt(latestHeader.timestamp_nanosec);
+  const ageNs = headTimestampNs - targetNs;
+  // Provider status timestamps are not guaranteed to be transaction timestamps.
+  // Keep this recovery deliberately bounded to recent testnet activity.
+  if (ageNs < -60_000_000_000n || ageNs > 7_200_000_000_000n) return null;
+
+  const lowerBound = headHeight > 10_000n ? headHeight - 10_000n : 1n;
+  let low = lowerBound;
+  let high = headHeight;
+  // Find the first finalized block whose timestamp is at or after observedAt.
+  while (low < high) {
+    const middle = (low + high) / 2n;
+    const block = await rpcBlockByHeight(rpcUrl, middle);
+    const timestamp = blockTimestampNs(block);
+    if (timestamp === null) throw new Error("NEAR RPC block omitted timestamp_nanosec");
+    if (timestamp < targetNs) low = middle + 1n;
+    else high = middle;
+  }
+
+  const scanHeights: bigint[] = [];
+  for (let offset = -8n; offset <= 8n; offset++) {
+    const height = low + offset;
+    if (height >= lowerBound && height <= headHeight) scanHeights.push(height);
+  }
+  const blocks = await mapWithConcurrency(scanHeights, 5, (height) => rpcBlockByHeight(rpcUrl, height));
+  const chunkRefs: string[] = [];
+  for (const block of blocks) {
+    const chunks = Array.isArray(block.chunks) ? block.chunks : [];
+    for (const rawChunk of chunks) {
+      const chunk = record(rawChunk);
+      if (!chunk || typeof chunk.chunk_hash !== "string" ||
+          chunk.tx_root === EMPTY_NEAR_TX_ROOT) continue;
+      if (!chunkRefs.includes(chunk.chunk_hash)) chunkRefs.push(chunk.chunk_hash);
+    }
+  }
+
+  const matchingSigners = new Set<string>();
+  await mapWithConcurrency(chunkRefs, 8, async (chunkHash) => {
+    const chunkPayload = await postJson(rpcUrl, {
+      jsonrpc: "2.0", id: "pelargo-near-chunk-scan", method: "chunk",
+      params: { chunk_id: chunkHash },
+    });
+    if (chunkPayload.error) throw new Error("NEAR RPC chunk lookup failed during signer recovery");
+    const chunk = record(chunkPayload.result);
+    const transactions = Array.isArray(chunk?.transactions) ? chunk.transactions : [];
+    for (const rawTransaction of transactions) {
+      const transaction = record(rawTransaction);
+      if (transaction?.hash === expectedHash && typeof transaction.signer_id === "string" &&
+          /^[a-z0-9._-]{2,64}$/.test(transaction.signer_id)) {
+        matchingSigners.add(transaction.signer_id);
+      }
+    }
+    return null;
+  });
+  // Ambiguous signer data is not safe to resolve automatically.
+  return matchingSigners.size === 1 ? [...matchingSigners][0] : null;
+}
+
 /**
  * Verifies a NEAR NEP-141 transfer. NearScanner's indexed transaction lookup
  * is used only to resolve signer_id; canonical NEAR RPC then verifies execution
@@ -103,6 +229,7 @@ export async function verifyNearNep141Settlement(
   order: NearSettlementOrder,
   transactionHash: string,
   onDiagnostic?: (stage: string) => void,
+  providerObservedAt?: string,
 ): Promise<NearSettlementEvidence | null> {
   const reject = (stage: string): null => {
     onDiagnostic?.(stage);
@@ -157,9 +284,22 @@ export async function verifyNearNep141Settlement(
     }
     signerId = configuredSigner;
   } else {
-    const indexed = await requestJson(indexerUrl, { method: "GET", headers: indexerHeaders });
-    signerId = indexedSigner(indexed, transactionHash);
-    if (!signerId) return reject("indexer_did_not_return_matching_signer");
+    try {
+      const indexed = await requestJson(indexerUrl, { method: "GET", headers: indexerHeaders });
+      signerId = indexedSigner(indexed, transactionHash);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "Unknown indexer failure";
+      const retryableIndexerFailure = /HTTP (429|5\\d\\d)|fetch failed|NetworkError|TimeoutError/i.test(detail);
+      if (provider.network !== "testnet" || !retryableIndexerFailure) throw error;
+      onDiagnostic?.("testnet_indexer_unavailable_rpc_block_scan");
+    }
+    if (!signerId && provider.network === "testnet") {
+      signerId = await signerFromCanonicalRpcBlockWindow(rpcUrl, transactionHash, providerObservedAt);
+      if (signerId) onDiagnostic?.("signer_resolved_from_canonical_rpc_block_scan");
+    }
+    if (!signerId) return reject(providerObservedAt
+      ? "indexer_and_bounded_rpc_block_scan_did_not_find_matching_signer"
+      : "indexer_did_not_return_matching_signer_provider_timestamp_required_for_rpc_scan");
   }
   const txStatus = await postJson(rpcUrl, {
     jsonrpc: "2.0",
