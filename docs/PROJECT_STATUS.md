@@ -1,3 +1,19 @@
+# Product direction and wallet-first checkout plan — 7 November 2026
+
+This entry records the current product/design decision. It is a plan and scope update, not evidence that wallet connection or direct wallet execution is implemented.
+
+- Continue the UI, UX and copy redesign in parallel with wallet technical validation. The redesign is not paused or superseded by wallet work.
+- Preserve the existing merchant account/API-key model, merchant-created checkout sessions, widget contract, Tidepool/1Click quote integration, order state machine, provider polling and independent NEAR settlement verifier.
+- Universal checkout is the long-term product direction: one merchant integration, buyer pays from a wallet/network/asset they already use where supported, and the merchant receives its configured settlement asset. Do not claim universal wallet or chain support in the current build.
+- Hackathon wallet target is Base-first: connect wallet, detect address and chain, inspect balances for assets supported by the active provider route, obtain the existing Pelargo quote, then establish whether the provider supports a directly signable/broadcastable transaction for the chosen wallet. Direct signing is conditional on provider compatibility.
+- The current deposit-address flow remains the working fallback: buyer receives instructions and sends funds manually. Keep it intact until the connected-wallet flow passes an end-to-end test.
+- Separate the work into three capabilities: (1) wallet connection, (2) network/token balance discovery, and (3) transaction construction/signing/broadcast. Completing (1) does not prove (3).
+- Design direction remains blue/white, modern financial infrastructure plus editorial minimalism. Remove generic AI decoration. Use product UI states, precise diagrams and restrained geometric elements only where they explain the payment journey. Design copy around simplicity, with separate messaging for buyers, merchants and developers.
+- Recommended order: journey/screen-state definition; early provider compatibility spike; wallet connection and balance discovery; direct execution only if confirmed; integrate and polish checkout; finish merchant/developer/public-site redesign; mobile and end-to-end acceptance; update demo and submission docs.
+- No production deployment, merge, mainnet activation or payment initiation without explicit approval.
+
+---
+
 # Preview integration and migration audit — 7 November 2026
 
 - Read-only Cloudflare Pages deployment inspection confirms the latest active-branch Preview deployment is `bf42d182-f628-4073-b7b2-e4f8f7847475`, commit `3acdaa917dd796f3a9c652defbcd97361fb82e91`, with build and deploy stages successful. The stable Preview alias remains `https://reliability-background-recon.pelargo.pages.dev`. This is a deployment check, not an independent merchant-origin checkout acceptance test.
