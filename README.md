@@ -1,8 +1,10 @@
 # Pelargo
 
-**One checkout. Cross-chain payments. Independently verified settlement.**
+**One embeddable checkout. Cross-chain payments. Independently verified settlement.**
 
-Pelargo is a merchant-first, non-custodial crypto checkout and settlement-verification layer. Merchants create orders and hosted checkout sessions; buyers pay through a supported provider route; Pelargo independently verifies destination settlement before marking an order paid.
+Pelargo is a merchant-first, non-custodial cross-chain payment checkout. Merchants integrate a checkout widget into their own storefront or use hosted checkout; customers pay with supported digital assets, including stablecoins such as USDC, across available networks. Pelargo manages the merchant order and checkout lifecycle, then independently verifies destination-chain settlement before marking an order paid.
+
+The widget is the customer-facing payment experience. The settlement-verification layer is the infrastructure behind it. Pelargo is not limited to stablecoins, and it does not claim that every asset or network is currently supported.
 
 ## Demo and source
 
@@ -18,12 +20,12 @@ The main and candidate URLs are non-production Preview deployments using the iso
 
 ## The problem Pelargo addresses
 
-A submitted wallet transaction or a provider's success response is not proof that a merchant received the expected asset. Pelargo maintains the merchant/order lifecycle and independently checks destination-chain settlement before declaring an order paid.
+Merchants need a checkout experience they can place inside their existing storefront without having to build cross-chain payment orchestration and settlement checks themselves. A submitted wallet transaction, source-chain deposit, or provider success response is not proof that the merchant received the expected destination asset. Pelargo gives merchants an embeddable payment surface and owns the order lifecycle behind it, including independent destination-chain verification before an order is marked paid.
 
 ## How it works
 
 1. A merchant creates an order and requests a short-lived, signed buyer checkout session.
-2. The buyer opens hosted checkout and connects a supported wallet.
+2. The buyer uses the embedded Pelargo checkout widget or its hosted-checkout equivalent and connects a supported wallet.
 3. Pelargo obtains a quote and deposit instructions from its configured provider.
 4. The buyer submits the source-chain payment.
 5. Pelargo verifies the expected destination-chain transfer and persists matching settlement evidence.
@@ -54,11 +56,11 @@ This is a manual acceptance result, not exhaustive compatibility testing across 
 
 These testnet results do not establish mainnet or production readiness. A single observed duration is not a latency benchmark or guarantee. No additional payment is needed merely to repeat the demonstrated route.
 
-## Merchant integration
+## Merchant integration and checkout widget
 
-The current integration pattern is server-side merchant authentication and checkout-session creation, followed by a redirect or embed using a short-lived buyer session token. Merchant API keys must remain on the merchant server.
+The checkout widget is Pelargo's primary customer-facing product surface. A merchant authenticates server-side, creates an order and short-lived checkout session, then places the Pelargo custom element in its storefront or sends the buyer to the hosted-checkout equivalent. The widget presents the payment experience; Pelargo's API and lifecycle services bind that session to the merchant's order and verify settlement. Merchant API keys must remain on the merchant server.
 
-The repository includes a custom-element embed and integration documentation. It does not currently provide a stable published SDK/CDN package, Shopify or WooCommerce plugin, or merchant webhook delivery. See [docs/INTEGRATION.md](docs/INTEGRATION.md) and [docs/EXTERNAL_MERCHANT_TEST.md](docs/EXTERNAL_MERCHANT_TEST.md).
+The repository includes a custom-element embed and integration documentation. This is an implemented integration pattern, not yet a stable published SDK/CDN package. Pelargo does not currently provide Shopify or WooCommerce plugins or merchant webhook delivery. Supported assets and networks are limited to implemented and provider-available routes; stablecoins such as USDC are supported where a route exists, but stablecoins are not the only intended asset class. See [docs/INTEGRATION.md](docs/INTEGRATION.md) and [docs/EXTERNAL_MERCHANT_TEST.md](docs/EXTERNAL_MERCHANT_TEST.md).
 
 ## Architecture
 
