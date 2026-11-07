@@ -257,3 +257,17 @@ A source token appearing in the catalogue does not guarantee that every destinat
 The current wallet transfer path is narrower still: injected EIP-1193 wallets on Base Sepolia, for provider-listed Base Sepolia ERC-20 assets matching the recognized asset-ID format. Wallet connection compatibility and provider route compatibility are independent. Adding WalletConnect or another wallet connector would not add provider liquidity, new supported assets, new routes or new destination verifiers.
 
 There is no second live provider, automatic provider failover or Pelargo-operated routing/liquidity engine in the current build. The provider adapter boundary is a future extension point, not evidence of provider independence today. Merchant integrations should treat the supported-token endpoint and quote response as authoritative at checkout time and must not hardcode assumptions about universal coverage.
+
+
+## Provider selection, fallback and network pinning
+
+The Worker supports two allowlisted provider origins through the server-side `INTENTS_API_BASE_URL` setting:
+
+- Official NEAR 1Click mainnet: `https://1click.chaindefuser.com`. This is selected when the setting is unset. Configure the partner JWT only as the encrypted server-side `ONECLICK_JWT` secret when required.
+- Tidepool community testnet: `https://www.usetidepool.tech`. This is explicitly configured in the current Preview environment and is the testnet/development fallback.
+
+The provider selector in `functions/_lib/intents.ts` validates the exact HTTPS origin and assigns the network classification. Mainnet committed quotes require the separate `ALLOW_MAINNET_DEPOSITS=true` gate; keep it unset for the hackathon. Testnet commits use `ALLOW_TESTNET_DEPOSITS=true` in Preview.
+
+Only one provider is selected for a given environment/configuration. There is no runtime provider race, health-based failover, quote comparison or automatic retry against a second provider. Tidepool testnet is not a transparent failover for an official 1Click mainnet quote. Provider and network identity must be pinned to every committed quote/order. If a provider is unavailable before quote commitment, an operator may deliberately switch configuration and create a new dry quote in the same supported network environment. Never switch a committed quote, reuse its deposit address with another provider, or automatically create a second committed quote.
+
+Additional providers can be supported through explicit adapters. Before enabling one, validate token ID namespace, chain/network IDs, quote amount semantics, quote signatures, deposit address and memo behavior, deadlines, status transitions, deposit-submit semantics, refund behavior, authentication, fee model and independent destination verification. Do not expose an asset merely because a provider lists it; Pelargo must support its source-deposit handling and destination settlement verification.
