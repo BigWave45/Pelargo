@@ -8,19 +8,13 @@ The test is deliberately non-payment. It does not call the quote endpoint, commi
 
 ## Preview target
 
-Use the non-production Preview deployment for the `test/external-merchant-integration` branch after Cloudflare Pages reports a successful deployment. Do not point this test at Production.
+The hosted GitHub Actions workflow checks out `reliability/background-reconciliation` and targets `https://reliability-background-recon.pelargo.pages.dev`. It is manually triggered and uses repository Actions secrets. Do not point this test at Production.
 
 ## Run
 
 Use a trusted server or local development environment. Do not put the merchant key in browser JavaScript, a public repository, a URL, a screenshot or chat.
 
-Set:
-
-```sh
-PELARGO_API_URL=https://<verified-preview-host>
-PELARGO_MERCHANT_API_KEY=<new-test-merchant-key>
-PELARGO_TEST_RECIPIENT=agentg.testnet
-```
+For the hosted acceptance run, configure the repository Actions secrets `PELARGO_TEST_MERCHANT_API_KEY` and `PELARGO_OTHER_TEST_MERCHANT_API_KEY` with keys from two separate Preview test merchants. The workflow sets the Preview URL and test recipient. Do not paste keys into chat or commit them.
 
 Then run:
 
@@ -46,7 +40,7 @@ The script creates one uniquely named pending order for 1 USDC on the configured
 - A second merchant key, when supplied, cannot retrieve the first merchant's order (HTTP 404).
 - An order with no committed quote has no deposit/payment status (`DEPOSIT_NOT_CREATED`, HTTP 409).
 
-Set `PELARGO_OTHER_MERCHANT_API_KEY` to enable the cross-merchant isolation assertion.
+The hosted workflow supplies the second merchant key through `PELARGO_OTHER_TEST_MERCHANT_API_KEY`; the cross-merchant isolation assertion is included in the seven-check acceptance run.
 
 ## Cleanup
 
