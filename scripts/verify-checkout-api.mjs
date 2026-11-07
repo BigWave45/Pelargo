@@ -1007,6 +1007,11 @@ try {
     destinationHash,
     "the verified later candidate must replace the first intermediate candidate before evidence is committed",
   );
+  assert.equal(
+    sqlite.query("SELECT destination_tx_hash FROM payment_lifecycle WHERE order_id = (SELECT id FROM checkout_orders WHERE external_order_id = ?)").get("order-001").destination_tx_hash,
+    destinationHash,
+    "the legacy destination_tx_hash field must match immutable verified settlement evidence",
+  );
   const settledOrder = sqlite.query(
     "SELECT o.status AS order_status, p.status AS payment_status FROM checkout_orders o JOIN payment_lifecycle p ON p.order_id = o.id WHERE o.external_order_id = ?"
   ).get("order-001");
