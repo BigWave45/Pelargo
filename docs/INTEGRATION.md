@@ -2,7 +2,7 @@
 
 ## Buyer checkout capabilities
 
-The embedded widget supports source-asset selection, dry quote preview and an explicit buyer confirmation before requesting a committed quote. A committed quote creates provider deposit instructions; it does not send funds. Before showing instructions, the widget validates the provider correlation ID, deposit address and exact positive atomic source amount. It displays the committed amount, address, optional memo and deadline, with copy controls. The buyer must manually send the exact testnet asset and amount using a wallet on the selected source network.
+The embedded widget supports source-asset selection, dry quote preview and an explicit buyer confirmation before requesting a committed quote. A committed quote creates provider deposit instructions; it does not itself send funds. The current draft branch also supports an optional injected EIP-1193 wallet transfer for eligible Base Sepolia ERC-20 quotes: it uses the exact provider asset contract, committed deposit address and exact atomic source amount. MetaMask asynchronous provider detection is hardened. The manual deposit-address path remains available. WalletConnect and non-EVM wallet signing are not implemented. Before showing instructions, the widget validates the provider correlation ID, deposit address and exact positive atomic source amount.
 
 After instructions are created, the widget polls `GET /api/payment-status?orderId=...` every five seconds with the signed checkout session in the `Authorization: Bearer` header. The API verifies the signature, stored token hash, committed session state and order binding. A buyer session cannot query another order. Merchant server-side polling continues to use `x-pelargo-merchant-key`.
 
@@ -12,15 +12,15 @@ The buyer committed-quote and polling paths have mocked integration coverage. A 
 
 
 
-### Wallet-first checkout roadmap (planned; not yet implemented)
+### Wallet-first checkout (partially implemented; acceptance pending)
 
-The hackathon direction is to add an optional connected-wallet path, beginning with Base. Treat wallet connection, chain/address detection, supported-token balance discovery, and transaction execution as separate capabilities. A connected address and visible balance do not establish that Pelargo can execute a payment from that wallet.
+The implemented first wallet path is Base Sepolia using injected EIP-1193 wallets. Treat wallet connection, chain/address detection, supported-token balance discovery and transaction execution as separate capabilities. A connected address and visible balance do not establish that a payment was detected or settled.
 
 Before implementing direct signing, verify the active Tidepool/1Click provider response and determine whether it supplies the exact transaction/deposit parameters required for the connected wallet, including chain, token, destination, amount, calldata or transfer instructions, expiry and any memo/tag requirements. Confirm whether the provider expects a deposit-address transfer or supports a wallet-submitted transaction. Do not infer direct execution support from quote availability alone.
 
 The intended buyer sequence is: open checkout; explicitly choose Connect wallet; connect a supported Base wallet; detect the connected network and eligible balances; request/refresh a quote; show the source amount, merchant settlement amount, fees/route and expiry; ask the wallet to approve the exact transaction; track provider and destination settlement states. Handle wrong-network, insufficient-balance, rejected-signature, expired-quote, pending, failed and completed states explicitly.
 
-Until direct execution has been implemented and tested end to end, the existing deposit-address/manual-transfer flow remains available and is the only documented implemented buyer payment path. Never claim automatic wallet discovery, arbitrary-wallet support or universal network coverage. Keep merchant API keys server-side and preserve the current signed checkout-session authorization boundary.
+The direct Base Sepolia wallet transfer is implemented but still requires mobile browser acceptance, provider deposit detection and independent NEAR settlement verification on a fresh order. Never claim automatic wallet discovery, arbitrary-wallet support or universal network coverage. Keep merchant API keys server-side and preserve the current signed checkout-session authorization boundary.
 
 ## Security model
 
