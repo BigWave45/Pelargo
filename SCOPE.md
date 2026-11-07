@@ -21,12 +21,12 @@ The implemented destination verifier supports NEAR NEP-141 tokens only. The curr
 - [x] Merchant destination settings and merchant-scoped order APIs.
 - [x] Merchant-authenticated checkout-session creation and short-lived signed buyer sessions.
 - [x] Provider asset discovery, dry quote preview and explicit committed-quote flow.
-- [x] Provider deposit instructions are validated and displayed; buyer sends funds from their own wallet.
+- [x] Provider deposit instructions are validated and displayed; eligible Base Sepolia ERC-20 quotes support an EIP-1193 wallet transfer, with a manual deposit-address path also available.
 - [x] Base Sepolia source-deposit verification and provider notification.
 - [x] Complete dual-chain acceptance for `ORDER-35541967`: Base Sepolia source-deposit evidence and independently verified NEAR NEP-141 destination-settlement evidence for exactly 1 USDC delivered to `agentg.testnet`.
 - [x] Separate destination-settlement evidence for `ORDER-83587591`: independently verified NEAR NEP-141 transfer for exactly 1 USDC to `agentg.testnet`. This order also has a source-deposit evidence record, but the source amount differs from the destination amount due to route conversion/fees; do not substitute this record for the explicitly documented `ORDER-35541967` complete dual-chain acceptance example.
 - [x] Merchant dashboard access restored; the 7 November order-history view shows six records: one `settled`, three `awaiting_deposit`, and two `expired`. The three awaiting-deposit records are unpaid checkouts; the two expired records are terminal expiries. This is a dashboard observation, not a fresh D1 reconciliation.
-- [x] Settled payment status handler changed to return persisted immutable evidence without polling the provider or mutating lifecycle state; regression test added. CI and Preview deployment for these latest commits still require verification.
+- [x] Settled payment status handler returns persisted immutable evidence without polling the provider or mutating lifecycle state; regression test is included in the merged `main` source and current main Preview build.
 
 ## Implemented but not operationally verified
 
