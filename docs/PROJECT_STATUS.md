@@ -153,3 +153,8 @@ The adapter boundary should be extended for additional compatible providers only
 - Preview D1 was re-read after the implementation. `ORDER-35541967` remains `processing`, provider status `SUCCESS`, candidate `9myMAuSbY4NAcCWDkhZUWqQLGTW47Z2dkrxjhGgtJspS`; no D1 rows were changed by this work.
 - The latest source commits are deployed through Cloudflare Pages Preview only. Production branch `build/live-intents`, Production D1, and Production deployment were not modified.
 - Still outstanding: execute the committed API regression script, trigger a status poll on the existing order in Preview, inspect the new diagnostic stages and runtime logs, and independently confirm the exact NEP-141 receipt before any settled transition.
+
+
+### Bounded testnet signer-recovery diagnostics (7 November 2026)
+
+The testnet fallback now scans a configurable, bounded window ending eight blocks after the first finalized block at or after Tidepool's provider update timestamp. The default is 120 blocks (mostly before the provider timestamp), configurable with the server-side `NEAR_TX_RECOVERY_WINDOW_BLOCKS` setting from 8 to 600. The fallback reports the searched height range, block count, and non-empty chunk count in bounded verification diagnostics. It still requires a unique matching transaction signer followed by canonical `EXPERIMENTAL_tx_status` finality and exact NEP-141 receipt verification. The merchant workspace now displays candidate-specific verification stages and bounded scan details on 503 responses. This is diagnostic and recovery coverage, not proof that the existing stuck payment will settle; the fallback has not yet been live-validated against that order. Do not resubmit its source deposit.
