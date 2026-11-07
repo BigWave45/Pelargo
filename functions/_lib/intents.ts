@@ -26,9 +26,42 @@ const MAINNET_API_BASE = "https://1click.chaindefuser.com";
 const TESTNET_API_BASE = "https://www.usetidepool.tech";
 
 export type IntentsNetwork = "mainnet" | "testnet";
+export type IntentsProviderId = "near-1click" | "tidepool";
 
-/** Restrict provider selection to official 1Click or the community Tidepool sandbox. */
-export function intentsProvider(env: Env): { baseUrl: string; network: IntentsNetwork } {
+/** Adapter contract for explicitly registered NEAR Intents API providers. */
+export interface IntentsProviderAdapter {
+  id: IntentsProviderId;
+  displayName: string;
+  baseUrl: string;
+  network: IntentsNetwork;
+  apiPrefix: "/v0";
+  applyAuthentication(headers: Headers, env: Env): void;
+}
+
+const PROVIDER_ADAPTERS: readonly IntentsProviderAdapter[] = [
+  {
+    id: "near-1click",
+    displayName: "NEAR 1Click",
+    baseUrl: MAINNET_API_BASE,
+    network: "mainnet",
+    apiPrefix: "/v0",
+    applyAuthentication(headers, env) {
+      if (env.ONECLICK_JWT) headers.set("authorization", `Bearer ${env.ONECLICK_JWT}`);
+    },
+  },
+  {
+    id: "tidepool",
+    displayName: "Tidepool",
+    baseUrl: TESTNET_API_BASE,
+    network: "testnet",
+    apiPrefix: "/v0",
+    // Never forward the official 1Click partner JWT to the Tidepool sandbox.
+    applyAuthentication() {},
+  },
+];
+
+/** Resolve one explicitly configured adapter for this environment. */
+export function intentsProviderAdapter(env: Env): IntentsProviderAdapter {
   const configured = env.INTENTS_API_BASE_URL || MAINNET_API_BASE;
   let parsed: URL;
   try { parsed = new URL(configured); }
@@ -36,9 +69,15 @@ export function intentsProvider(env: Env): { baseUrl: string; network: IntentsNe
   if (parsed.protocol !== "https:" || parsed.pathname !== "/" || parsed.search || parsed.hash) {
     throw new Error("INTENTS_API_BASE_URL must be an HTTPS origin without a path, query or fragment");
   }
-  if (parsed.origin === MAINNET_API_BASE) return { baseUrl: parsed.origin, network: "mainnet" };
-  if (parsed.origin === TESTNET_API_BASE) return { baseUrl: parsed.origin, network: "testnet" };
-  throw new Error("Unsupported NEAR Intents provider origin");
+  const adapter = PROVIDER_ADAPTERS.find((candidate) => candidate.baseUrl === parsed.origin);
+  if (!adapter) throw new Error("Unsupported NEAR Intents provider origin");
+  return adapter;
+}
+
+/** Backwards-compatible network metadata for existing quote/deposit gates. */
+export function intentsProvider(env: Env): { baseUrl: string; network: IntentsNetwork } {
+  const adapter = intentsProviderAdapter(env);
+  return { baseUrl: adapter.baseUrl, network: adapter.network };
 }
 
 export function json(data: unknown, status = 200): Response {
@@ -62,14 +101,12 @@ export async function intentsRequest(
   const headers = new Headers(init.headers);
   headers.set("accept", "application/json");
   if (init.body) headers.set("content-type", "application/json");
-  const provider = intentsProvider(env);
-  // Never forward a mainnet partner JWT to the testnet sandbox.
-  if (provider.network === "mainnet" && env.ONECLICK_JWT) {
-    headers.set("authorization", `Bearer ${env.ONECLICK_JWT}`);
-  }
+  const provider = intentsProviderAdapter(env);
+  provider.applyAuthentication(headers, env);
 
-  // The upstream API may redirect. Both possible origins are allowlisted.
-  return fetch(`${provider.baseUrl}/v0/${path}`, {
+  // The upstream API may redirect. Only explicitly registered provider
+  // origins are eligible for requests.
+  return fetch(`${provider.baseUrl}${provider.apiPrefix}/${path}`,
     ...init,
     headers,
     redirect: "follow",
