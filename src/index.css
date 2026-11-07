@@ -1,3 +1,5 @@
 @import "./styles/tokens.css";
 @import "./styles/widget.css";
 @import "./styles/checkout-premium.css";
+
+@import "./styles/checkout.css";
