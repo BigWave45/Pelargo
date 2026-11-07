@@ -332,7 +332,8 @@ export function PelargoCheckout({
   const selectedSource = sourceTokens.find((token) => token.assetId === sourceAssetId);
   const baseTokenContract = selectedSource ? baseSepoliaTokenContract(selectedSource.assetId) : null;
   const walletOnBaseSepolia = walletChainId.toLowerCase() === BASE_SEPOLIA_CHAIN_ID;
-  const walletCanPay = Boolean(walletAddress && walletOnBaseSepolia && baseTokenContract && paymentInstructions && !walletTxHash);
+  const walletAccountMatchesQuote = !paymentInstructions || walletAddress.toLowerCase() === refundTo.trim().toLowerCase();
+  const walletCanPay = Boolean(walletAddress && walletOnBaseSepolia && baseTokenContract && paymentInstructions && walletAccountMatchesQuote && !walletTxHash);
 
   async function connectWallet() {
     setError("");
@@ -491,7 +492,7 @@ export function PelargoCheckout({
       };
     }
     return () => detach();
-  }, [activeWalletProvider]);
+  }, [activeWalletProvider, paymentInstructions, quote]);
 
   useEffect(() => {
     let cancelled = false;
@@ -777,6 +778,7 @@ export function PelargoCheckout({
             <>
               <div className="pelargo-quote-detail"><span>Connected account</span><code>{walletAddress.slice(0, 8)}…{walletAddress.slice(-6)}</code></div>
               <div className="pelargo-quote-detail"><span>Network</span><strong>{walletOnBaseSepolia ? "Base Sepolia" : `Wrong network (${walletChainId})`}</strong></div>
+              {paymentInstructions && !walletAccountMatchesQuote && <div className="pelargo-error" role="alert">This quote is bound to the original refund wallet. Reconnect that wallet to pay, or ask the merchant for a new checkout quote.</div>}
               {walletOnBaseSepolia && <div className="pelargo-quote-detail"><span>{selectedSource.symbol} balance</span><strong>{walletBalanceLoading ? "Checking…" : walletBalance || "Unavailable"}</strong></div>}
               {!walletOnBaseSepolia && <button type="button" className="pelargo-quote-button" onClick={switchToBaseSepolia} disabled={walletBusy}>Switch to Base Sepolia</button>}
               <button type="button" className="pelargo-text-button" onClick={connectWallet} disabled={walletBusy}>Reconnect wallet</button>
