@@ -568,7 +568,7 @@ export default function App() {
 });
 if (!response.ok) throw new Error("Pelargo session creation failed");
 const { token } = await response.json();
-const checkoutUrl = `https://design-blue-white-premium.pelargo.pages.dev/#checkout=${encodeURIComponent(token)}`;
+const checkoutUrl = "https://design-blue-white-premium.pelargo.pages.dev/#checkout=" + encodeURIComponent(token);
 // Return checkoutUrl to the authenticated buyer/order page.`);setApiKeyNotice("Server example copied.");}}><Copy size={12}/> Copy example</button></div><pre>{`const response = await fetch("https://design-blue-white-premium.pelargo.pages.dev/api/checkout-session", {
   method: "POST",
   headers: {
@@ -588,7 +588,7 @@ const checkoutUrl = `https://design-blue-white-premium.pelargo.pages.dev/#checko
 });
 if (!response.ok) throw new Error("Pelargo session creation failed");
 const { token } = await response.json();
-const checkoutUrl = `https://design-blue-white-premium.pelargo.pages.dev/#checkout=${encodeURIComponent(token)}`;
+const checkoutUrl = "https://design-blue-white-premium.pelargo.pages.dev/#checkout=" + encodeURIComponent(token);
 // Return checkoutUrl to the authenticated buyer/order page.`}</pre><div className="code-panel-foot">The amount and amountAtomic values above are illustrative only. Send the exact order amount in human-readable units and an integer atomic-unit string using the configured destination token's decimals. The destination asset, symbol, network and recipient must match your merchant configuration.</div></div>
           </section>
           <section className="workspace-card api-card">
