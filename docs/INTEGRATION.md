@@ -316,3 +316,13 @@ The testnet RPC signer-recovery scan now processes blocks nearest the provider t
 
 
 For an order whose Pelargo lifecycle is already `settled`, the recovery endpoint accepts the request only if the provider status still independently reports `SUCCESS`. Any other provider state is rejected with `SETTLED_ORDER_PROVIDER_MISMATCH`. This allows source-evidence backfill without reopening settlement or resubmitting the already-completed source transfer.
+
+## Verified source and destination evidence for ORDER-35541967
+
+As of 7 November 2026, Preview D1 contains both the source-deposit evidence and destination-settlement evidence for testnet order `ORDER-35541967`. Integrators should distinguish these records: the Base Sepolia source receipt proves the quoted input reached the provider deposit address; the NEAR settlement receipt independently proves the exact destination token transfer to the merchant recipient. Neither provider `SUCCESS` nor a source receipt alone is sufficient to mark the order paid.
+
+The source record is for Base Sepolia transaction `0x886ff617f13d6eddb23d376eaf2437a90082b610f8c006de743b5df1a5464d5c`, token `0x38d81431b9f76d9699af7517040d5221d9dea252`, deposit address `0x8bdce93d4ff3cd7555f5eb1c29dc229e7c719178`, amount `1012633` atomic units (1.012633 USDC), block `55569210`, with 37,260 confirmations and `chain_rpc` verification.
+
+The destination record is for NEAR testnet transaction `9myMAuSbY4NAcCWDkhZUWqQLGTW47Z2dkrxjhGgtJspS`, token contract `usdc.tidepool-sandbox.testnet`, recipient `agentg.testnet`, amount `1000000` atomic units (1 USDC), block `276599398`, with 10,063 confirmations and `chain_rpc` verification. The order reads back as `paid` in `checkout_orders` and `settled` in `payment_lifecycle`.
+
+The post-success source-evidence recovery request is non-submitting: when the provider already reports `SUCCESS`, it verifies and records the original source transaction but does not call `deposit/submit`, re-run destination settlement, or change the existing destination evidence. For this order, the UI confirmed that the provider was not notified again. These values are a verified Preview testnet example, not a guarantee of future route availability or mainnet behavior.
