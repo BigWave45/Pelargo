@@ -10,6 +10,18 @@ Provider `SUCCESS` alone is insufficient. The order becomes paid only after inde
 
 The buyer committed-quote and polling paths have mocked integration coverage. A live testnet payment has also been executed for ORDER-83587591: Pelargo verified the Base Sepolia source deposit, then independently verified the exact NEAR NEP-141 destination transfer through canonical NEAR RPC and persisted immutable settlement evidence in Preview D1. The merchant has since signed in successfully. The 7 November dashboard history shows six records: one settled, three awaiting deposit, and two expired. The three awaiting-deposit records are unpaid checkouts; the two expired records are terminal expiries. This UI snapshot is distinct from a fresh D1 audit and does not prove the scheduled Worker's operation. This proves one testnet payment path, not production readiness. Do not use this integration to collect real customer funds.
 
+
+
+### Wallet-first checkout roadmap (planned; not yet implemented)
+
+The hackathon direction is to add an optional connected-wallet path, beginning with Base. Treat wallet connection, chain/address detection, supported-token balance discovery, and transaction execution as separate capabilities. A connected address and visible balance do not establish that Pelargo can execute a payment from that wallet.
+
+Before implementing direct signing, verify the active Tidepool/1Click provider response and determine whether it supplies the exact transaction/deposit parameters required for the connected wallet, including chain, token, destination, amount, calldata or transfer instructions, expiry and any memo/tag requirements. Confirm whether the provider expects a deposit-address transfer or supports a wallet-submitted transaction. Do not infer direct execution support from quote availability alone.
+
+The intended buyer sequence is: open checkout; explicitly choose Connect wallet; connect a supported Base wallet; detect the connected network and eligible balances; request/refresh a quote; show the source amount, merchant settlement amount, fees/route and expiry; ask the wallet to approve the exact transaction; track provider and destination settlement states. Handle wrong-network, insufficient-balance, rejected-signature, expired-quote, pending, failed and completed states explicitly.
+
+Until direct execution has been implemented and tested end to end, the existing deposit-address/manual-transfer flow remains available and is the only documented implemented buyer payment path. Never claim automatic wallet discovery, arbitrary-wallet support or universal network coverage. Keep merchant API keys server-side and preserve the current signed checkout-session authorization boundary.
+
 ## Security model
 
 The merchant dashboard uses a separate opaque, server-side session stored in an HttpOnly, Secure, SameSite=Lax cookie. Passwords are PBKDF2-hashed; session tokens are random and only their SHA-256 hashes are stored. Registration and login attempts are rate-limited. The browser never receives the merchant API key.
