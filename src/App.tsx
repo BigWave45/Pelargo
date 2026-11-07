@@ -286,16 +286,13 @@ export default function App() {
         method: "POST",
         body: JSON.stringify({ orderId: recoveryOrderId, transactionHash: sourceTransactionHash.trim() }),
       });
-      const settlement = await api<{ paymentStatus: string; providerStatus: string; settlement: string }>(
-        `/api/payment-status?orderId=${encodeURIComponent(recoveryOrderId)}`
-      ).catch(() => null);
       await refreshWorkspace();
-      setNotice(settlement?.settlement === "verified"
-        ? "Source deposit verified. Destination settlement independently verified; order is paid."
-        : `Source deposit verified and provider notified. Provider status: ${settlement?.providerStatus || result.providerStatus}. Provider source hashes: ${result.originChainTxHashes?.join(", ") || "none reported"}. Provider NEAR hashes: ${result.nearTxHashes?.join(", ") || "none reported"}. Destination hashes: ${result.destinationChainTxHashes?.join(", ") || "none reported"}. Settlement: ${settlement?.settlement || "pending provider confirmation"}.`);
+      setNotice(result.providerNotification === "not_resubmitted_provider_already_successful"
+        ? "Source transaction verified and evidence recorded. Existing destination settlement remains unchanged. The provider was not notified again."
+        : `Source transaction verified. Provider notification: ${result.providerNotification}. Provider status: ${result.providerStatus}.`);
       setSourceTransactionHash("");
       setRecoveryOrderId("");
-    } catch (e) { setError(e instanceof Error ? e.message : "Unable to reconcile source deposit."); }
+    } catch (e) { setError(e instanceof Error ? e.message : "Unable to verify source transaction."); }
     finally { setRecoveryBusy(false); }
   }
 
