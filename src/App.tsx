@@ -6,6 +6,7 @@ import {
   Settings2, ShieldCheck, Wallet, Code2, Link2, RefreshCw
 } from "lucide-react";
 import "./styles/workspace.css";
+import "./styles/workspace-premium.css";
 
 type Merchant = { id: string; name: string; email: string };
 type Settings = {
