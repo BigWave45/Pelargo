@@ -3,14 +3,15 @@
 **Updated:** 7 November 2026 (judge-readiness audit)  
 **Repository:** https://github.com/BigWave45/Pelargo  
 **Default branch:** `main`  
-**Merged release candidate:** `release/hackathon-candidate` via PR #7  
+**Merged release baseline:** `main` (PR #7 release consolidation; subsequent documentation updates through PR #15)  
 **Integrated Preview:** `reliability/background-reconciliation`  
 **Cloudflare Pages production branch:** `build/live-intents`
 
 ## Canonical release state
 
 - PR #7, "Release candidate: consolidate verified Pelargo checkout", was merged into `main`.
-- Documentation and metadata PRs #8–#15 were subsequently merged; latest merged commit at audit start was `aafe4575f17ec45be7ba1deac94b6f3372ac484a` (PR #14). PR #15 is `7a68207f73b4a6a0c8ef6bed678aec8dafe4a4d2`.
+- Documentation and metadata PRs #8–#15 were subsequently merged. The latest merged main commit at the start of the current documentation review is PR #15 merge commit `7a68207f73b4a6a0c8ef6bed678aec8dafe4a4d2`.
+- PR #16 is an open, unmerged judge-readiness documentation review. Do not treat its content as part of the `main` release until it is merged.
 - Merge commit: `d18ae93a3eda3263eadc420cb951f4ebe52b2764`.
 - The merged release includes the verified MetaMask Connect SDK handoff for external mobile browsers, the injected EIP-1193 provider path inside MetaMask Mobile, Reown AppKit for other supported wallet sessions, matching package/lock files, and aligned README, integration, testing and status documentation.
 - The historical integrated branch's 500+ commit history was not merged wholesale. PR #4 remains closed and unused.
@@ -22,11 +23,11 @@ Cloudflare Pages project: `pelargo`.
 
 - Production branch remains `build/live-intents`.
 - The stable built-in hostname `https://pelargo.pages.dev` remains attached to the existing production deployment. It has not been switched.
-- The merge commit `d18ae93a3eda3263eadc420cb951f4ebe52b2764` automatically produced a successful Preview deployment at `https://main.pelargo.pages.dev`.
+- The curated release merge and subsequent documentation-only updates have produced Preview deployments at `https://main.pelargo.pages.dev`.
 - That deployment is a Preview environment and uses Preview D1 database `0335acdc-f0e0-42f6-ba87-e3448fb91728`.
 - The older candidate alias remains `https://release-hackathon-candidate.pelargo.pages.dev`.
 - The integrated acceptance Preview remains `https://reliability-background-recon.pelargo.pages.dev`; it is not the recommended judge-facing demo.
-- Audit-baseline main Preview deployment checked on 7 November 2026 before PR #16: `aafe4575f17ec45be7ba1deac94b6f3372ac484a`, deployment `e42e77f5-d371-4b86-84f6-e0df473a2b1f`, successful `deploy` stage, alias `https://main.pelargo.pages.dev`. Verify the latest Pages deployment after PR #16 merges.
+- The exact deployment baseline and commit must be checked against Cloudflare Pages before any future release claim. A GitHub merge or successful Preview build does not change the Cloudflare production branch or production database.
 
 **Recommended public demo URL:** https://main.pelargo.pages.dev
 
@@ -62,7 +63,7 @@ The demonstrated Preview route is a provider-supported Base Sepolia ERC-20 sourc
 
 Read-only Cloudflare configuration inspection on 7 November 2026 confirms Worker `pelargo-expiry-sweeper-preview` exists, has the encrypted `RECONCILIATION_SECRET` binding, uses Preview D1 `0335acdc-f0e0-42f6-ba87-e3448fb91728`, has Tidepool testnet configuration and has Cron `*/5 * * * *`. The Preview D1 migration ledger includes migrations 0019 and 0020; schema inspection confirms persisted signer-scan fields. A read-only queue query found six `awaiting_deposit` jobs and no missing queue rows for that eligible state. This proves deployment/configuration and queued work, not that a scheduled invocation has claimed or successfully processed a real eligible payment. No live scheduled-job success is claimed.
 
-See [TESTING.md](TESTING.md) for the full evidence record and limitations.
+See [TESTING.md](TESTING.md) for the full evidence record and limitations. See [JUDGE_GUIDE.md](JUDGE_GUIDE.md) for the safe evaluator path, [architecture.md](architecture.md) for system boundaries, [threat-model.md](threat-model.md) for risks, and [verification-matrix.md](verification-matrix.md) for evidence classification.
 
 ## Safety and limitations
 
