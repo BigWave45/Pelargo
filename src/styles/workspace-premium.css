@@ -1,0 +1,88 @@
+/* Pelargo merchant workspace — blue/white financial operations UI */
+:root { color: #14213b; background: #f5f7fb; font-family: "DM Sans", Inter, ui-sans-serif, system-ui, sans-serif; font-synthesis: none; text-rendering: optimizeLegibility; }
+body { background: #f5f7fb; color: #14213b; }
+.workspace { background: #f5f7fb; color: #14213b; }
+.workspace-sidebar { background: #fff; border-color: #e4eaf3; }
+.workspace-brand { color: #14213b; }
+.workspace-brand-mark { background: #1746c8; border-radius: 7px; }
+.workspace-side-label, .eyebrow { color: #687994; }
+.workspace-nav-item { color: #53627b; border-radius: 7px; }
+.workspace-nav-item:hover { background: #f4f7fc; color: #14213b; }
+.workspace-nav-item.is-active { background: #edf3ff; color: #1746c8; }
+.workspace-topbar { background: #fff; border-color: #e4eaf3; }
+.workspace-breadcrumb { color: #718099; }
+.workspace-breadcrumb strong { color: #263954; }
+.workspace-content { max-width: 1280px; }
+.workspace h1 { color: #14213b; font-weight: 700; letter-spacing: -.045em; }
+.workspace h2, .workspace h3 { color: #1b2c49; }
+.workspace-subtitle, .section-heading p, .card-heading p, .form-panel-heading p { color: #64748b; }
+.eyebrow { color: #1746c8; }
+.quiet-button { background: #fff; border-color: #dce4ef; color: #34445f; }
+.quiet-button:hover { background: #f7f9fc; border-color: #b9c8df; }
+.primary-button { background: #1746c8; border-color: #1746c8; border-radius: 7px; }
+.primary-button:hover:not(:disabled) { background: #123aa7; border-color: #123aa7; }
+.welcome-panel { background: #1746c8; border-radius: 10px; box-shadow: none; }
+.welcome-panel p { color: #e0e9ff; }
+.eyebrow.light { color: #d2dfff; }
+.welcome-link { color: #fff; }
+.orbit-core { background: #3974f6; box-shadow: none; }
+.orbit { border-color: rgba(255,255,255,.25); }
+.orbit-node { background: #1d50cc; border-color: rgba(255,255,255,.4); color: #fff; }
+.status-outline, .draft-pill, .muted-tag { color: #52627b; background: #fff; border-color: #dce4ef; }
+.setup-card, .workspace-card, .form-panel, .integration-panel, .checkout-preview { background: #fff; border-color: #e2e9f2; box-shadow: none; }
+.setup-card { border-radius: 9px; }
+.setup-card:hover { border-color: #9cb6ed; box-shadow: 0 4px 14px rgba(20,45,90,.045); }
+.setup-icon, .form-icon, .integration-icon { background: #edf3ff; color: #1746c8; border-radius: 7px; }
+.setup-card-copy strong, .empty-state strong, .workspace-profile-copy strong { color: #1b2c49; }
+.setup-card-copy small, .empty-state p, .readiness-note, .workspace-help, .workspace-profile-copy span { color: #64748b; }
+.setup-card-copy em { color: #1746c8; }
+.workspace-sidebar-bottom, .workspace-footer { border-color: #e4eaf3; }
+.workspace-avatar { background: #edf3ff; color: #1746c8; }
+.workspace-help { border-color: #e4eaf3; }
+.readiness-row { color: #40516c; border-color: #e9eef5; }
+.state-unverified { color: #875b16; }
+.state-pending { color: #687994; }
+.form-panel-heading { border-color: #e6ecf4; }
+.field-label { color: #34445f; }
+.workspace-input, .token-search, .token-toolbar select { border-color: #d7e0ed; border-radius: 7px; color: #14213b; background: #fff; }
+.workspace-input:focus, .token-search:focus-within, .token-toolbar select:focus { border-color: #4775db; box-shadow: 0 0 0 3px rgba(23,70,200,.09); }
+.field-hint, .form-footer>span, .integration-panel-copy>p, .integration-facts div { color: #5f708a; }
+.notice-panel { background: #fff8e8; border-color: #eadbb9; border-radius: 7px; }
+.notice-panel strong { color: #805719; }
+.notice-panel p { color: #6f582e; }
+.checkout-layout { gap: 24px; }
+.checkout-explainer { padding: 25px 28px; }
+.checkout-explainer>p, .checkout-step small { color: #64748b; }
+.checkout-step { border-color: #e5ebf3; }
+.checkout-step>b, .integration-facts svg { color: #1746c8; }
+.preview-topline, .preview-amount small, .preview-option small, .preview-disclaimer { color: #64748b; }
+.preview-brand { color: #1b2c49; }
+.preview-brand span { color: #687994; }
+.preview-amount i { color: #64748b; }
+.preview-token { background: #edf3ff; color: #1746c8; }
+.preview-option b { color: #1b2c49; }
+.preview-pay { background: #1746c8; border-radius: 7px; }
+.code-panel { background: #13213b; border-radius: 8px; }
+.integration-panel { border-radius: 9px; }
+.api-card { border-radius: 9px; }
+.api-row { border-color: #e7edf5; }
+.api-row code { color: #1746c8; }
+.api-row span { color: #64748b; }
+.token-row { background: #fff; border-color: #e4eaf3; border-radius: 7px; }
+.token-symbol { background: #edf3ff; color: #1746c8; }
+.token-main strong { color: #1b2c49; }
+.token-main small, .token-main code, .token-foot { color: #64748b; }
+.token-live { color: #18794e; }
+.token-error { background: #fff5f3; border-color: #f0d1cc; color: #9c352c; }
+.token-empty { color: #64748b; }
+.auth-card, .buyer-checkout-card { background: #fff; border-color: #e2e9f2; box-shadow: none; }
+.auth-card .workspace-subtitle, .auth-footnote, .auth-switch { color: #5f708a; }
+@media (max-width: 650px) {
+  .workspace-sidebar { background: #fff; box-shadow: 12px 0 32px rgba(15,35,70,.08); }
+  .workspace-content { padding-top: 26px; }
+  .welcome-panel { border-radius: 9px; }
+  .form-panel, .workspace-card, .integration-panel { border-radius: 8px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .setup-card, .workspace-sidebar { transition: none; }
+}
