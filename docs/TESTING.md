@@ -30,13 +30,27 @@ The API integration suite runs against an in-memory SQLite database with the rep
 - Signed checkout-session issuance, missing-signing-secret fail-closed behavior, expiry enforcement, token retrieval and duplicate-order rejection.
 - Merchant-scoped order access, including rejection of cross-merchant access.
 - Provider adapter allowlisting, testnet/mainnet separation and prevention of mainnet JWT leakage to the Tidepool testnet adapter.
-- Payment lifecycle initialization, transition validation, audit events, quote binding, provider status persistence and rejection of provider SUCCESS as sufficient settlement evidence.
-- NEAR NEP-141 settlement verification and matching settlement-evidence requirements.
+- Payment lifecycle initialization, transition validation, audit events, quote binding and provider status persistence.
+- Adversarial provider-SUCCESS settlement checks: a finalized NEAR transaction with the wrong transfer amount leaves the lifecycle in `processing`, writes no settlement evidence, and cannot bypass the database candidate/evidence guard. A verifier outage also leaves the order unsettled; a forced failure during the atomic settlement batch rolls back both evidence and lifecycle settlement writes. A separate positive case confirms that exact finalized NEP-141 evidence can settle even while the provider still reports `PROCESSING`.
+- NEAR NEP-141 settlement verification for final execution, exact token contract, recipient, amount and evidence binding.
 - Source-chain deposit verification for the configured Base Sepolia ERC-20 route, including exact token/recipient/amount checks and rejection before provider notification when the source amount is wrong.
 - Reconciliation-job claiming, concurrent worker invocations, lease expiry/recovery, timeout handling, internal-worker authentication and cleanup after terminal lifecycle states.
 - Mainnet commit/deposit guard behavior and fail-closed handling for unsupported provider origins or missing secrets.
 
 These are code-level integration tests with mocked provider/RPC responses and an in-memory database. They verify application logic and regression behavior; they do not prove that every external provider, RPC, chain or Worker failure mode has been exercised against live infrastructure.
+
+## Provider SUCCESS is not settlement proof
+
+The API integration test in `scripts/verify-checkout-api.mjs` exercises an adversarial provider response. The provider reports `SUCCESS`, but the finalized NEAR transaction contains a transfer that does not match the order's expected amount. Pelargo must:
+
+1. Keep the payment lifecycle at `processing`, not `settled`.
+2. Return the candidate-specific mismatch diagnostic (`exact_nep141_net_transfer_not_found`).
+3. Write zero rows to `payment_settlement_evidence`.
+4. Reject a direct evidence insert for a stale or non-matching candidate through the database guard.
+
+The same test suite also forces the NEAR verifier to become unavailable and confirms that the order remains in `processing`. It then forces the atomic settlement batch to fail and confirms that neither the evidence row nor the paid/settled lifecycle update survives. Finally, a positive control verifies that a matching finalized NEP-141 transfer can settle the order even when the provider status is only `PROCESSING`.
+
+These are deterministic mocked-provider and mocked-RPC tests against the in-memory migrated database. They demonstrate the application's decision boundary; they are not live-provider fault-injection tests.
 
 ## Hosted external-merchant acceptance
 
