@@ -3,16 +3,15 @@
 **Updated:** 7 November 2026 (judge-readiness audit)  
 **Repository:** https://github.com/BigWave45/Pelargo  
 **Default branch:** `main`  
-**Merged release baseline:** `main` (PR #7 release consolidation; subsequent documentation updates through PR #15)  
+**Merged release baseline:** `main` (PR #7 release consolidation; documentation updates through PR #16)  
 **Integrated Preview:** `reliability/background-reconciliation`  
 **Cloudflare Pages production branch:** `build/live-intents`
 
 ## Canonical release state
 
 - PR #7, "Release candidate: consolidate verified Pelargo checkout", was merged into `main`.
-- Documentation and metadata PRs #8–#15 were subsequently merged. The latest merged main commit at the start of the current documentation review is PR #15 merge commit `7a68207f73b4a6a0c8ef6bed678aec8dafe4a4d2`.
-- PR #16 is an open, unmerged judge-readiness documentation review. Do not treat its content as part of the `main` release until it is merged.
-- Merge commit: `d18ae93a3eda3263eadc420cb951f4ebe52b2764`.
+- Documentation and metadata PRs #8–#16 are merged. PR #16 added the Cascade-benchmarked judge guide, hackathon mapping, architecture, threat model, verification matrix and documentation consistency updates.
+- Latest documentation merge commit: `9885756e05563572f68d53a0ae3b4874edac4073`.
 - The merged release includes the verified MetaMask Connect SDK handoff for external mobile browsers, the injected EIP-1193 provider path inside MetaMask Mobile, Reown AppKit for other supported wallet sessions, matching package/lock files, and aligned README, integration, testing and status documentation.
 - The historical integrated branch's 500+ commit history was not merged wholesale. PR #4 remains closed and unused.
 - The GitHub repository's default branch is `main`.
@@ -23,7 +22,7 @@ Cloudflare Pages project: `pelargo`.
 
 - Production branch remains `build/live-intents`.
 - The stable built-in hostname `https://pelargo.pages.dev` remains attached to the existing production deployment. It has not been switched.
-- The curated release merge and subsequent documentation-only updates have produced Preview deployments at `https://main.pelargo.pages.dev`.
+- The curated release merge and subsequent documentation-only updates have produced Preview deployments at `https://main.pelargo.pages.dev`. The post-PR #16 deployment has not yet been verified.
 - That deployment is a Preview environment and uses Preview D1 database `0335acdc-f0e0-42f6-ba87-e3448fb91728`.
 - The older candidate alias remains `https://release-hackathon-candidate.pelargo.pages.dev`.
 - The integrated acceptance Preview remains `https://reliability-background-recon.pelargo.pages.dev`; it is not the recommended judge-facing demo.
