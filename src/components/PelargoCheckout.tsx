@@ -678,17 +678,25 @@ export function PelargoCheckout({
   }
 
   const configReady = Boolean(destinationToken && recipient.trim());
+  const checkoutStep = paymentInstructions ? 3 : quote ? 2 : 1;
+  const isSettled = paymentStatus?.paymentStatus?.toLowerCase() === "settled";
 
   return (
     <section className="pelargo-checkout" aria-label="Pelargo checkout quote preview">
       <div className="pelargo-checkout-head">
         <div>
           <span className="pelargo-kicker">POWERED BY NEAR INTENTS</span>
-          <h2>Pay {merchantName}</h2>
-          <p>Choose a supported asset from a network you can pay on.</p>
+          <h2>Payment method</h2>
+          <p>Select a supported source asset and review the exact quote before committing.</p>
         </div>
         <span className="pelargo-order">Order {orderId}</span>
       </div>
+      <div className="pelargo-checkout-steps" aria-label="Checkout progress">
+        <div className={checkoutStep >= 1 ? "is-current" : ""}><span>01</span><strong>Asset</strong></div>
+        <div className={checkoutStep >= 2 ? "is-current" : ""}><span>02</span><strong>Quote</strong></div>
+        <div className={checkoutStep >= 3 ? "is-current" : ""}><span>03</span><strong>Settlement</strong></div>
+      </div>
+      {isSettled && <div className="pelargo-settled-note" role="status"><CheckCircle2 size={16}/> Destination settlement independently verified.</div>}
       {Number.isFinite(sessionExpiryMs) && (
         <div className={sessionExpired ? "pelargo-error" : "pelargo-muted"} role={sessionExpired ? "alert" : "status"}>
           {sessionExpired
@@ -707,7 +715,7 @@ export function PelargoCheckout({
           <input id="pelargo-amount" inputMode="decimal" value={amount} readOnly={fixedAmount} onChange={(event) => { setAmount(event.target.value); clearQuote(); }} />
           <span>{destinationToken?.symbol ?? destinationSymbol}</span>
         </div>
-        <small>{destinationToken ? `Settlement on ${destinationToken.blockchain}` : `Settlement network: ${destinationNetwork}`}</small>
+        <small>{`Merchant receives on ${destinationNetwork}`}{fixedAmount ? " · Amount set by merchant" : ""}</small>
       </div>
 
       <label className="pelargo-field-label" htmlFor="pelargo-source">You pay with</label>
