@@ -190,16 +190,17 @@ bun run build
 ## Branch and release status
 
 - GitHub default branch: `main`.
-- Latest merged documentation update: PR #15, merge commit `7a68207f73b4a6a0c8ef6bed678aec8dafe4a4d2`.
+- Immediately before this audit, the latest merged documentation update was PR #15, merge commit `7a68207f73b4a6a0c8ef6bed678aec8dafe4a4d2`.
 - PRs #8–#13 aligned integration, product positioning, judge walkthrough, settlement-proof explanation and architecture documentation.
 - PR #14 removed unused Gemini capability metadata and an unused SDK dependency; it did not remove application functionality.
-- PR #15 refreshed the judge-facing release and payment-evidence record.
+- PR #15 refreshed the release record through PR #13 and surfaced the completed testnet payment evidence.
+- PR #16 adds this judge-readiness guide and consistency corrections.
 - Integrated non-production branch: `reliability/background-reconciliation`.
 - Cloudflare Pages production branch: `build/live-intents` (unchanged).
 - Cloudflare Pages main-branch Preview alias: `https://main.pelargo.pages.dev`.
 - Cloudflare Pages project: `pelargo`.
 
-Cloudflare Pages successfully deployed the current merged `main` commit `aafe4575f17ec45be7ba1deac94b6f3372ac484a` as Preview deployment `e42e77f5-d371-4b86-84f6-e0df473a2b1f`, with `https://main.pelargo.pages.dev` as its alias. The deployment stage reported success on 7 November 2026. This is a Preview deployment using isolated Preview configuration and Preview D1. A GitHub merge does not change the Cloudflare production branch or production database.
+At the audit baseline, before PR #16, Cloudflare Pages had successfully deployed merged `main` commit `aafe4575f17ec45be7ba1deac94b6f3372ac484a` as Preview deployment `e42e77f5-d371-4b86-84f6-e0df473a2b1f`, with `https://main.pelargo.pages.dev` as its alias. The deployment stage reported success on 7 November 2026. This is a Preview deployment using isolated Preview configuration and Preview D1. Check the latest Pages deployment after PR #16 merges; a GitHub merge does not change the Cloudflare production branch or production database.
 
 The main-branch Preview is the current hackathon demo URL. The built-in production hostname `pelargo.pages.dev` remains attached to `build/live-intents`; no production promotion or production database change is part of this release. Later documentation-only cleanup may produce additional Preview builds without changing the production branch or database.
 
