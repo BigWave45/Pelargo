@@ -50,7 +50,7 @@ This proves one supported testnet route. It does not establish mainnet readiness
 - No stable published SDK/CDN package, Shopify/WooCommerce plugin or merchant webhook delivery is released.
 - A non-payment external merchant smoke test now exists at `scripts/external-merchant-smoke.mjs`; it covers merchant-key auth, signed buyer-session validation, merchant-scoped order lookup, duplicate rejection and the pre-quote boundary.
 - A manually triggered GitHub Actions workflow runs the test from a hosted Node.js runner. It now checks out `reliability/background-reconciliation` and targets that branch's Preview alias. The primary merchant key and a second, independently issued merchant key are stored as GitHub Actions repository secrets; neither key is committed or sent through chat.
-- PR #6 has been merged into `reliability/background-reconciliation`. Its external merchant acceptance workflow passed on 7 November 2026 before merge; a post-merge rerun is still required. All seven checks passed, including the second merchant's attempted lookup of the first merchant's order returning the expected 404. The pre-merge workflow created a pending Preview order only; it did not commit a quote or initiate a payment or transfer. The post-merge acceptance rerun also passed all seven checks against `https://reliability-background-recon.pelargo.pages.dev`. The workflow now checks out `reliability/background-reconciliation` and targets this integrated Preview alias.
+- PR #6 has been merged into `reliability/background-reconciliation`. Its external merchant acceptance workflow passed on 7 November 2026 before merge and again after merge. All seven checks passed, including the second merchant's attempted lookup of the first merchant's order returning the expected 404. Both runs created a pending Preview order only; they did not commit a quote or initiate a payment or transfer. The post-merge acceptance rerun passed all seven checks against `https://reliability-background-recon.pelargo.pages.dev`. The workflow now checks out `reliability/background-reconciliation` and targets this integrated Preview alias.
 
 ## Reown / WalletConnect work
 
@@ -71,7 +71,7 @@ Remaining edge-case checks are account changes, disconnect/reconnect and network
 - PR #6 integrated `test/external-merchant-integration` into `reliability/background-reconciliation` on 7 November 2026.
 - build/live-intents is the existing Cloudflare Pages production branch. Do not change it.
 - main contains an older Google AI Studio-generated version and is not the current product source.
-- Integrated non-production Preview alias: https://reliability-background-recon.pelargo.pages.dev. The post-merge acceptance rerun is configured to use this alias.
+- Integrated non-production Preview alias: https://reliability-background-recon.pelargo.pages.dev. The post-merge acceptance rerun passed against this alias.
 - A free custom domain has not yet been selected or configured.
 
 Do not merge, move the production branch, deploy Production or change domain routing now. First finish the redesign and Reown work, complete acceptance testing, and freeze a release candidate. Then reconcile the candidate against build/live-intents, update main to the approved release, and only after explicit approval change the Cloudflare production branch and attach the chosen domain. A GitHub merge to main alone does not change the Cloudflare Pages production branch.
