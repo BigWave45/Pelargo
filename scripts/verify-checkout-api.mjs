@@ -604,6 +604,87 @@ sqlite.query("UPDATE payment_lifecycle SET last_polled_at = NULL WHERE order_id 
 }
 
  
+ 
+// Testnet recovery without a paid indexer: a 429 triggers a bounded canonical
+// RPC block/chunk scan. The discovered signer remains only a hint for tx_status.
+{
+  const hash = "3333333333333333333333333333333333333333333";
+  const observedAt = "2026-11-07T07:15:31.000Z";
+  const targetNs = BigInt(Date.parse(observedAt)) * 1_000_000n;
+  const signer = "maker.tidepool-sandbox.testnet";
+  const calls = [];
+  const original = globalThis.fetch;
+  globalThis.fetch = async (url, init = {}) => {
+    const parsed = new URL(String(url));
+    if (parsed.hostname === "api-testnet.nearblocks.io") {
+      return new Response("rate limited", { status: 429 });
+    }
+    if (parsed.hostname !== "rpc.testnet.near.org") {
+      throw new Error("Unexpected RPC fallback host: " + parsed.hostname);
+    }
+    const req = JSON.parse(init.body);
+    calls.push(req);
+    if (req.method === "status") return Response.json({ result: { chain_id: "testnet" } });
+    if (req.method === "block" && req.params.finality === "final") {
+      return Response.json({ result: { header: {
+        hash: "final-block", height: 100, timestamp_nanosec: (targetNs + 50_000_000_000n).toString(),
+      } } });
+    }
+    if (req.method === "block" && typeof req.params.block_id === "number") {
+      const height = req.params.block_id;
+      return Response.json({ result: {
+        header: { hash: "block-" + height, height, timestamp_nanosec: (targetNs + BigInt(height - 50) * 1_000_000_000n).toString() },
+        chunks: [{ chunk_hash: "chunk-" + height, tx_root: "non-empty-root" }],
+      } });
+    }
+    if (req.method === "chunk") {
+      return Response.json({ result: { transactions: req.params.chunk_id === "chunk-50"
+        ? [{ hash, signer_id: signer }]
+        : [] } });
+    }
+    if (req.method === "EXPERIMENTAL_tx_status") {
+      assert.deepEqual(req.params, { tx_hash: hash, sender_account_id: signer, wait_until: "FINAL" });
+      return Response.json({ result: {
+        status: { SuccessValue: "" },
+        receipts_outcome: [{
+          block_hash: "receipt-block",
+          outcome: {
+            executor_id: "usdc.tidepool-sandbox.testnet",
+            status: { SuccessValue: "" },
+            logs: [`EVENT_JSON:${JSON.stringify({
+              standard: "nep141", version: "1.0.0", event: "ft_transfer",
+              data: [{ old_owner_id: "buyer.testnet", new_owner_id: "agentg.testnet", amount: "1000000" }],
+            })}`],
+          },
+        }],
+      } });
+    }
+    if (req.method === "block" && req.params.block_id === "receipt-block") {
+      return Response.json({ result: { header: { hash: "receipt-block", height: 90 } } });
+    }
+    throw new Error("Unexpected block-scan verifier method: " + req.method);
+  };
+  try {
+    const evidence = await verifyNearNep141Settlement({
+      INTENTS_API_BASE_URL: "https://www.usetidepool.tech",
+      NEAR_RPC_URL: "https://rpc.testnet.near.org",
+    }, {
+      destinationNetwork: "NEAR",
+      destinationAsset: "nep141:usdc.tidepool-sandbox.testnet",
+      recipient: "agentg.testnet",
+      amountAtomic: "1000000",
+    }, hash, undefined, observedAt);
+    assert.equal(evidence?.transactionHash, hash);
+    assert.equal(evidence?.recipient, "agentg.testnet");
+    assert.equal(evidence?.amountAtomic, "1000000");
+    assert.ok(calls.some((call) => call.method === "chunk"), "fallback must inspect block chunks");
+    assert.ok(calls.some((call) => call.method === "EXPERIMENTAL_tx_status"),
+      "fallback signer must still pass canonical transaction status verification");
+  } finally {
+    globalThis.fetch = original;
+  }
+}
+
 // Tidepool recovery: a configured signer is accepted only for its exact hash.
 // Canonical RPC must still prove FINAL execution and the exact NEP-141 transfer.
 {
