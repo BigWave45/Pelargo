@@ -214,7 +214,14 @@ export function PelargoCheckout({
     setCommitting(false);
   }
 
+  const checkoutConfigInitialized = useRef(false);
   useEffect(() => {
+    // The first render may be restoring a committed quote from local storage.
+    // Only clear state when the merchant changes the checkout identity later.
+    if (!checkoutConfigInitialized.current) {
+      checkoutConfigInitialized.current = true;
+      return;
+    }
     clearQuote();
   }, [destinationSymbol, destinationNetwork, recipient, orderId]);
 
