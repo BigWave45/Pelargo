@@ -345,3 +345,36 @@ body { background: #f5f7fb; color: #14213b; }
  .developer-flow span { font-size:9px; }
  .developer-capability-grid { grid-template-columns:1fr; }
 }
+
+
+/* Merchant sign-in polish: restrained blue light and functional motion */
+.auth-shell {
+  background:
+    radial-gradient(ellipse 72% 42% at 50% 0%, rgba(49, 91, 232, .055), transparent 74%),
+    #f7f9fd;
+}
+.auth-card { animation: auth-card-enter .42s cubic-bezier(.2,.75,.25,1) both; }
+.auth-card .workspace-brand-mark { color: #fff; background: #1746c8; }
+.auth-card .workspace-input {
+  transition: border-color .16s ease, box-shadow .16s ease, background-color .16s ease;
+}
+.auth-submit {
+  min-height: 46px;
+  transition: background-color .16s ease, border-color .16s ease, box-shadow .16s ease, transform .12s ease;
+}
+.auth-submit:hover:not(:disabled) { box-shadow: 0 5px 14px rgba(23, 70, 200, .16); }
+.auth-submit:active:not(:disabled) { transform: translateY(1px) scale(.995); box-shadow: none; }
+.auth-submit-spinner { animation: auth-spinner .8s linear infinite; }
+.auth-switch button { transition: color .15s ease, opacity .15s ease; }
+.auth-switch button:hover { color: #123aa7; }
+@keyframes auth-card-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes auth-spinner { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .auth-card, .auth-submit, .auth-card .workspace-input, .auth-switch button {
+    animation: none !important;
+    transition: none !important;
+  }
+}
