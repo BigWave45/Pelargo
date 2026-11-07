@@ -113,7 +113,7 @@ async function rpcBlockByHeight(rpcUrl: string, height: bigint): Promise<JsonRec
 }
 
 function blockTimestampNs(block: JsonRecord): bigint | null {
-  const timestamp = blockHeader(block)?.timestamp_nanosec;
+  const timestamp = record(block.header)?.timestamp_nanosec;
   if (typeof timestamp !== "string" && typeof timestamp !== "number") return null;
   try { return BigInt(timestamp); } catch { return null; }
 }
