@@ -185,7 +185,7 @@ export function PelargoCheckout({
   const [quoteId, setQuoteId] = useState("");
   const [requestedAt, setRequestedAt] = useState("");
   const [committing, setCommitting] = useState(false);
-  const [paymentInstructions, setPaymentInstructions] = useState<RecoveryState["paymentInstructions"]>(null);
+  const [paymentInstructions, setPaymentInstructions] = useState<RecoveryState["paymentInstructions"] | null>(null);
   const [paymentStatus, setPaymentStatus] = useState<{ paymentStatus: string; providerStatus?: string; settlement?: string } | null>(null);
   const [walletAddress, setWalletAddress] = useState("");
   const [walletChainId, setWalletChainId] = useState("");
