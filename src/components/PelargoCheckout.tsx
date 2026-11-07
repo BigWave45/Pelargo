@@ -650,7 +650,7 @@ export function PelargoCheckout({
         </div>
       )}
 
-      <label className="pelargo-field-label" htmlFor="pelargo-refund">Your refund address on {selectedSource?.blockchain ?? "the source network"}</label>
+      <label className="pelargo-field-label" htmlFor="pelargo-refund">Your refund address on {selectedSource ? displayNetwork(selectedSource) : "the source network"}</label>
       <input id="pelargo-refund" className="pelargo-text-input" value={refundTo} onChange={(event) => { setRefundTo(event.target.value); clearQuote(); }} placeholder="Wallet address for refunds" autoComplete="off" />
 
       <button className="pelargo-quote-button" onClick={requestDryQuote} disabled={loadingTokens || quoting || !configReady || !selectedSource || sessionExpired}>
