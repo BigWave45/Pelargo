@@ -83,3 +83,15 @@ The earlier wording that described Tidepool as Pelargo's only provider option wa
 This is provider configurability, not multi-provider orchestration. One provider is selected per environment. No runtime health-based selection, quote retry across providers, automatic failover or simultaneous route comparison exists. Tidepool is the current Preview/testnet fallback; it is not a drop-in failover for an official mainnet quote. Once a provider has committed a quote and issued deposit instructions, the order must remain pinned to that provider and quote. Never recreate or reroute a committed order automatically.
 
 The adapter boundary should be extended for additional compatible providers only after validating their token identifiers, quote semantics, deposit/memo requirements, status lifecycle, transaction notification, expiry, fees and network environment. A provider's claim of NEAR Intents compatibility is not sufficient evidence that it matches the current 1Click contract. No provider switch, mainnet activation or payment was performed as part of this documentation correction.
+
+
+---
+
+## Provider adapter boundary and wallet work — 7 November 2026
+
+- Refactored `functions/_lib/intents.ts` to introduce an explicit `IntentsProviderAdapter` contract and a closed registry for official NEAR 1Click (mainnet) and Tidepool (testnet). Existing `intentsProvider()` network metadata remains available to preserve the independent mainnet/testnet deposit gates.
+- Provider authentication is adapter-owned. Official 1Click receives `ONECLICK_JWT` when configured; Tidepool explicitly receives no official partner JWT. Arbitrary provider URLs fail closed. This remains one provider selected per environment, not simultaneous orchestration, quote comparison, health routing or automatic failover.
+- Added regression assertions in `scripts/verify-checkout-api.mjs` for provider identity, network classification, default selection, mainnet JWT isolation and rejection of unregistered origins. These tests are committed but have not yet been run in CI.
+- The buyer wallet layer remains separate from provider adapters. Existing Base Sepolia EIP-1193 transfer support and MetaMask asynchronous provider-injection hardening are retained. WalletConnect, Solana/NEAR signing and additional source networks remain out of scope for this adapter refactor.
+- The direct wallet path still requires fresh mobile browser acceptance, provider deposit detection and independent NEAR NEP-141 settlement verification. No quote was committed and no funds were sent during this refactor.
+- No Production deployment, main-branch merge, provider migration or mainnet activation was performed.
