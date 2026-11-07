@@ -71,6 +71,7 @@ This test creates a pending Preview order only. It does not commit a quote, requ
 ## Hosted payment and wallet acceptance
 
 - `ORDER-35541967`: completed Base Sepolia USDC to NEAR testnet USDC route. Preview D1 read-back confirms order `paid`, lifecycle `settled`, provider status `SUCCESS`, source evidence on Base Sepolia (transaction `0x886ff617f13d6eddb23d376eaf2437a90082b610f8c006de743b5df1a5464d5c`, token contract `0x38d81431b9f76d9699af7517040d5221d9dea252`, 1,012,633 atomic units), and independently verified NEAR destination evidence (transaction `9myMAuSbY4NAcCWDkhZUWqQLGTW47Z2dkrxjhGgtJspS`, token contract `usdc.tidepool-sandbox.testnet`, recipient `agentg.testnet`, 1,000,000 atomic units / 1 USDC, block 276599398, 10,063 confirmations at read-back). The destination candidate hash matches the persisted settlement evidence hash. This is the strongest complete dual-chain payment evidence in the current record. Source and destination atomic amounts are not equal because the route includes conversion/fees; the merchant's configured destination amount is the settlement obligation.
+- `ORDER-71455096`: completed 5 USDC Base Sepolia-to-NEAR testnet checkout. Preview D1 read-back confirms `checkout_orders.status = paid`, `payment_lifecycle.status = settled`, and matching source and destination evidence attached to the same internal order ID. The source transaction is `0xbbccf1b245af1932f8feacb755d8574c6dd276965661123354f829ffb9f2ffd4` (Base Sepolia USDC contract `0x38d81431b9f76d9699af7517040d5221d9dea252`, deposit `0x3c963cda1663bc10404db6aa8fa01b6ab2367388`, 5,063,164 atomic units, block 55,749,245, 112,653 confirmations at read-back). The NEAR destination transaction is `EhTBbho5ZWgEUL2G8X36AizRWRKWcsJTzXzV3CvxVQbm` (NEP-141 `usdc.tidepool-sandbox.testnet`, recipient `agentg.testnet`, 5,000,000 atomic units / 5 USDC, block 276660519, 44 confirmations). Source evidence was verified and recorded at 2026-11-07 23:30:48.263 UTC, after destination evidence was recorded at 17:16:00.490 UTC. The later source verification left the existing paid/settled state unchanged. The merchant verification response stated that the provider was not notified again. This is a complete dual-chain evidence record with post-settlement source reconciliation; source and destination atomic amounts differ because the route includes conversion/fees.
 - `ORDER-83587591`: separate paid/settled order with canonical NEAR RPC destination evidence for 1,000,000 atomic units / 1 USDC to `agentg.testnet` (transaction `vif8EKtCAzHcaihLNuC6XaRMhCzEDxUiHbAJJRQVUVE`, block 276344867, 120,256 confirmations at read-back). It also has a Base Sepolia source-deposit evidence row for 1,012,633 atomic units. Its lifecycle reached `settled` while the persisted provider status remained `PROCESSING`; this illustrates that Pelargo's settlement decision is separate from provider status. It is a separate order from `ORDER-35541967` and must not be conflated with it.
 - `ORDER-45723806`: recorded as paid/settled with destination evidence, but no source-deposit evidence row is recorded. Do not describe it as complete dual-chain evidence.
 - `ORDER-68886375`: user-confirmed successful checkout from the external iPhone browser after the MetaMask Connect SDK integration. The user reports that MetaMask opened, the transaction completed, deposit detection was fast, and the merchant dashboard also displayed `Settled`. Preview D1 confirms order status `paid`, lifecycle status `settled`, provider status `SUCCESS`, and independently verified NEAR NEP-141 destination evidence for exactly 1 USDC to `agentg.testnet`: transaction `8Fk5Qcckscd9No9UhybLsgxqBsN62vpw51KLpDX38973`, block 276656102, 80 confirmations, verification source `chain_rpc`. Destination verification timestamp: 2026-11-07 16:31:49.321 UTC; order creation timestamp: 16:28:54.000 UTC (2 minutes 55.321 seconds create-to-settlement). No matching Base Sepolia origin-deposit evidence row is present for this order, so it is not complete dual-chain evidence. This is user-observed manual mobile acceptance plus server-side destination evidence, not an automated browser test.
@@ -80,9 +81,22 @@ This test creates a pending Preview order only. It does not commit a quote, requ
 
 No additional payment is required merely to repeat the demonstrated route.
 
+## Latest Preview merchant workspace status snapshot
+
+The latest dashboard snapshot supplied for this documentation update showed:
+
+- All orders: **10**
+- In progress: **0**
+- Settled: **4**
+- Needs attention: **6**
+
+The visible settled orders were `ORDER-71455096` (5 USDC), `ORDER-68886375` (1 USDC), `ORDER-64686642` (1 USDC) and `ORDER-51017560` (1 USDC). The six remaining orders were displayed as expired. A read-only Preview D1 cross-check confirmed four orders with `checkout_orders.status = paid` and `payment_lifecycle.status = settled`, and six with both states `expired`. This is a point-in-time dashboard/database snapshot, not a CI fixture or a permanent expected count.
+
+For `ORDER-71455096`, the source hash was verified after the destination settlement and a source-evidence row was then persisted against the same order ID. The source verification did not change the already-settled lifecycle. See the order-level record above and the detailed [judge evidence guide](JUDGE_GUIDE.md).
+
 ## Preview merchant workspace status snapshot
 
-Observed on 7 November 2026 at 16:49 UTC in the integrated Preview merchant workspace:
+Historical snapshot observed on 7 November 2026 at 16:49 UTC in the integrated Preview merchant workspace (superseded by the latest snapshot above):
 
 - All orders: **9**
 - In progress: **0**
@@ -95,7 +109,7 @@ The Preview D1 cross-check confirmed that the six needs-attention orders were al
 
 A provider status is an externally reported status persisted by the provider adapter. `payment_lifecycle.status` is Pelargo's own lifecycle state. They are not interchangeable: a provider status is not Pelargo's response, and a Pelargo lifecycle state must not be described as a provider-reported result. In particular, Pelargo requires independently verified destination-chain settlement evidence; provider `SUCCESS` alone is not sufficient to mark a payment settled.
 
-A read-only Preview D1 snapshot of the same nine orders showed:
+A read-only Preview D1 snapshot of that historical nine-order set showed:
 
 - All six expired orders had `provider_status = NULL` and `provider_updated_at = NULL`. The database therefore contains no persisted provider status for these six orders. Their expired state is Pelargo's recorded lifecycle outcome; this snapshot does not establish that the provider returned `FAILED`, reported a limitation, or caused the expiry.
 - Two settled orders had persisted `provider_status = SUCCESS`.
