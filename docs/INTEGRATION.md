@@ -8,7 +8,7 @@ After instructions are created, the widget polls `GET /api/payment-status?orderI
 
 Provider `SUCCESS` alone is insufficient. The order becomes paid only after independent destination-chain verification succeeds and matching settlement evidence is persisted. The buyer widget displays the internal payment state and stops polling on terminal states or an invalid/unauthorized session.
 
-The buyer committed-quote and polling paths have mocked integration coverage. A live testnet payment has also been executed for ORDER-83587591: Pelargo verified the Base Sepolia source deposit, then independently verified the exact NEAR NEP-141 destination transfer through canonical NEAR RPC and persisted immutable settlement evidence in Preview D1. The merchant has since signed in successfully. The 7 November dashboard history shows six records: one settled, three awaiting deposit, and two expired. The three awaiting-deposit records are unpaid checkouts; the two expired records are terminal expiries. This UI snapshot is distinct from a fresh D1 audit and does not prove the scheduled Worker's operation. This proves one testnet payment path, not production readiness. Do not use this integration to collect real customer funds.
+The live testnet route has since been demonstrated on ORDER-35541967. Preview D1 records both immutable Base Sepolia source-deposit evidence and independently verified NEAR NEP-141 destination settlement evidence for that order. The order is paid/settled and provider status is SUCCESS. A later order, ORDER-45723806, is also paid/settled with destination evidence and provider SUCCESS, but it has no source-deposit evidence row. Keep these evidence states distinct. The successful test proves one supported testnet route, not production readiness, broad network coverage or scheduled Worker operation. Do not use this integration to collect real customer funds.
 
 
 
@@ -161,9 +161,9 @@ Optional: `expiresInSeconds` (60–1800; default 900).
 
 Returns HTTP 201 with a signed `token` and public `session` claims. Duplicate order references for one merchant return HTTP 409. The API resolves merchant identity from the stored API-key hash or authenticated dashboard session, never from browser-supplied merchant IDs.
 
-### `GET /api/checkout-session?token=...`
+### `GET /api/checkout-session`
 
-Validates a signed session and returns public order claims. The token is a bearer credential and must be protected from unnecessary logging.
+Validates a signed session and returns public order claims. Send the short-lived token in `Authorization: Bearer <token>`. The hosted checkout currently reads the token from the URL fragment (`#checkout=...`), removes it from browser history, and then sends it in the Authorization header. Do not use the legacy query-string token form.
 
 ### `GET /api/tokens`
 
@@ -358,3 +358,14 @@ The frontend's buyer checkout reads the fragment and strips it from the visible 
 There is no stable published JavaScript SDK, CDN bundle, custom-element package, Shopify/WooCommerce plugin, or merchant webhook delivery in this Preview. Do not copy or deploy a guessed `pelargo.js` script tag. An external merchant integration must implement its own authenticated backend route for creating the Pelargo session and returning the checkout URL to the buyer.
 
 The currently implemented and independently verified route is Base Sepolia source to NEAR testnet destination. Do not infer support for arbitrary networks or tokens. The Preview is testnet-only and must not be used to collect real customer funds.
+
+
+## Current acceptance handoff — 7 November 2026
+
+- The Base Sepolia → NEAR testnet payment path has been completed at least once with both source and destination evidence on ORDER-35541967.
+- ORDER-45723806 is separately marked paid/settled with destination evidence, but no source evidence row is recorded. Do not describe that order as fully evidenced on both chains.
+- The current buyer URL carries the short-lived checkout bearer token in the fragment, not a query parameter. The app removes it from browser history before API access. Protected checkout-session retrieval uses the Authorization header.
+- Reown AppKit / WalletConnect is pending. Do not claim it is available until the Project ID is configured, `bun.lock` is regenerated with the exact package manifest, Preview build succeeds, and mobile connection/transfer behavior is tested.
+- The direct wallet execution path remains Base Sepolia-only for recognized provider-listed ERC-20 assets. Reown does not expand token catalogue, route availability or destination verification support.
+- No stable public SDK/CDN package, Shopify/WooCommerce plugin or merchant webhook delivery is currently released.
+- Do not initiate another payment merely to repeat the demonstrated route. Preserve testnet-only scope and all Production/mainnet safeguards.
