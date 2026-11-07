@@ -11,17 +11,17 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Checkout
+      - name: Checkout reviewed integration branch
         uses: actions/checkout@v4
         with:
-          ref: test/external-merchant-integration
+          ref: reliability/background-reconciliation
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "22"
       - name: Run non-payment merchant API smoke test
         env:
-          PELARGO_API_URL: https://test-external-merchant-integ.pelargo.pages.dev
+          PELARGO_API_URL: https://reliability-background-recon.pelargo.pages.dev
           PELARGO_MERCHANT_API_KEY: ${{ secrets.PELARGO_TEST_MERCHANT_API_KEY }}
           PELARGO_OTHER_MERCHANT_API_KEY: ${{ secrets.PELARGO_OTHER_TEST_MERCHANT_API_KEY }}
           PELARGO_TEST_RECIPIENT: agentg.testnet
