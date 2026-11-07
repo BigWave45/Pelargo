@@ -28,8 +28,6 @@ export const pelargoAppKit = createAppKit({
     description: "Merchant-controlled crypto checkout with independently verified settlement.",
     url: previewOrigin,
     icons: [`${previewOrigin}/favicon.ico`],
-    // Tell external wallets where to return after the WalletConnect handoff.
-    redirect: { universal: previewOrigin },
   },
   themeMode: "light",
   features: { analytics: false, email: false, socials: [] },
