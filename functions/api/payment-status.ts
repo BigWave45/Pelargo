@@ -37,6 +37,29 @@ function readProviderHashes(value: unknown): string[] {
   return hashes;
 }
 
+ 
+function readTidepoolExplorer(value: unknown): Array<{ label: string; url: string; hash: string | null }> {
+  if (!Array.isArray(value)) return [];
+  const items: Array<{ label: string; url: string; hash: string | null }> = [];
+  for (const raw of value) {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) continue;
+    const item = raw as Record<string, unknown>;
+    const label = typeof item.label === "string" ? item.label.slice(0, 100) : "";
+    const url = typeof item.url === "string" ? item.url.slice(0, 500) : "";
+    let hash: string | null = null;
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol === "https:") {
+        const segments = parsed.pathname.split("/").filter(Boolean);
+        const last = segments[segments.length - 1] ?? "";
+        if (/^[1-9A-HJ-NP-Za-km-z]{32,64}$/.test(last)) hash = last;
+      }
+    } catch { /* Ignore malformed provider explorer URLs. */ }
+    if (label || url) items.push({ label, url, hash });
+  }
+  return items.slice(0, 12);
+}
+
 function readQuoteInstructions(value: unknown): {
   originAssetId: string;
   amountInAtomic: string;
@@ -235,6 +258,7 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
     };
     updatedAt?: string;
     quoteResponse?: unknown;
+    tidepool?: { explorer?: unknown };
   };
   try {
     const response = await intentsRequest(`status?${params.toString()}`, {
@@ -295,6 +319,7 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
     originChainTxHashes: readProviderHashes(provider.swapDetails?.originChainTxHashes),
     nearTxHashes: readProviderHashes(provider.swapDetails?.nearTxHashes),
     destinationChainTxHashes: readProviderHashes(provider.swapDetails?.destinationChainTxHashes),
+    tidepoolExplorer: readTidepoolExplorer(provider.tidepool?.explorer),
   };
   const depositInstructions = quoteInstructions ? {
     ...quoteInstructions,
@@ -310,7 +335,13 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
     : [];
   // The 1Click API represents transaction hashes as either strings or
   // { hash } objects. Normalize both forms before selecting a candidate.
+  const tidepoolExplorer = readTidepoolExplorer(provider.tidepool?.explorer);
+  const labelledExecuteIntentsHashes = tidepoolExplorer
+    .filter((item) => /execute[_ -]?intents/i.test(item.label))
+    .map((item) => item.hash)
+    .filter((hash): hash is string => Boolean(hash));
   const candidateHashes = [
+    ...labelledExecuteIntentsHashes,
     ...readProviderHashes(destinationHashes),
     ...readProviderHashes(provider.swapDetails?.nearTxHashes),
     // Explicitly configured recovery hash is scoped to Preview configuration;
@@ -402,7 +433,7 @@ export async function onRequest(context: { request: Request; env: Env }): Promis
               destinationAsset: payment.destination_asset,
               recipient: payment.recipient,
               amountAtomic: payment.amount_atomic,
-            }, hash, (stage) => candidateDiagnostics.push({ hash, stage }));
+            }, hash, (stage) => candidateDiagnostics.push({ hash, stage }), provider.updatedAt);
             if (evidence) break;
           } catch (error) {
             const detail = error instanceof Error ? error.message.slice(0, 240) : "Unknown verifier failure";
