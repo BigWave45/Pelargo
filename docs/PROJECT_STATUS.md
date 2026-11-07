@@ -145,3 +145,11 @@ The adapter boundary should be extended for additional compatible providers only
 - Added a mocked regression case in `scripts/verify-checkout-api.mjs` for the no-key path: NearBlocks returns HTTP 429, the canonical RPC block/chunk scan locates a unique signer, and the verifier still requires `EXPERIMENTAL_tx_status` plus the exact NEP-141 receipt transfer.
 - Fixed timestamp extraction to read `timestamp_nanosec` from the resolved block object. Payment status now passes the live provider `updatedAt`, falling back to the previously persisted `provider_updated_at` when the current response omits it.
 - The regression script has been committed but has not been executed in this environment. GitHub reports no workflow runs or commit statuses for the latest head. Cloudflare Pages Preview builds are being triggered by branch pushes; a successful Pages build is not a substitute for the API integration test or live transaction recovery.
+
+
+### RPC scan load control and current Preview state
+
+- Limited the bounded RPC block/chunk recovery scan to one prioritized transaction candidate per payment-status poll. This avoids repeating the block-window scan for every intermediate NEAR hash returned by one provider response; subsequent polls can retry.
+- Preview D1 was re-read after the implementation. `ORDER-35541967` remains `processing`, provider status `SUCCESS`, candidate `9myMAuSbY4NAcCWDkhZUWqQLGTW47Z2dkrxjhGgtJspS`; no D1 rows were changed by this work.
+- The latest source commits are deployed through Cloudflare Pages Preview only. Production branch `build/live-intents`, Production D1, and Production deployment were not modified.
+- Still outstanding: execute the committed API regression script, trigger a status poll on the existing order in Preview, inspect the new diagnostic stages and runtime logs, and independently confirm the exact NEP-141 receipt before any settled transition.
