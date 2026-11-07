@@ -104,3 +104,12 @@ The adapter boundary should be extended for additional compatible providers only
 - Branch alias: `https://design-blue-white-premium.pelargo.pages.dev`.
 - PR #5 validation notes were updated to reflect the successful Preview build. GitHub Actions has not reported a current-head CI run; the new adapter regression assertions therefore remain unverified by CI.
 - This verifies compilation and Preview deployment only. It does not verify runtime provider requests, MetaMask injection in the user's mobile browser, a new source deposit, provider detection or settlement. No payment was initiated.
+
+
+## Buyer checkout recovery after wallet-app interruption — 7 November 2026
+
+- Added device-local recovery for the committed buyer checkout state in `src/components/PelargoCheckout.tsx`. It is scoped to the checkout order, merchant destination and session expiry, and restores the selected source asset, refund address, provider deposit instructions and submitted transaction hash after a page reload or MetaMask browser interruption.
+- The signed checkout bearer token and wallet credentials are deliberately not written to browser storage. The merchant checkout session remains the authority; expired sessions/quotes are blocked from wallet submission. A recovered quote is not automatically refreshed or rerouted.
+- The checkout continues to poll the existing authenticated payment-status endpoint after restoring committed instructions. The buyer must request a fresh quote when the old quote expires; the old deposit address must not be reused.
+- Browser storage may be unavailable in private/restricted contexts; the active checkout remains usable in that case, but cross-reload recovery cannot be guaranteed.
+- This is a client-side recovery patch only. It does not yet provide cross-device recovery or a server-side resume endpoint. It has not yet been built, CI-tested, or accepted in MetaMask mobile. No Cloudflare deployment, merge, production change or payment was performed.
