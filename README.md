@@ -279,3 +279,11 @@ The testnet RPC signer-recovery scan now processes blocks nearest the provider t
 - The settlement was recorded by the existing Preview reconciliation path; do not attribute the successful verification specifically to the new stale-signer fallback until runtime diagnostics prove that path was used. Production branch `build/live-intents`, Production D1 and Production deployment remain untouched.
 
 - The follow-up persistence patch is committed on `design/blue-white-premium`; GitHub Actions CI run `42357587840` completed successfully and the `verify` job passed. Cloudflare Pages Preview deployment `fd7fc81d-b48d-4930-b58e-385a35e96d21` was queued at the last check for commit `1b93afa35752052d92177bfeb0244fa3753ea127`; its build/deploy stages are not yet complete.
+
+## Latest verified payment checkpoint — 7 November 2026
+
+The Preview testnet order `ORDER-35541967` now has both source-deposit and destination-settlement evidence independently read back from Preview D1. The source record verifies Base Sepolia transaction `0x886ff617f13d6eddb23d376eaf2437a90082b610f8c006de743b5df1a5464d5c`, token contract `0x38d81431b9f76d9699af7517040d5221d9dea252`, deposit address `0x8bdce93d4ff3cd7555f5eb1c29dc229e7c719178`, amount `1012633` atomic units (1.012633 USDC), block `55569210`, and 37,260 confirmations. Its verification source is `chain_rpc`.
+
+The destination record verifies NEAR testnet transaction `9myMAuSbY4NAcCWDkhZUWqQLGTW47Z2dkrxjhGgtJspS`, token contract `usdc.tidepool-sandbox.testnet`, recipient `agentg.testnet`, amount `1000000` atomic units (1 USDC), block `276599398`, and 10,063 confirmations. Its verification source is also `chain_rpc`. Preview D1 reads back `checkout_orders.status = paid`, `payment_lifecycle.status = settled`, and provider status `SUCCESS`.
+
+The source-evidence backfill ran after provider success. The endpoint response confirmed that it recorded source evidence, left the existing destination settlement unchanged, and did not notify the provider again. Both evidence records were subsequently confirmed with read-only Preview D1 queries. This is a completed testnet verification record, not evidence of mainnet readiness or universal route support. No production resources were changed and mainnet deposits remain disabled.
