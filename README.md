@@ -9,6 +9,7 @@ The widget is the global payment interface. NEAR is the settlement home. Other n
 ## Demo and source
 
 - **Current merged-main demo (Preview/testnet):** https://main.pelargo.pages.dev
+- **NEAR HACKATHON demo post (video):** https://x.com/maxlensherr/status/2119318538456293558
 - **Release-candidate deployment:** https://release-hackathon-candidate.pelargo.pages.dev
 - **Integrated Preview (development/acceptance):** https://reliability-background-recon.pelargo.pages.dev
 - **Repository:** https://github.com/BigWave45/Pelargo
