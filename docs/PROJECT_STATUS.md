@@ -1,6 +1,6 @@
 # Pelargo release status
 
-**Updated:** 8 November 2026 (final testnet evidence and reconciliation audit)  
+**Updated:** 8 November 2026 (final testnet evidence, reconciliation audit and public demo post)  
 **Repository:** https://github.com/BigWave45/Pelargo  
 **Default branch:** `main`  
 **Merged release baseline:** `main` (PR #7 release consolidation; documentation updates through PR #17)  
