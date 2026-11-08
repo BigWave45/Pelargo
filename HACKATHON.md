@@ -67,7 +67,7 @@ The official event page says Claude Code and Codex screen projects first to chec
 The official event page currently requires:
 
 - [ ] Public repository.
-- [ ] Public demo post on X stating that the project was built at NEAR HACKATHON.
+- [x] [Public demo post on X](https://x.com/maxlensherr/status/2119318538456293558) stating that the project was built at NEAR HACKATHON; the six-minute demo video is attached.
 - [ ] Tag @NEARProtocol and include #NEARHackathon.
 - [ ] Attach the demo video or screenshots to the public post.
 - [ ] Submit the repository link and demo-post link through the official form before 14 November 2026, 23:59 UTC.
