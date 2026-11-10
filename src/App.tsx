@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { PelargoCheckout } from "./components/PelargoCheckout.tsx";
 import { PasswordRecovery } from "./components/PasswordRecovery.tsx";
+import { JudgeDemo } from "./components/JudgeDemo.tsx";
 import {
   ArrowUpRight, Check, Copy, LayoutDashboard, LogOut, Menu, Radio,
   Settings2, ShieldCheck, Wallet, Code2, Link2, RefreshCw,
@@ -122,6 +123,7 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (merchant: Merchant)
         <button className="primary-button auth-submit" disabled={busy}>{busy ? (mode === "register" ? "Creating account…" : "Signing in…") : mode === "register" ? "Create account" : "Sign in"} {busy ? <RefreshCw size={15} className="auth-submit-spinner" /> : <ArrowUpRight size={15} />}</button>
       </form>
       <p className="auth-switch">{mode === "register" ? "Already have an account?" : "New to Pelargo?"} <button type="button" onClick={() => { setMode(mode === "register" ? "login" : "register"); setError(""); }}>{mode === "register" ? "Sign in" : "Create an account"}</button></p>
+      <p className="auth-switch"><a className="judge-demo-auth-link" href="/judge-demo">Explore the judge demo <ArrowUpRight size={13}/></a></p>
       <p className="auth-footnote">Merchant accounts are for configuring checkout. Payment execution remains subject to network and settlement controls.</p>
     </div>
   </div>;
@@ -176,6 +178,7 @@ function BuyerCheckout({ token }: { token: string }) {
 }
 
 export default function App() {
+  const isJudgeDemo = window.location.pathname === "/judge-demo";
   const [buyerToken] = useState(() => {
     const fragmentToken = new URLSearchParams(window.location.hash.slice(1)).get("checkout") || "";
     const search = new URLSearchParams(window.location.search);
@@ -228,12 +231,12 @@ export default function App() {
   }
 
   useEffect(() => {
-    if (buyerToken || passwordResetToken) return;
+    if (buyerToken || passwordResetToken || isJudgeDemo) return;
     api<{ merchant: Merchant }>("/api/auth/session")
       .then(data => setMerchant(data.merchant))
       .catch(() => setMerchant(null))
       .finally(() => setAuthChecked(true));
-  }, [buyerToken, passwordResetToken]);
+  }, [buyerToken, passwordResetToken, isJudgeDemo]);
 
   useEffect(() => {
     if (!merchant) return;
@@ -242,6 +245,7 @@ export default function App() {
 
   if (buyerToken) return <BuyerCheckout token={buyerToken} />;
   if (passwordResetToken) return <PasswordRecovery resetToken={passwordResetToken} onBack={() => { window.location.href = "/"; }} />;
+  if (isJudgeDemo) return <JudgeDemo />;
   if (!authChecked) return <div className="auth-shell"><div className="auth-card">Loading Pelargo…</div></div>;
   if (!merchant) return <AuthScreen onAuthenticated={setMerchant} />;
 
