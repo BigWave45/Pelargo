@@ -6,25 +6,25 @@ Pelargo is building a global, embeddable checkout for merchants. Customers pay u
 
 The widget is the global payment interface. NEAR is the settlement home. Other networks are payment entry points, while NEAR is the network where Pelargo is designed to complete and verify merchant settlement. Supported stablecoins such as USDC are part of the asset mix, but Pelargo is not a stablecoin-only product. The long-term ambition is broad global access; current route and asset support remains limited to what has actually been implemented and verified.
 
-## Demo and source
+## Demo
 
-- **Start here: no-signup judge demo (read-only historical evidence):** https://main.pelargo.pages.dev/judge-demo
-- **Further testing: merchant workspace (signup/sign-in, Preview/testnet):** https://main.pelargo.pages.dev
-- **NEAR HACKATHON demo post (video):** https://x.com/maxlensherr/status/2119318538456293558
-- **Release-candidate deployment:** https://release-hackathon-candidate.pelargo.pages.dev
-- **Integrated Preview (development/acceptance):** https://reliability-background-recon.pelargo.pages.dev
-- **Repository:** https://github.com/BigWave45/Pelargo
-- **Vision and development history:** [docs/VISION_AND_DEVELOPMENT_HISTORY.md](docs/VISION_AND_DEVELOPMENT_HISTORY.md) (product direction and parallel development history)
-- **NEAR Hackathon submission map:** [HACKATHON.md](HACKATHON.md)
+- **Start here: judge demo (no signup):** https://main.pelargo.pages.dev/judge-demo
+- **Further testing: merchant workspace (signup/sign-in):** https://main.pelargo.pages.dev
+- **Video walkthrough:** https://x.com/maxlensherr/status/2119318538456293558
+
+## Source and technical documentation
+
+- **GitHub repository:** https://github.com/BigWave45/Pelargo
+- **Judge guide and reproducible evidence:** [docs/JUDGE_GUIDE.md](docs/JUDGE_GUIDE.md)
+- **Hackathon track and submission map:** [HACKATHON.md](HACKATHON.md)
 - **Architecture:** [docs/architecture.md](docs/architecture.md)
 - **Threat model:** [docs/threat-model.md](docs/threat-model.md)
 - **Verification matrix:** [docs/verification-matrix.md](docs/verification-matrix.md)
-- **Judge guide and reproducible evidence:** [docs/JUDGE_GUIDE.md](docs/JUDGE_GUIDE.md)
 - **Testing and acceptance record:** [docs/TESTING.md](docs/TESTING.md)
 - **Merchant integration guide:** [docs/INTEGRATION.md](docs/INTEGRATION.md)
+- **Vision and development history:** [docs/VISION_AND_DEVELOPMENT_HISTORY.md](docs/VISION_AND_DEVELOPMENT_HISTORY.md)
 
-The main and candidate URLs are non-production Preview deployments using the isolated Preview environment and Preview D1 database. They are testnet demonstrations. Do not use them to collect customer funds. The built-in production hostname, https://pelargo.pages.dev, remains on the separately configured production branch.
-
+The judge demo and merchant workspace are non-production Preview deployments using the isolated Preview environment and Preview D1 database. They are testnet demonstrations; do not use them to collect customer funds. The built-in production hostname, https://pelargo.pages.dev, remains on the separately configured production branch.
 
 ## Judge walkthrough
 
