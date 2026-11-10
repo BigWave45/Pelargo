@@ -30,7 +30,7 @@ const orders: DemoOrder[] = [
     id: "ORDER-71455096",
     amount: "5.000000 USDC",
     created: "7 Nov 2026",
-    providerStatus: "Recorded separately",
+    providerStatus: "Not stated in this record",
     source: {
       chain: "Base Sepolia",
       asset: "USDC · ERC-20",
@@ -49,7 +49,7 @@ const orders: DemoOrder[] = [
       explorer: "https://testnet.nearblocks.io/txns/EhTBbho5ZWgEUL2G8X36AizRWRKWcsJTzXzV3CvxVQbm",
       note: "Pelargo independently verified the finalized NEP-141 transfer, configured recipient and exact 5 USDC destination amount."
     },
-    reconciliation: "The later source verification added provenance evidence. It did not reopen the order, change its paid/settled state or notify the provider again."
+    reconciliation: "The later source verification added provenance evidence. It did not reopen the order, change its paid/settled state or notify the provider again. The 5.063164 USDC source input and 5.000000 USDC destination obligation differ because the route includes conversion and fees; this is not a settlement mismatch."
   },
   {
     id: "ORDER-35541967",
@@ -146,6 +146,7 @@ export function JudgeDemo() {
           </button>
           {expanded === order.id && <div className="judge-demo-order-detail">
             <div className="judge-demo-verification-note"><ShieldCheck size={17}/><div><strong>Settlement evidence persisted</strong><p>The merchant order is settled because the NEAR destination transfer matches the configured NEP-141 asset, recipient and exact amount. Provider status is recorded separately and is not the settlement authority.</p></div></div>
+            <p className="judge-demo-amount-note">The source input amount can differ from the merchant's destination obligation because the route includes conversion and fees. Pelargo verifies the exact configured amount delivered on NEAR.</p>
             <div className="judge-demo-evidence-grid">
               <EvidencePanel title="SOURCE PAYMENT" evidence={order.source}/>
               <EvidencePanel title="NEAR SETTLEMENT" evidence={order.destination}/>
