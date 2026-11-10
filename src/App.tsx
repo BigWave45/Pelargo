@@ -108,7 +108,12 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (merchant: Merchant)
   return <div className="auth-shell">
     <div className="auth-card">
       <a className="workspace-brand auth-brand" href="/"><span className="workspace-brand-mark">P</span><span>pelargo</span></a>
-      <div className="eyebrow">MERCHANT WORKSPACE</div>
+      <a className="judge-demo-primary-link" href="/judge-demo">
+        <span className="judge-demo-primary-kicker">START HERE · NO SIGNUP</span>
+        <strong>Explore the judge demo <ArrowUpRight size={15}/></strong>
+        <span>Review completed testnet payments and independent NEAR settlement evidence. No account or wallet required.</span>
+      </a>
+      <div className="eyebrow">MERCHANT WORKSPACE · FURTHER TESTING</div>
       <h1>{mode === "register" ? "Create your merchant account" : "Sign in"}</h1>
       <p className="workspace-subtitle">{mode === "register" ? "Set up your checkout workspace. Buyers do not need Pelargo accounts." : "Access your merchant account."}</p>
       <form onSubmit={submit}>
@@ -123,7 +128,6 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (merchant: Merchant)
         <button className="primary-button auth-submit" disabled={busy}>{busy ? (mode === "register" ? "Creating account…" : "Signing in…") : mode === "register" ? "Create account" : "Sign in"} {busy ? <RefreshCw size={15} className="auth-submit-spinner" /> : <ArrowUpRight size={15} />}</button>
       </form>
       <p className="auth-switch">{mode === "register" ? "Already have an account?" : "New to Pelargo?"} <button type="button" onClick={() => { setMode(mode === "register" ? "login" : "register"); setError(""); }}>{mode === "register" ? "Sign in" : "Create an account"}</button></p>
-      <p className="auth-switch"><a className="judge-demo-auth-link" href="/judge-demo">Explore the judge demo <ArrowUpRight size={13}/></a></p>
       <p className="auth-footnote">Merchant accounts are for configuring checkout. Payment execution remains subject to network and settlement controls.</p>
     </div>
   </div>;

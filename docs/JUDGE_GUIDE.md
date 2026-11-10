@@ -1,7 +1,8 @@
 # Pelargo judge guide
 
 **Purpose:** a short, reproducible path for human judges and automated repository evaluators (Claude Code and Codex).  
-**Public demo:** https://main.pelargo.pages.dev  
+**Start here: no-signup judge demo:** https://main.pelargo.pages.dev/judge-demo  
+**Further testing: merchant workspace:** https://main.pelargo.pages.dev  
 **Repository:** https://github.com/BigWave45/Pelargo  
 **Scope:** isolated Cloudflare Pages Preview, Base Sepolia and NEAR testnet. This is not a production payment endpoint.
 
@@ -15,17 +16,19 @@ NEAR is the settlement home, not a placeholder or an interchangeable destination
 
 ## 2. Judge paths
 
-### Fast path: no signup
+### Start here: no signup
 
 Open https://main.pelargo.pages.dev/judge-demo.
 
+This is the recommended first stop for both automated repository evaluators (Claude Code and Codex) and human judges. It presents the product's completed testnet evidence immediately, without requiring registration, wallet connection or a payment action.
+
 This dedicated read-only page shows two previously completed Base Sepolia to NEAR testnet payments, including their source and destination transaction hashes, amounts, assets, blocks and explorer links. It requires no merchant account, wallet connection or payment action. The records are historical evidence from the isolated Preview environment, not live activity. The page does not read merchant accounts or query the provider/database, and it cannot create orders, request quotes, reconcile payments, verify new source hashes, change settings or rotate API keys.
 
-Start here for a quick product and settlement-evidence review. The existing merchant sign-in and dashboard remain available separately.
+Use this page first for a quick product and settlement-evidence review.
 
-### Full no-funds walkthrough
+### Further testing: merchant signup and workspace
 
-Open https://main.pelargo.pages.dev.
+When a judge wants to inspect the merchant workflow, open https://main.pelargo.pages.dev and choose **Create an account** or **Sign in**. The existing merchant workspace remains available; it is the second step, not a prerequisite for reviewing the demo.
 
 
 1. Create a merchant account using a test email address and a strong password.
