@@ -5,7 +5,9 @@ This file maps Pelargo's implemented prototype to the public NEAR HACKATHON brie
 - Official event and submission instructions: https://nearhackathon.com/
 - Official builder guidance: https://nearhackathon.com/HACKATHON.md
 - Repository: https://github.com/BigWave45/Pelargo
-- Public judge demo: https://main.pelargo.pages.dev
+- **Start here: no-signup judge demo:** https://main.pelargo.pages.dev/judge-demo
+- **Further testing: merchant workspace:** https://main.pelargo.pages.dev
+- **Public demo post and video:** https://x.com/maxlensherr/status/2119318538456293558
 
 ## Best-fit track: 08 / Real-World Money
 
@@ -52,11 +54,13 @@ The strongest completed source-to-destination acceptance record is ORDER-3554196
 
 ## Judge path
 
-1. Read the [README](README.md) for the product and architecture overview.
-2. Open the [hosted judge demo](https://main.pelargo.pages.dev) and follow the no-funds walkthrough in [docs/JUDGE_GUIDE.md](docs/JUDGE_GUIDE.md). Stop at dry quote preview.
+1. **Start with the [no-signup judge demo](https://main.pelargo.pages.dev/judge-demo).** It opens directly to two historical, read-only testnet payment records and their source/destination evidence. No account, wallet connection or payment action is required.
+2. **For further hands-on testing, open the [merchant workspace](https://main.pelargo.pages.dev).** Sign up or sign in, then follow the no-funds walkthrough in the [judge guide](docs/JUDGE_GUIDE.md). Stop at dry quote preview; do not initiate a committed quote or transfer.
 3. Inspect the completed ORDER-35541967 source and destination transaction evidence and persisted merchant state in the judge guide.
 4. Read [docs/architecture.md](docs/architecture.md), [docs/threat-model.md](docs/threat-model.md) and [docs/verification-matrix.md](docs/verification-matrix.md) for system boundaries, risks and evidence classification.
 5. Review [docs/TESTING.md](docs/TESTING.md) for automated checks and adversarial settlement cases.
+
+The judge demo and merchant workspace are non-production Preview deployments using the isolated Preview environment and Preview D1 database. They are testnet demonstrations. Do not use them to collect customer funds. The production hostname remains on its separately configured production branch.
 
 ## Official evaluation context
 
@@ -66,18 +70,20 @@ The official event page says Claude Code and Codex screen projects first to chec
 
 The official event page currently requires:
 
-- [ ] Public repository.
-- [x] [Public demo post on X](https://x.com/maxlensherr/status/2119318538456293558) stating that the project was built at NEAR HACKATHON; the six-minute demo video is attached.
-- [ ] Tag @NEARProtocol and include #NEARHackathon.
-- [ ] Attach the demo video or screenshots to the public post.
-- [ ] Submit the repository link and demo-post link through the official form before 14 November 2026, 23:59 UTC.
-- [ ] Enter a NEAR account address for prize delivery if selected.
+- [x] Public repository.
+- [x] Public demo post on X stating that the project was built at NEAR HACKATHON.
+- [x] Tag @NEARProtocol and include #NEARHackathon.
+- [x] Attach the six-minute demo video to the public post.
+- [x] Submit the repository and demo-post links through the official form.
+- [x] Provide a NEAR account address for prize delivery if selected.
 
 One submission is allowed per project. The official FAQ says a wallet connection is not required to submit; the form asks for a NEAR account address. Check the official site again before submission in case organizer instructions change.
 
 ## Project demo and source
 
-- Demo: https://main.pelargo.pages.dev
+- No-signup judge demo: https://main.pelargo.pages.dev/judge-demo
+- Further testing: https://main.pelargo.pages.dev
+- Video walkthrough: https://x.com/maxlensherr/status/2119318538456293558
 - Repository: https://github.com/BigWave45/Pelargo
 - Primary evidence record: ORDER-35541967
 - Primary track: 08 / Real-World Money
