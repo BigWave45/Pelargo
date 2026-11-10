@@ -8,8 +8,8 @@ The widget is the global payment interface. NEAR is the settlement home. Other n
 
 ## Demo and source
 
-- **Current merged-main demo (Preview/testnet):** https://main.pelargo.pages.dev
-- **No-signup judge demo (read-only historical evidence):** https://main.pelargo.pages.dev/judge-demo
+- **Start here: no-signup judge demo (read-only historical evidence):** https://main.pelargo.pages.dev/judge-demo
+- **Further testing: merchant workspace (signup/sign-in, Preview/testnet):** https://main.pelargo.pages.dev
 - **NEAR HACKATHON demo post (video):** https://x.com/maxlensherr/status/2119318538456293558
 - **Release-candidate deployment:** https://release-hackathon-candidate.pelargo.pages.dev
 - **Integrated Preview (development/acceptance):** https://reliability-background-recon.pelargo.pages.dev
@@ -26,9 +26,11 @@ The widget is the global payment interface. NEAR is the settlement home. Other n
 The main and candidate URLs are non-production Preview deployments using the isolated Preview environment and Preview D1 database. They are testnet demonstrations. Do not use them to collect customer funds. The built-in production hostname, https://pelargo.pages.dev, remains on the separately configured production branch.
 
 
-## Judge walkthrough: hosted testnet checkout
+## Judge walkthrough
 
-Use the merged-main Preview deployment: **https://main.pelargo.pages.dev**. It is an isolated testnet demonstration, not a production payment endpoint.
+**Start with the no-signup judge demo:** https://main.pelargo.pages.dev/judge-demo. It opens directly to two historical, read-only testnet payment records and their source/destination evidence. No account, wallet connection or payment action is required.
+
+**For further hands-on testing, open the merchant workspace:** https://main.pelargo.pages.dev. Create a merchant account and follow the no-funds walkthrough below. This is an isolated testnet Preview, not a production payment endpoint.
 
 1. **Open the merchant workspace.** Select **Create an account**. Enter a business name, an email address you control and a password of at least 12 characters. Registration creates a merchant workspace; buyers do not need Pelargo accounts.
 2. **Configure the NEAR destination.** Open **Payment destination**. For the previously verified route, enter asset ID `nep141:usdc.tidepool-sandbox.testnet`, symbol `USDC`, network `NEAR`, and decimals `6`, plus a NEAR testnet recipient. `agentg.testnet` is the recipient in the recorded end-to-end evidence. Confirm that the asset is still returned by the live Tidepool testnet catalogue before relying on it; provider availability can change. Use a public testnet receiving address only. Save the destination.
