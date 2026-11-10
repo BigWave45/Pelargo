@@ -1,17 +1,17 @@
 # Pelargo release status
 
-**Updated:** 8 November 2026 (final testnet evidence, reconciliation audit and public demo post)  
+**Updated:** 10 November 2026 (no-signup judge demo merged and Preview deployment verified)  
 **Repository:** https://github.com/BigWave45/Pelargo  
 **Default branch:** `main`  
-**Merged release baseline:** `main` (PR #7 release consolidation; documentation updates through PR #17)  
+**Merged release baseline:** `main` (PR #7 release consolidation; documentation and judge-readiness updates through PR #20)  
 **Integrated Preview:** `reliability/background-reconciliation`  
 **Cloudflare Pages production branch:** `build/live-intents`
 
 ## Canonical release state
 
 - PR #7, "Release candidate: consolidate verified Pelargo checkout", was merged into `main`.
-- Documentation and metadata PRs #8–#17 are merged. PR #16 added the Cascade-benchmarked judge guide, hackathon mapping, architecture, threat model and verification matrix. PR #17 clarified merchant reconciliation actions and the source refund address.
-- Latest documentation merge commit before this evidence update: `14a49411a7ecb145a0d8b32fa22044270bcd31d1`.
+- Documentation and metadata PRs #8–#19 are merged. PR #20 adds an isolated, no-signup, read-only judge evidence route. PR #16 added the Cascade-benchmarked judge guide, hackathon mapping, architecture, threat model and verification matrix. PR #17 clarified merchant reconciliation actions and the source refund address.
+- Latest judge-demo merge commit: `2afa9250ed446f6c6a804bc63d0073bc8e8a63f3` (PR #20).
 - The merged release includes the verified MetaMask Connect SDK handoff for external mobile browsers, the injected EIP-1193 provider path inside MetaMask Mobile, Reown AppKit for other supported wallet sessions, matching package/lock files, and aligned README, integration, testing and status documentation.
 - The historical integrated branch's 500+ commit history was not merged wholesale. PR #4 remains closed and unused.
 - The GitHub repository's default branch is `main`.
@@ -22,15 +22,16 @@ Cloudflare Pages project: `pelargo`.
 
 - Production branch remains `build/live-intents`.
 - The stable built-in hostname `https://pelargo.pages.dev` remains attached to the existing production deployment. It has not been switched.
-- The curated release and subsequent documentation-only updates have produced Preview deployments at `https://main.pelargo.pages.dev`. The Preview deployment corresponding to the latest main-branch documentation revision has not yet been verified.
+- The latest `main` Preview deployment is successful and serves merge commit `2afa9250ed446f6c6a804bc63d0073bc8e8a63f3`.
 - That deployment is a Preview environment and uses Preview D1 database `0335acdc-f0e0-42f6-ba87-e3448fb91728`.
 - The older candidate alias remains `https://release-hackathon-candidate.pelargo.pages.dev`.
 - The integrated acceptance Preview remains `https://reliability-background-recon.pelargo.pages.dev`; it is not the recommended judge-facing demo.
-- The exact deployment baseline and commit must be checked against Cloudflare Pages before any future release claim. A GitHub merge or successful Preview build does not change the Cloudflare production branch or production database.
+- The latest verified Preview deployment is `e4b028a6-50ba-4638-a096-97bd9850d39b` (`https://e4b028a6.pelargo.pages.dev`), with alias `https://main.pelargo.pages.dev`. Build and deploy stages both succeeded. A GitHub merge or successful Preview deployment does not change the Cloudflare production branch or production database.
 
-**Recommended public demo URL:** https://main.pelargo.pages.dev
+**Recommended public demo URL:** https://main.pelargo.pages.dev  
+**No-signup judge evidence route:** https://main.pelargo.pages.dev/judge-demo
 
-This URL is short, serves the exact merged `main` commit, and does not require a paid domain. It is still a Preview/testnet deployment, not production. Do not direct real customer funds to it.
+The judge route is a static, read-only presentation of two historical completed testnet payment records. It does not require merchant signup and does not call merchant APIs, providers, D1, wallet, quote, or reconciliation actions. It is not a live payment demo and does not establish current provider availability. The main app remains available at the root URL with its existing merchant sign-in and account-creation flow. Both URLs serve a Preview/testnet deployment, not production. Do not direct real customer funds to it.
 
 ## Production promotion is separate
 
